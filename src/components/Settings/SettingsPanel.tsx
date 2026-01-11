@@ -102,20 +102,6 @@ function SettingsPanel({ currentTheme, onThemeChange }: SettingsPanelProps) {
 
   return (
     <div className="settings-panel">
-      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 'var(--spacing-lg)' }}>
-        {saveStatus && (
-          <span style={{
-            fontSize: 'var(--font-size-sm)',
-            color: saveStatus === 'Saved!' ? 'var(--color-accent)' : '#ff6b6b',
-            padding: 'var(--spacing-xs) var(--spacing-sm)',
-            background: 'var(--color-surface)',
-            borderRadius: 'var(--radius-sm)',
-            animation: 'fadeIn 0.2s ease'
-          }}>
-            {saveStatus}
-          </span>
-        )}
-      </div>
 
       {/* Profile Section */}
       <section style={{ marginBottom: 'var(--spacing-xl)' }}>

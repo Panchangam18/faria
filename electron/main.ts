@@ -222,7 +222,24 @@ function setupIPC() {
   // History IPC
   ipcMain.handle('history:get', async () => {
     const db = initDatabase();
-    return db.prepare('SELECT * FROM history ORDER BY created_at DESC LIMIT 100').all();
+    // Convert SQLite datetime to Unix timestamp in milliseconds for proper timezone handling
+    const rows = db.prepare(`
+      SELECT 
+        id,
+        query,
+        response,
+        tools_used,
+        strftime('%s', created_at) * 1000 as created_at
+      FROM history 
+      ORDER BY created_at DESC 
+      LIMIT 100
+    `).all();
+    
+    // Convert created_at from string to number
+    return rows.map((row: any) => ({
+      ...row,
+      created_at: parseInt(row.created_at, 10)
+    }));
   });
 
   ipcMain.handle('history:add', async (_event, query: string, response: string) => {

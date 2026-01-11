@@ -30,13 +30,7 @@ function App() {
 
   return (
     <div className="app">
-      <div className="app-header">
-        <div className="app-title">
-          <span className="app-logo">F</span>
-          <span>FARIA</span>
-        </div>
-        <div className="app-subtitle">The copilot for work on a computer</div>
-      </div>
+      <div className="app-header"></div>
       
       <div className="app-content">
         <Sidebar activeTab={activeTab} onTabChange={setActiveTab} />

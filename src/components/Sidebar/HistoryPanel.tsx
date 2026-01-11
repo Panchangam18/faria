@@ -1,10 +1,11 @@
 import React, { useState, useEffect } from 'react';
+import { FileText } from 'lucide-react';
 
 interface HistoryItem {
   id: number;
   query: string;
   response: string;
-  created_at: string;
+  created_at: number; // Unix timestamp in milliseconds
 }
 
 interface GroupedHistory {
@@ -59,9 +60,10 @@ function HistoryPanel() {
   if (history.length === 0) {
     return (
       <div className="history-panel">
-        <h2 className="panel-title">History</h2>
         <div className="empty-state">
-          <div className="empty-state-icon">📜</div>
+          <div className="empty-state-icon">
+            <FileText size={48} strokeWidth={1.5} />
+          </div>
           <p>No queries yet</p>
           <p style={{ fontSize: 'var(--font-size-sm)', marginTop: 'var(--spacing-sm)' }}>
             Press <kbd style={{ 
@@ -78,7 +80,6 @@ function HistoryPanel() {
 
   return (
     <div className="history-panel">
-      <h2 className="panel-title">History</h2>
       
       {Object.entries(grouped).map(([date, items]) => (
         <div key={date} className="date-group">

@@ -26,6 +26,7 @@
     "dotenv": "^17.2.3",
     "electron-store": "^8.2.0",
     "langsmith": "^0.4.5",
+    "lucide-react": "^0.562.0",
     "uuid": "^10.0.0"
   },
   "devDependencies": {

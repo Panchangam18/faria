@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { Wrench, Trash2 } from 'lucide-react';
 
 interface CustomTool {
   id: string;
@@ -34,13 +35,11 @@ function ToolboxPanel() {
   if (tools.length === 0) {
     return (
       <div className="toolbox-panel">
-        <h2 className="panel-title">Toolbox</h2>
         <div className="empty-state">
-          <div className="empty-state-icon">🧰</div>
+          <div className="empty-state-icon">
+            <Wrench size={48} strokeWidth={1.5} />
+          </div>
           <p>No custom tools yet</p>
-          <p style={{ fontSize: 'var(--font-size-sm)', marginTop: 'var(--spacing-sm)' }}>
-            Faria will create tools automatically when it learns new skills
-          </p>
         </div>
       </div>
     );
@@ -48,7 +47,6 @@ function ToolboxPanel() {
 
   return (
     <div className="toolbox-panel">
-      <h2 className="panel-title">Toolbox</h2>
       
       <div className="card">
         {tools.map((tool) => (
@@ -97,11 +95,12 @@ function ToolboxPanel() {
                     color: 'var(--color-text-muted)',
                     cursor: 'pointer',
                     padding: 'var(--spacing-xs)',
-                    fontSize: '16px'
+                    display: 'flex',
+                    alignItems: 'center'
                   }}
                   title="Delete tool"
                 >
-                  🗑️
+                  <Trash2 size={16} />
                 </button>
               </div>
             </div>

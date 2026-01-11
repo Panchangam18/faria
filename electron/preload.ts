@@ -76,7 +76,7 @@ export interface FariaAPI {
       id: number;
       query: string;
       response: string;
-      created_at: string;
+      created_at: number; // Unix timestamp in milliseconds
     }>>;
     add: (query: string, response: string) => Promise<{ success: boolean }>;
   };
