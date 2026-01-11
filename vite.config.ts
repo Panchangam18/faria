@@ -14,7 +14,14 @@ export default defineConfig({
           build: {
             outDir: 'dist-electron',
             rollupOptions: {
-              external: ['better-sqlite3']
+              external: [
+                'better-sqlite3',
+                '@langchain/core',
+                '@langchain/anthropic',
+                'langsmith',
+                'dotenv',
+                '@anthropic-ai/sdk',
+              ]
             }
           }
         }

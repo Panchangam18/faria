@@ -35,6 +35,7 @@ export function initDatabase(): Database.Database {
       id INTEGER PRIMARY KEY AUTOINCREMENT,
       query TEXT NOT NULL,
       response TEXT,
+      tools_used TEXT,
       created_at DATETIME DEFAULT CURRENT_TIMESTAMP
     );
 
@@ -63,6 +64,13 @@ export function initDatabase(): Database.Database {
     CREATE INDEX IF NOT EXISTS idx_custom_tools_usage ON custom_tools(usage_count DESC);
     CREATE INDEX IF NOT EXISTS idx_app_registry_name ON app_registry(name);
   `);
+
+  // Migration: Add tools_used column if it doesn't exist
+  const historyColumns = db.prepare("PRAGMA table_info(history)").all() as Array<{ name: string }>;
+  if (!historyColumns.some(col => col.name === 'tools_used')) {
+    db.exec('ALTER TABLE history ADD COLUMN tools_used TEXT');
+    console.log('[DB] Added tools_used column to history table');
+  }
 
   return db;
 }

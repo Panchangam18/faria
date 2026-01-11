@@ -1,9 +1,15 @@
-import Anthropic from '@anthropic-ai/sdk';
+import { ChatAnthropic } from '@langchain/anthropic';
+import { HumanMessage, SystemMessage, AIMessage, ToolMessage } from '@langchain/core/messages';
 import { BrowserWindow } from 'electron';
 import { StateExtractor, AppState } from '../services/state-extractor';
 import { ToolExecutor, ToolDefinition } from './tools';
-import { LettaClient } from './letta-client';
+import { AgentMemory } from './langchain-agent';
 import { initDatabase } from '../db/sqlite';
+import { traceable } from 'langsmith/traceable';
+import { getLangchainCallbacks } from 'langsmith/langchain';
+
+// Load environment variables for LangSmith tracing
+import 'dotenv/config';
 
 interface AgentConfig {
   model: string;
@@ -47,12 +53,13 @@ DO: Take action immediately, report success/failure briefly.`;
 /**
  * Agent Loop Controller
  * Orchestrates the agent's reasoning and action cycle
+ * Now uses LangChain for LangSmith tracing
  */
 export class AgentLoop {
   private stateExtractor: StateExtractor;
   private toolExecutor: ToolExecutor;
-  private lettaClient: LettaClient | null = null;
-  private anthropic: Anthropic | null = null;
+  private memory: AgentMemory;
+  private model: ChatAnthropic | null = null;
   private config: AgentConfig;
   private isRunning = false;
   private shouldCancel = false;
@@ -60,7 +67,15 @@ export class AgentLoop {
   constructor(stateExtractor: StateExtractor, toolExecutor: ToolExecutor) {
     this.stateExtractor = stateExtractor;
     this.toolExecutor = toolExecutor;
+    this.memory = new AgentMemory();
     this.config = DEFAULT_CONFIG;
+    
+    // Log LangSmith status
+    if (process.env.LANGCHAIN_API_KEY && process.env.LANGCHAIN_TRACING_V2 === 'true') {
+      console.log('[LangSmith] Tracing enabled for project:', process.env.LANGCHAIN_PROJECT || 'default');
+    } else {
+      console.log('[LangSmith] Tracing not configured. Set LANGCHAIN_API_KEY and LANGCHAIN_TRACING_V2=true in .env');
+    }
     
     this.initializeClients();
   }
@@ -74,14 +89,13 @@ export class AgentLoop {
     // Get Anthropic API key
     const anthropicKey = db.prepare('SELECT value FROM settings WHERE key = ?').get('anthropicKey') as { value: string } | undefined;
     if (anthropicKey?.value) {
-      this.anthropic = new Anthropic({ apiKey: anthropicKey.value });
-    }
-    
-    // Get Letta API key
-    const lettaKey = db.prepare('SELECT value FROM settings WHERE key = ?').get('lettaKey') as { value: string } | undefined;
-    if (lettaKey?.value) {
-      this.lettaClient = new LettaClient(lettaKey.value);
-      await this.lettaClient.initialize();
+      // Use LangChain's ChatAnthropic which automatically integrates with LangSmith
+      this.model = new ChatAnthropic({
+        model: this.config.model,
+        anthropicApiKey: anthropicKey.value,
+        maxTokens: this.config.maxTokens,
+      });
+      console.log('[Faria] LangChain ChatAnthropic initialized');
     }
   }
   
@@ -104,128 +118,147 @@ export class AgentLoop {
       // Refresh API clients in case keys were updated
       await this.initializeClients();
       
-      if (!this.anthropic) {
+      if (!this.model) {
         throw new Error('Anthropic API key not configured. Please add it in Settings.');
       }
       
       // Set the target app for tools to use
       this.toolExecutor.setTargetApp(targetApp || null);
       
+      // Run the traceable agent loop - this creates a single parent trace in LangSmith
+      // with all iterations nested underneath
+      const result = await this.executeAgentLoop(query, targetApp);
+      
+      this.sendResponse(result);
+      return result;
+    } finally {
+      this.isRunning = false;
+    }
+  }
+  
+  /**
+   * The core agent loop wrapped with LangSmith traceable
+   * This ensures all iterations appear under a single trace
+   */
+  private executeAgentLoop = traceable(
+    async (query: string, targetApp?: string | null): Promise<string> => {
       // Extract initial state
       this.sendStatus('Extracting state...');
       let state = await this.stateExtractor.extractState();
       this.toolExecutor.setCurrentState(state);
       
-      // Get memory context from Letta
-      let memoryContext = '';
-      if (this.lettaClient?.isConfigured()) {
-        memoryContext = await this.lettaClient.getContext();
-      }
+      // Get memory context
+      const memoryContext = this.memory.getMemoryContext();
       
-      // Build initial messages
-      const messages: Anthropic.MessageParam[] = [
-        {
-          role: 'user',
-          content: this.buildUserPrompt(query, state, memoryContext),
-        },
+      // Build initial messages for LangChain
+      const messages: (SystemMessage | HumanMessage | AIMessage | ToolMessage)[] = [
+        new SystemMessage(SYSTEM_PROMPT),
+        new HumanMessage(this.buildUserPrompt(query, state, memoryContext)),
       ];
       
-      // Get tool definitions
-      const tools = this.toolExecutor.getToolDefinitions().map(this.convertToolDefinition);
+      // Get tool definitions and bind to model
+      const tools = this.toolExecutor.getToolDefinitions().map(this.convertToLangChainTool);
+      const modelWithTools = this.model!.bindTools(tools);
       
       let iterations = 0;
       let finalResponse = '';
+      const toolsUsed: string[] = [];
       
-    while (iterations < this.config.maxIterations && !this.shouldCancel) {
-      iterations++;
-      
-      this.sendStatus('Thinking...');
-      console.log(`[Faria] Iteration ${iterations}/${this.config.maxIterations}`);
-      
-      const response = await this.anthropic.messages.create({
-        model: this.config.model,
-        max_tokens: this.config.maxTokens,
-        system: SYSTEM_PROMPT,
-        messages,
-        tools,
-      });
-      
-      console.log(`[Faria] Response stop_reason: ${response.stop_reason}`);
-      
-      // Process response
-      if (response.stop_reason === 'end_turn') {
-        // Agent is done
-        const textContent = response.content.find(c => c.type === 'text');
-        finalResponse = textContent?.text || 'Task completed.';
-        console.log(`[Faria] Final response: ${finalResponse.slice(0, 200)}...`);
-        break;
-      }
-      
-      if (response.stop_reason === 'tool_use') {
-        // Execute tool calls
-        const toolUses = response.content.filter(c => c.type === 'tool_use');
-        const toolResults: Anthropic.MessageParam['content'] = [];
+      while (iterations < this.config.maxIterations && !this.shouldCancel) {
+        iterations++;
         
-        for (const toolUse of toolUses) {
-          if (toolUse.type !== 'tool_use') continue;
+        this.sendStatus('Thinking...');
+        console.log(`[Faria] Iteration ${iterations}/${this.config.maxIterations}`);
+        
+        // Get LangChain callbacks that connect to the parent LangSmith trace
+        // This ensures model calls appear as children of this agent loop trace
+        const callbacks = await getLangchainCallbacks();
+        
+        // Call LangChain model with callbacks to nest under parent trace
+        const response = await modelWithTools.invoke(messages, {
+          callbacks,
+          tags: ['faria', 'agent-loop'],
+          metadata: {
+            targetApp,
+            iteration: iterations,
+            query: query.slice(0, 100),
+          },
+        });
+        
+        console.log(`[Faria] Response received, tool_calls:`, response.tool_calls?.length || 0);
+        
+        // Check if there are tool calls
+        if (response.tool_calls && response.tool_calls.length > 0) {
+          // Add the assistant's response with tool calls first
+          messages.push(new AIMessage({
+            content: response.content as string || '',
+            tool_calls: response.tool_calls,
+          }));
           
-          console.log(`[Faria] Tool call: ${toolUse.name}`, JSON.stringify(toolUse.input).slice(0, 500));
-          this.sendStatus(`${this.getToolDisplayName(toolUse.name)}...`);
-          
-          const result = await this.toolExecutor.execute(
-            toolUse.name,
-            toolUse.input as Record<string, unknown>
-          );
-          
-          console.log(`[Faria] Tool result: ${result.success ? 'SUCCESS' : 'FAILED'}`, result.result?.slice(0, 200) || result.error);
-          
-          // Handle screenshot specially
-          let resultContent: string;
-          if (toolUse.name === 'take_screenshot' && result.success && result.result?.startsWith('data:image')) {
-            resultContent = '[Screenshot captured]';
-          } else {
-            resultContent = result.success ? (result.result || 'Done') : `Error: ${result.error}`;
+          // Execute tool calls and add ToolMessage for each
+          for (const toolCall of response.tool_calls) {
+            console.log(`[Faria] Tool call: ${toolCall.name}`, JSON.stringify(toolCall.args).slice(0, 500));
+            this.sendStatus(`${this.getToolDisplayName(toolCall.name)}...`);
+            toolsUsed.push(toolCall.name);
+            
+            const result = await this.toolExecutor.execute(
+              toolCall.name,
+              toolCall.args as Record<string, unknown>
+            );
+            
+            console.log(`[Faria] Tool result: ${result.success ? 'SUCCESS' : 'FAILED'}`, result.result?.slice(0, 200) || result.error);
+            
+            const resultContent = result.success ? (result.result || 'Done') : `Error: ${result.error}`;
+            
+            // Add proper ToolMessage with tool_call_id
+            messages.push(new ToolMessage({
+              content: resultContent,
+              tool_call_id: toolCall.id || toolCall.name,
+            }));
           }
           
-          toolResults.push({
-            type: 'tool_result',
-            tool_use_id: toolUse.id,
-            content: resultContent,
-          });
+          // Refresh state after tool execution
+          this.sendStatus('Checking result...');
+          state = await this.stateExtractor.extractState();
+          this.toolExecutor.setCurrentState(state);
+          
+          // Add updated state context as a human message
+          messages.push(new HumanMessage(`Updated state:\n${this.stateExtractor.formatForAgent(state)}`));
+        } else {
+          // No tool calls - agent is done
+          finalResponse = typeof response.content === 'string' 
+            ? response.content 
+            : 'Task completed.';
+          console.log(`[Faria] Final response: ${finalResponse.slice(0, 200)}...`);
+          break;
         }
-        
-        // Add assistant response and tool results to messages
-        messages.push({ role: 'assistant', content: response.content });
-        messages.push({ role: 'user', content: toolResults });
-        
-        // Refresh state after tool execution
-        this.sendStatus('Checking result...');
-        state = await this.stateExtractor.extractState();
-        this.toolExecutor.setCurrentState(state);
-        
-        // Add updated state context
-        messages.push({
-          role: 'user',
-          content: `Updated state:\n${this.stateExtractor.formatForAgent(state)}`,
-        });
       }
-    }
       
-      // Update Letta memory
-      if (this.lettaClient?.isConfigured()) {
-        await this.lettaClient.updateMemory(query, finalResponse);
+      // Store interaction in memory
+      this.memory.storeMessage('default', 'user', query);
+      this.memory.storeMessage('default', 'assistant', finalResponse);
+      
+      // If tools were used, store as a skill memory
+      if (toolsUsed.length > 0) {
+        this.memory.storeMemory('skill', `For "${query.slice(0, 50)}..." used tools: ${toolsUsed.join(', ')}`);
       }
       
       // Save to history
       const db = initDatabase();
-      db.prepare('INSERT INTO history (query, response) VALUES (?, ?)').run(query, finalResponse);
+      db.prepare('INSERT INTO history (query, response, tools_used) VALUES (?, ?, ?)').run(
+        query, 
+        finalResponse,
+        toolsUsed.length > 0 ? JSON.stringify(toolsUsed) : null
+      );
       
-      this.sendResponse(finalResponse);
       return finalResponse;
-    } finally {
-      this.isRunning = false;
+    },
+    {
+      name: 'faria-agent-loop',
+      run_type: 'chain',
+      tags: ['faria', 'agent'],
     }
-  }
+  );
   
   /**
    * Cancel the current run
@@ -241,7 +274,6 @@ export class AgentLoop {
     const parts: string[] = [];
     
     if (memoryContext) {
-      parts.push('=== Memory Context ===');
       parts.push(memoryContext);
       parts.push('');
     }
@@ -255,13 +287,13 @@ export class AgentLoop {
   }
   
   /**
-   * Convert tool definition to Anthropic format
+   * Convert tool definition to LangChain format
    */
-  private convertToolDefinition(tool: ToolDefinition): Anthropic.Tool {
+  private convertToLangChainTool(tool: ToolDefinition) {
     return {
       name: tool.name,
       description: tool.description,
-      input_schema: tool.parameters as Anthropic.Tool['input_schema'],
+      schema: tool.parameters,
     };
   }
   
@@ -307,4 +339,3 @@ export class AgentLoop {
     });
   }
 }
-
