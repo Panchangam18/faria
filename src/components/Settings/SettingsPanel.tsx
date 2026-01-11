@@ -103,7 +103,6 @@ function SettingsPanel({ currentTheme, onThemeChange }: SettingsPanelProps) {
   return (
     <div className="settings-panel">
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 'var(--spacing-lg)' }}>
-        <h2 className="panel-title" style={{ marginBottom: 0 }}>Settings</h2>
         {saveStatus && (
           <span style={{
             fontSize: 'var(--font-size-sm)',
@@ -257,7 +256,7 @@ function SettingsPanel({ currentTheme, onThemeChange }: SettingsPanelProps) {
           marginBottom: 'var(--spacing-md)',
           color: 'var(--color-text-muted)'
         }}>
-          Color Palette
+          Theme
         </h3>
         
         <div style={{ 
