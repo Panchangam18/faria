@@ -1,9 +1,15 @@
-import React, { useState, useEffect, useRef, useCallback } from 'react';
+import React, { useState, useEffect, useRef, useCallback, useLayoutEffect } from 'react';
 
 const MODELS = [
   { id: 'claude-sonnet-4-20250514', name: 'Claude Sonnet 4' },
   { id: 'claude-3-5-sonnet-20241022', name: 'Claude 3.5 Sonnet' },
 ];
+
+// Line height is 15px * 1.5 = 22.5px, round to 23px
+const LINE_HEIGHT = 23;
+const MAX_LINES = 10;
+const MAX_TEXTAREA_HEIGHT = LINE_HEIGHT * MAX_LINES; // 230px for 10 lines
+const BASE_HEIGHT = 80; // Footer + padding
 
 function CommandBar() {
   const [query, setQuery] = useState('');
@@ -13,6 +19,33 @@ function CommandBar() {
   const [selectedModel, setSelectedModel] = useState(MODELS[0]);
   const [showModelMenu, setShowModelMenu] = useState(false);
   const inputRef = useRef<HTMLTextAreaElement>(null);
+
+  // Resize window based on textarea content - runs synchronously after DOM updates
+  useLayoutEffect(() => {
+    const textarea = inputRef.current;
+    if (!textarea) return;
+    
+    // Collapse to 0 to get true content height (no flexbox interference now)
+    textarea.style.height = '0px';
+    textarea.style.overflow = 'hidden';
+    
+    // Read the true content height
+    const scrollHeight = textarea.scrollHeight;
+    const contentHeight = Math.max(LINE_HEIGHT, Math.min(scrollHeight, MAX_TEXTAREA_HEIGHT));
+    textarea.style.height = `${contentHeight}px`;
+    
+    // Only enable scrolling when content exceeds max height
+    if (scrollHeight > MAX_TEXTAREA_HEIGHT) {
+      textarea.style.overflow = 'auto';
+      textarea.classList.add('scrollable');
+    } else {
+      textarea.classList.remove('scrollable');
+    }
+    
+    // Calculate and set window height
+    const totalHeight = BASE_HEIGHT + contentHeight + (response ? 100 : 0);
+    window.faria.commandBar.resize(totalHeight);
+  }, [query, response]); // Re-run whenever query or response changes
 
   useEffect(() => {
     // Focus input when command bar becomes visible
@@ -69,15 +102,7 @@ function CommandBar() {
 
   const handleInputChange = (e: React.ChangeEvent<HTMLTextAreaElement>) => {
     setQuery(e.target.value);
-    // Auto-resize
-    const textarea = e.target;
-    textarea.style.height = 'auto';
-    const newHeight = Math.min(textarea.scrollHeight, 150);
-    textarea.style.height = `${newHeight}px`;
-    
-    // Resize window to fit content
-    const totalHeight = 80 + newHeight + (response ? 100 : 0);
-    window.faria.commandBar.resize(totalHeight);
+    // Resizing is handled by useLayoutEffect when query changes
   };
 
   return (

@@ -56,7 +56,7 @@ function createCommandBarWindow() {
   
   commandBarWindow = new BrowserWindow({
     width: 600,
-    height: 200,
+    height: 103, // Single line: 80 (base) + 23 (one line)
     x: Math.round((screenWidth - 600) / 2),
     y: Math.round(screenHeight - 300),
     frame: false,
@@ -64,7 +64,7 @@ function createCommandBarWindow() {
     alwaysOnTop: true,
     skipTaskbar: true,
     resizable: false,
-    movable: false,
+    movable: true,
     show: false,
     vibrancy: 'under-window',
     visualEffectState: 'active',
@@ -291,7 +291,8 @@ function setupIPC() {
   ipcMain.on('command-bar:resize', (_event, height: number) => {
     if (commandBarWindow) {
       const [width] = commandBarWindow.getSize();
-      commandBarWindow.setSize(width, Math.min(Math.max(height, 80), 400));
+      // Min: ~100 (single line), Max: ~410 (10 lines + response area)
+      commandBarWindow.setSize(width, Math.min(Math.max(height, 100), 450));
     }
   });
 
