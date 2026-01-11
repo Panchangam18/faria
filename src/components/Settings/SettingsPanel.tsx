@@ -249,7 +249,7 @@ function SettingsPanel({ currentTheme, onThemeChange }: SettingsPanelProps) {
         </div>
       </section>
 
-      {/* Color Palette Section */}
+      {/* Theme Section */}
       <section>
         <h3 style={{ 
           fontSize: 'var(--font-size-md)', 
