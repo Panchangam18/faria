@@ -1,0 +1,100 @@
+/* Faria Theme System */
+
+:root {
+  /* Default Theme - Shadow Grey / Almond Cream / Khaki Beige */
+  --color-primary: #272932;
+  --color-secondary: #EAE0D5;
+  --color-accent: #C6AC8F;
+  
+  /* Derived colors */
+  --color-primary-light: #363845;
+  --color-primary-dark: #1a1b22;
+  --color-secondary-muted: rgba(234, 224, 213, 0.7);
+  --color-accent-hover: #d4bc9f;
+  --color-accent-active: #b89c7f;
+  
+  /* UI colors */
+  --color-background: var(--color-primary);
+  --color-surface: var(--color-primary-light);
+  --color-text: var(--color-secondary);
+  --color-text-muted: var(--color-secondary-muted);
+  --color-border: rgba(234, 224, 213, 0.15);
+  --color-hover: rgba(234, 224, 213, 0.08);
+  
+  /* Shadows */
+  --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.3);
+  --shadow-md: 0 4px 6px rgba(0, 0, 0, 0.4);
+  --shadow-lg: 0 10px 25px rgba(0, 0, 0, 0.5);
+  
+  /* Transitions */
+  --transition-fast: 150ms ease;
+  --transition-normal: 250ms ease;
+  
+  /* Spacing */
+  --spacing-xs: 4px;
+  --spacing-sm: 8px;
+  --spacing-md: 16px;
+  --spacing-lg: 24px;
+  --spacing-xl: 32px;
+  
+  /* Border radius */
+  --radius-sm: 4px;
+  --radius-md: 8px;
+  --radius-lg: 12px;
+  --radius-xl: 16px;
+  
+  /* Typography */
+  --font-family: 'SF Pro Display', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+  --font-family-mono: 'SF Mono', 'Fira Code', monospace;
+  --font-size-xs: 11px;
+  --font-size-sm: 13px;
+  --font-size-md: 15px;
+  --font-size-lg: 18px;
+  --font-size-xl: 24px;
+}
+
+/* Midnight Theme - GitHub Dark Inspired */
+[data-theme="midnight"] {
+  --color-primary: #0D1117;
+  --color-secondary: #C9D1D9;
+  --color-accent: #58A6FF;
+  
+  --color-primary-light: #161B22;
+  --color-primary-dark: #010409;
+  --color-secondary-muted: rgba(201, 209, 217, 0.7);
+  --color-accent-hover: #79B8FF;
+  --color-accent-active: #388BFD;
+  
+  --color-background: var(--color-primary);
+  --color-surface: var(--color-primary-light);
+  --color-text: var(--color-secondary);
+  --color-text-muted: var(--color-secondary-muted);
+  --color-border: rgba(201, 209, 217, 0.1);
+  --color-hover: rgba(201, 209, 217, 0.05);
+}
+
+/* Forest Theme - Nature Tones */
+[data-theme="forest"] {
+  --color-primary: #1A2F1A;
+  --color-secondary: #E8F5E8;
+  --color-accent: #7CB342;
+  
+  --color-primary-light: #243524;
+  --color-primary-dark: #0F1C0F;
+  --color-secondary-muted: rgba(232, 245, 232, 0.7);
+  --color-accent-hover: #8BC34A;
+  --color-accent-active: #689F38;
+  
+  --color-background: var(--color-primary);
+  --color-surface: var(--color-primary-light);
+  --color-text: var(--color-secondary);
+  --color-text-muted: var(--color-secondary-muted);
+  --color-border: rgba(232, 245, 232, 0.1);
+  --color-hover: rgba(232, 245, 232, 0.05);
+}
+
+/* Custom Theme - User can override via CSS variables */
+[data-theme="custom"] {
+  /* These will be set dynamically via JavaScript */
+}
+
