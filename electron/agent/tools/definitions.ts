@@ -47,16 +47,14 @@ export const toolDefinitions: ToolDefinition[] = [
   },
   {
     name: 'click',
-    description: 'Click at a location. Can use element ID from state (e.g., 12) or coordinates (e.g., {x: 100, y: 200})',
+    description: 'Click at screen coordinates. Use the coordinates shown in the state (e.g., @(553,132) means x=553, y=132)',
     parameters: {
       type: 'object',
       properties: {
-        target: { 
-          type: 'string', 
-          description: 'Element ID number or JSON coordinates {x, y}'
-        },
+        x: { type: 'number', description: 'X coordinate on screen' },
+        y: { type: 'number', description: 'Y coordinate on screen' },
       },
-      required: ['target'],
+      required: ['x', 'y'],
     },
   },
   {

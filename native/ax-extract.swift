@@ -13,7 +13,6 @@ import Foundation
 // MARK: - Data Structures
 
 struct Element: Codable {
-    let id: Int
     let role: String
     let label: String?
     let value: String?
@@ -92,7 +91,7 @@ func shouldInclude(_ role: String) -> Bool {
     return interactiveRoles.contains(role) || textRoles.contains(role)
 }
 
-func extractElement(_ axElement: AXUIElement, id: Int) -> Element? {
+func extractElement(_ axElement: AXUIElement) -> Element? {
     guard let role: String = getAXValue(axElement, kAXRoleAttribute as String) else {
         return nil
     }
@@ -145,7 +144,6 @@ func extractElement(_ axElement: AXUIElement, id: Int) -> Element? {
     let finalLabel = label ?? roleDesc
 
     return Element(
-        id: id,
         role: role.replacingOccurrences(of: "AX", with: ""),
         label: finalLabel,
         value: value,
@@ -180,7 +178,7 @@ func findScrollArea(_ root: AXUIElement, depth: Int = 0) -> AXUIElement? {
     return nil
 }
 
-func extractAllElements(_ root: AXUIElement, elements: inout [Element], idCounter: inout Int, depth: Int = 0, maxElements: Int = 50, skipBrowserChrome: Bool = false) {
+func extractAllElements(_ root: AXUIElement, elements: inout [Element], depth: Int = 0, maxElements: Int = 50, skipBrowserChrome: Bool = false) {
     // Limit recursion depth and element count
     guard depth < 20 && elements.count < maxElements else { return }
 
@@ -192,9 +190,8 @@ func extractAllElements(_ root: AXUIElement, elements: inout [Element], idCounte
     }
 
     // Try to extract this element
-    if let elem = extractElement(root, id: idCounter) {
+    if let elem = extractElement(root) {
         elements.append(elem)
-        idCounter += 1
     }
 
     // Get children and recurse
@@ -204,7 +201,7 @@ func extractAllElements(_ root: AXUIElement, elements: inout [Element], idCounte
 
     for child in childArray {
         if elements.count >= maxElements { break }
-        extractAllElements(child, elements: &elements, idCounter: &idCounter, depth: depth + 1, maxElements: maxElements, skipBrowserChrome: skipBrowserChrome)
+        extractAllElements(child, elements: &elements, depth: depth + 1, maxElements: maxElements, skipBrowserChrome: skipBrowserChrome)
     }
 }
 
@@ -222,7 +219,6 @@ func getFocusedElement(_ app: AXUIElement) -> Element? {
     let rect = getRect(focusedElement as! AXUIElement)
 
     return Element(
-        id: 0,
         role: role.replacingOccurrences(of: "AX", with: ""),
         label: title,
         value: value,
@@ -263,7 +259,6 @@ func extractState() -> ExtractionResult {
 
     // Extract elements from window (or app if no window)
     var elements: [Element] = []
-    var idCounter = 1
 
     // Check if this is a browser - if so, prioritize web content
     let browsers = ["Safari", "Google Chrome", "Arc", "Chromium", "Brave Browser", "Microsoft Edge", "Firefox"]
@@ -273,16 +268,16 @@ func extractState() -> ExtractionResult {
         if isBrowser {
             // For browsers, try to find the scroll area (web content) first
             if let scrollArea = findScrollArea(win as! AXUIElement) {
-                extractAllElements(scrollArea, elements: &elements, idCounter: &idCounter, maxElements: 75, skipBrowserChrome: true)
+                extractAllElements(scrollArea, elements: &elements, maxElements: 75, skipBrowserChrome: true)
             } else {
                 // Fall back to window but skip browser chrome
-                extractAllElements(win as! AXUIElement, elements: &elements, idCounter: &idCounter, maxElements: 75, skipBrowserChrome: true)
+                extractAllElements(win as! AXUIElement, elements: &elements, maxElements: 75, skipBrowserChrome: true)
             }
         } else {
-            extractAllElements(win as! AXUIElement, elements: &elements, idCounter: &idCounter, maxElements: 75, skipBrowserChrome: false)
+            extractAllElements(win as! AXUIElement, elements: &elements, maxElements: 75, skipBrowserChrome: false)
         }
     } else {
-        extractAllElements(appElement, elements: &elements, idCounter: &idCounter, maxElements: 75, skipBrowserChrome: false)
+        extractAllElements(appElement, elements: &elements, maxElements: 75, skipBrowserChrome: false)
     }
 
     return ExtractionResult(

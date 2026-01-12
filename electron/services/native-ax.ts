@@ -14,7 +14,6 @@ export interface NativeRect {
 }
 
 export interface NativeElement {
-  id: number;
   role: string;
   label?: string;
   value?: string;
@@ -67,7 +66,7 @@ export async function extractViaNativeAX(): Promise<NativeExtractionResult> {
 
 /**
  * Format native extraction result for agent context
- * All elements with coordinates are clickable - in web apps, anything can be a click target
+ * Elements shown with coordinates for clicking
  */
 export function formatNativeState(result: NativeExtractionResult): string {
   const lines: string[] = [];
@@ -86,15 +85,15 @@ export function formatNativeState(result: NativeExtractionResult): string {
     lines.push(focusLine);
   }
 
-  // All elements are potentially clickable - show them all with IDs
+  // Show elements with coordinates
   if (result.elements.length > 0) {
     lines.push('');
-    lines.push('Elements (click by ID):');
+    lines.push('Elements:');
     for (const elem of result.elements) {
       const label = elem.label || elem.value || '';
       const truncLabel = label.length > 50 ? label.slice(0, 50) + '...' : label;
 
-      let line = `[${elem.id}] ${elem.role}`;
+      let line = `- ${elem.role}`;
       if (truncLabel) line += ` "${truncLabel}"`;
       if (elem.rect) line += ` @(${elem.rect.x},${elem.rect.y})`;
       if (!elem.enabled) line += ' [disabled]';
@@ -103,20 +102,6 @@ export function formatNativeState(result: NativeExtractionResult): string {
   }
 
   return lines.join('\n');
-}
-
-/**
- * Get element coordinates by ID
- */
-export function getElementById(result: NativeExtractionResult, id: number): { x: number; y: number } | null {
-  const elem = result.elements.find(e => e.id === id);
-  if (elem?.rect) {
-    return {
-      x: elem.rect.x + elem.rect.w / 2,
-      y: elem.rect.y + elem.rect.h / 2,
-    };
-  }
-  return null;
 }
 
 /**

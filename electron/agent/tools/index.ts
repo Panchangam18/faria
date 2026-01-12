@@ -91,7 +91,7 @@ export class ToolExecutor {
         case 'send_hotkey':
           return await sendHotkey(params as { modifiers?: string[]; key: string }, context);
         case 'click':
-          return await click(params as { target: string }, context);
+          return await click(params as { x: number; y: number }, context);
         case 'scroll':
           return await scroll(params as { direction: 'up' | 'down' | 'left' | 'right'; amount?: number });
         case 'focus_app':

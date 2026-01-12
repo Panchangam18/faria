@@ -33,8 +33,8 @@ export async function executeCustomTool(
     builtInTools: {
       sendKeystrokes: (text: string) => cliSendKeystrokes(text),
       sendHotkey: (mods: string[], key: string) => cliSendHotkey(mods, key),
-      click: async (target: string) => {
-        const result = await click({ target }, context);
+      click: async (x: number, y: number) => {
+        const result = await click({ x, y }, context);
         if (!result.success) throw new Error(result.error);
       },
       executeScript: async (app: string, code: string) => {

@@ -71,8 +71,6 @@ function createCommandBarWindow() {
     hasShadow: true,
     // Critical for overlay behavior - don't take focus from other apps
     focusable: true,
-    // Show on all workspaces/spaces
-    visibleOnAllWorkspaces: true,
     // macOS specific: float above full-screen apps
     fullscreenable: false,
     // Keep it as a panel/overlay type window
@@ -86,6 +84,8 @@ function createCommandBarWindow() {
   
   // Set the window level to be above everything (floating panel)
   commandBarWindow.setAlwaysOnTop(true, 'floating', 1);
+  // Show on all workspaces/spaces
+  commandBarWindow.setVisibleOnAllWorkspaces(true);
 
   if (isDev) {
     commandBarWindow.loadURL('http://localhost:5173/command-bar.html');

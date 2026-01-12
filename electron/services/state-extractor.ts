@@ -126,34 +126,6 @@ export class StateExtractor {
     return lines.join('\n');
   }
 
-  /**
-   * Get element by ID from state
-   */
-  getElementById(state: AppState, id: number): { x: number; y: number } | null {
-    // Check native state
-    if (state.nativeState) {
-      const elem = state.nativeState.elements.find(e => e.id === id);
-      if (elem?.rect) {
-        return {
-          x: elem.rect.x + elem.rect.w / 2,
-          y: elem.rect.y + elem.rect.h / 2,
-        };
-      }
-    }
-
-    // Check browser state
-    if (state.browserState) {
-      const elem = state.browserState.elements.find(e => e.id === id);
-      if (elem) {
-        return {
-          x: elem.rect.x + elem.rect.w / 2,
-          y: elem.rect.y + elem.rect.h / 2,
-        };
-      }
-    }
-
-    return null;
-  }
 }
 
 /**
@@ -176,11 +148,11 @@ function formatBrowserStateCompact(state: BrowserState): string {
 
   if (state.elements.length > 0) {
     lines.push('');
-    lines.push('Clickable:');
+    lines.push('Elements:');
     // Limit to 30 most relevant elements
     const limited = state.elements.slice(0, 30);
     for (const elem of limited) {
-      let line = `[${elem.id}] ${elem.tag}`;
+      let line = `- ${elem.tag}`;
       if (elem.text) line += ` "${elem.text.slice(0, 40)}"`;
       if (elem.type) line += ` type=${elem.type}`;
       line += ` @(${elem.rect.x},${elem.rect.y})`;

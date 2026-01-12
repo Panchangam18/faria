@@ -1,7 +1,6 @@
 import { executeJavaScriptInBrowser, escapeForAppleScript } from './applescript';
 
 export interface BrowserElement {
-  id: number;
   tag: string;
   text?: string;
   role?: string;
@@ -76,7 +75,6 @@ const EXTRACTION_SCRIPT = `
         seen.add(posKey);
 
         const element = {
-          id: elements.length + 1,
           tag: el.tagName,
           text: text.slice(0, 80),
           role: el.getAttribute('role'),
@@ -226,12 +224,12 @@ export function formatBrowserState(state: BrowserState): string {
     lines.push('');
     lines.push('Interactive elements:');
     state.elements.forEach((elem) => {
-      let line = `[${elem.id}] ${elem.tag}`;
+      let line = `- ${elem.tag}`;
       if (elem.role) line += `[role=${elem.role}]`;
       if (elem.text) line += ` "${elem.text.slice(0, 50)}"`;
       if (elem.type) line += ` type=${elem.type}`;
       if (elem.placeholder) line += ` placeholder="${elem.placeholder}"`;
-      line += ` (${elem.rect.x},${elem.rect.y})`;
+      line += ` @(${elem.rect.x},${elem.rect.y})`;
       lines.push(line);
     });
   }
