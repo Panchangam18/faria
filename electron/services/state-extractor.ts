@@ -1,9 +1,10 @@
 import { getFrontmostApp } from './applescript';
 import { extractViaNativeAX, formatNativeState, hasUsefulContent, NativeExtractionResult } from './native-ax';
 import { extractViaJSInjection, isBrowser, getBrowserType, BrowserState } from './js-injection';
+import { takeScreenshot } from './screenshot';
 import { AppRegistry } from './app-registry';
 
-export type ExtractionMethod = 'native_ax' | 'js_injection';
+export type ExtractionMethod = 'native_ax' | 'js_injection' | 'screenshot';
 
 export interface AppState {
   method: ExtractionMethod;
@@ -14,6 +15,8 @@ export interface AppState {
   nativeState?: NativeExtractionResult;
   // Browser state (enhanced for web apps)
   browserState?: BrowserState;
+  // Screenshot fallback (last resort for Electron apps, etc.)
+  screenshot?: string;
   // Formatted text for agent
   formatted: string;
   timestamp: number;
@@ -72,14 +75,28 @@ export class StateExtractor {
       }
     }
 
-    // Default: use native AX result (even if limited)
+    // If we have useful native AX content, use it
+    if (hasUsefulContent(nativeResult)) {
+      return {
+        method: 'native_ax',
+        appName,
+        bundleId,
+        windowTitle: nativeResult.windowTitle,
+        nativeState: nativeResult,
+        formatted: formatNativeState(nativeResult),
+        timestamp,
+      };
+    }
+
+    // Last resort: screenshot fallback (for Electron apps, etc.)
+    const screenshot = await takeScreenshot();
     return {
-      method: 'native_ax',
+      method: 'screenshot',
       appName,
       bundleId,
       windowTitle: nativeResult.windowTitle,
-      nativeState: nativeResult,
-      formatted: formatNativeState(nativeResult),
+      screenshot,
+      formatted: `App: ${appName}\nWindow: ${nativeResult.windowTitle || 'Unknown'}\n\n[No structured UI data available - screenshot provided for visual context]`,
       timestamp,
     };
   }
@@ -100,6 +117,11 @@ export class StateExtractor {
     lines.push(`=== Current Application State ===`);
     lines.push('');
     lines.push(state.formatted);
+
+    if (state.screenshot) {
+      lines.push('');
+      lines.push('[Screenshot attached for visual reference]');
+    }
 
     return lines.join('\n');
   }

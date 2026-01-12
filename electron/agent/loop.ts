@@ -154,7 +154,9 @@ export class AgentLoop {
       const userPrompt = this.buildUserPrompt(query, state, memoryContext);
       const messages: (SystemMessage | HumanMessage | AIMessage | ToolMessage)[] = [
         new SystemMessage(SYSTEM_PROMPT),
-        new HumanMessage(userPrompt),
+        typeof userPrompt === 'string'
+          ? new HumanMessage(userPrompt)
+          : new HumanMessage({ content: userPrompt }),
       ];
       
       // Get tool definitions and bind to model
@@ -223,10 +225,19 @@ export class AgentLoop {
           this.sendStatus('Checking result...');
           state = await this.stateExtractor.extractState();
           this.toolExecutor.setCurrentState(state);
-          
-          // Add updated state context as a human message
+
+          // Add updated state context as a human message (with screenshot if fallback)
           const stateText = `Updated state:\n${this.stateExtractor.formatForAgent(state)}`;
-          messages.push(new HumanMessage(stateText));
+          if (state.screenshot) {
+            messages.push(new HumanMessage({
+              content: [
+                { type: 'text', text: stateText },
+                { type: 'image_url', image_url: { url: state.screenshot } },
+              ],
+            }));
+          } else {
+            messages.push(new HumanMessage(stateText));
+          }
         } else {
           // No tool calls - agent is done
           finalResponse = typeof response.content === 'string' 
@@ -272,8 +283,9 @@ export class AgentLoop {
   
   /**
    * Build the user prompt with state context
+   * Returns multimodal content if screenshot is present
    */
-  private buildUserPrompt(query: string, state: AppState, memoryContext: string): string {
+  private buildUserPrompt(query: string, state: AppState, memoryContext: string): string | Array<{ type: string; text?: string; image_url?: { url: string } }> {
     const parts: string[] = [];
 
     if (memoryContext) {
@@ -286,7 +298,17 @@ export class AgentLoop {
     parts.push('=== User Request ===');
     parts.push(query);
 
-    return parts.join('\n');
+    const textContent = parts.join('\n');
+
+    // If screenshot fallback, include image
+    if (state.screenshot) {
+      return [
+        { type: 'text', text: textContent },
+        { type: 'image_url', image_url: { url: state.screenshot } },
+      ];
+    }
+
+    return textContent;
   }
   
   /**
