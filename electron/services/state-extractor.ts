@@ -1,158 +1,124 @@
-import { getFrontmostApp, getAppBundleId } from './applescript';
-import { extractViaJSInjection, isBrowser, getBrowserType, formatBrowserState, BrowserState } from './js-injection';
-import { extractViaAppleScript, hasAppleScriptDictionary, formatAppleScriptState, AppleScriptState } from './applescript-extraction';
-import { extractViaAccessibility, isUsefulTree, formatAccessibilityState, AccessibilityState } from './accessibility';
-import { takeScreenshot } from './screenshot';
+import { getFrontmostApp } from './applescript';
+import { extractViaNativeAX, formatNativeState, hasUsefulContent, NativeExtractionResult } from './native-ax';
+import { extractViaJSInjection, isBrowser, getBrowserType, BrowserState } from './js-injection';
 import { AppRegistry } from './app-registry';
 
-export type ExtractionTier = 1 | 2 | 3 | 4;
-export type ExtractionMethod = 'js_injection' | 'applescript' | 'accessibility' | 'screenshot';
+export type ExtractionMethod = 'native_ax' | 'js_injection';
 
 export interface AppState {
-  tier: ExtractionTier;
   method: ExtractionMethod;
   appName: string;
   bundleId?: string;
+  windowTitle?: string;
+  // Native AX state (primary)
+  nativeState?: NativeExtractionResult;
+  // Browser state (enhanced for web apps)
   browserState?: BrowserState;
-  appleScriptState?: AppleScriptState;
-  accessibilityState?: AccessibilityState;
-  screenshot?: string;
+  // Formatted text for agent
   formatted: string;
   timestamp: number;
 }
 
 export class StateExtractor {
-  private appRegistry: AppRegistry;
-  
-  constructor(appRegistry: AppRegistry) {
-    this.appRegistry = appRegistry;
+  // Keep appRegistry for potential future use with app-specific extraction
+  constructor(_appRegistry: AppRegistry) {
+    // App registry available for future app-specific logic
   }
-  
+
   /**
    * Extract state from the currently focused application
-   * Uses tiered approach: JS Injection → AppleScript → Accessibility → Screenshot
+   * Uses native accessibility as primary method
+   * No images - pure structured data
    */
   async extractState(): Promise<AppState> {
-    const appName = await getFrontmostApp();
-    const bundleId = await getAppBundleId(appName) || undefined;
     const timestamp = Date.now();
-    
-    // Tier 1: JavaScript injection for browsers
-    if (isBrowser(appName)) {
+
+    // Primary: Native accessibility extraction
+    const nativeResult = await extractViaNativeAX();
+    const appName = nativeResult.app;
+    const bundleId = nativeResult.bundleId;
+
+    // For browsers, we can optionally enhance with JS injection
+    // but native AX already gives us good data
+    if (isBrowser(appName) && hasUsefulContent(nativeResult)) {
+      // Native AX works well for browsers too - use it
+      return {
+        method: 'native_ax',
+        appName,
+        bundleId,
+        windowTitle: nativeResult.windowTitle,
+        nativeState: nativeResult,
+        formatted: formatNativeState(nativeResult),
+        timestamp,
+      };
+    }
+
+    // For browsers where native AX failed, try JS injection as fallback
+    if (isBrowser(appName) && !hasUsefulContent(nativeResult)) {
       const browserType = getBrowserType(appName);
       if (browserType) {
-        // extractViaJSInjection handles its own error logging gracefully
         const browserState = await extractViaJSInjection(browserType);
         if (browserState && browserState.elements.length > 0) {
           return {
-            tier: 1,
             method: 'js_injection',
             appName,
             bundleId,
+            windowTitle: browserState.title,
             browserState,
-            formatted: formatBrowserState(browserState),
+            formatted: formatBrowserStateCompact(browserState),
             timestamp,
           };
         }
-        // Falls through to other tiers if JS injection returns null or no elements
       }
     }
-    
-    // Tier 2: AppleScript for apps with rich dictionaries
-    if (await hasAppleScriptDictionary(appName)) {
-      try {
-        const asState = await extractViaAppleScript(appName);
-        if (asState) {
-          return {
-            tier: 2,
-            method: 'applescript',
-            appName,
-            bundleId,
-            appleScriptState: asState,
-            formatted: formatAppleScriptState(asState),
-            timestamp,
-          };
-        }
-      } catch (error) {
-        console.error('AppleScript extraction failed, falling through:', error);
-      }
-    }
-    
-    // Tier 3: Accessibility API (universal fallback)
-    try {
-      const axState = await extractViaAccessibility();
-      if (isUsefulTree(axState)) {
-        return {
-          tier: 3,
-          method: 'accessibility',
-          appName,
-          bundleId,
-          accessibilityState: axState,
-          formatted: formatAccessibilityState(axState),
-          timestamp,
-        };
-      }
-      
-      // Tier 4: Screenshot (last resort)
-      // Include accessibility data even if not useful, plus screenshot
-      const screenshot = await takeScreenshot();
-      return {
-        tier: 4,
-        method: 'screenshot',
-        appName,
-        bundleId,
-        accessibilityState: axState,
-        screenshot,
-        formatted: `App: ${appName}\n[Screenshot provided - visual analysis required]`,
-        timestamp,
-      };
-    } catch (error) {
-      console.error('Accessibility extraction failed:', error);
-      
-      // Last resort: just screenshot
-      const screenshot = await takeScreenshot();
-      return {
-        tier: 4,
-        method: 'screenshot',
-        appName,
-        bundleId,
-        screenshot,
-        formatted: `App: ${appName}\n[Screenshot provided - visual analysis required]`,
-        timestamp,
-      };
-    }
+
+    // Default: use native AX result (even if limited)
+    return {
+      method: 'native_ax',
+      appName,
+      bundleId,
+      windowTitle: nativeResult.windowTitle,
+      nativeState: nativeResult,
+      formatted: formatNativeState(nativeResult),
+      timestamp,
+    };
   }
-  
+
   /**
    * Get the currently focused app name
    */
   async getFocusedApp(): Promise<string> {
     return getFrontmostApp();
   }
-  
+
   /**
    * Format state for agent context prompt
    */
   formatForAgent(state: AppState): string {
     const lines: string[] = [];
-    
+
     lines.push(`=== Current Application State ===`);
-    lines.push(`Extraction Method: Tier ${state.tier} (${state.method})`);
     lines.push('');
     lines.push(state.formatted);
-    
-    if (state.screenshot) {
-      lines.push('');
-      lines.push('[Screenshot attached for visual reference]');
-    }
-    
+
     return lines.join('\n');
   }
-  
+
   /**
    * Get element by ID from state
    */
   getElementById(state: AppState, id: number): { x: number; y: number } | null {
+    // Check native state
+    if (state.nativeState) {
+      const elem = state.nativeState.elements.find(e => e.id === id);
+      if (elem?.rect) {
+        return {
+          x: elem.rect.x + elem.rect.w / 2,
+          y: elem.rect.y + elem.rect.h / 2,
+        };
+      }
+    }
+
     // Check browser state
     if (state.browserState) {
       const elem = state.browserState.elements.find(e => e.id === id);
@@ -163,19 +129,42 @@ export class StateExtractor {
         };
       }
     }
-    
-    // Check accessibility state
-    if (state.accessibilityState) {
-      const elem = state.accessibilityState.elements.find(e => e.id === id);
-      if (elem && elem.position) {
-        return {
-          x: elem.position.x,
-          y: elem.position.y,
-        };
-      }
-    }
-    
+
     return null;
   }
 }
 
+/**
+ * Compact formatter for browser state (fallback only)
+ */
+function formatBrowserStateCompact(state: BrowserState): string {
+  const lines: string[] = [];
+
+  lines.push(`App: Browser`);
+  lines.push(`URL: ${state.url}`);
+  lines.push(`Title: ${state.title}`);
+
+  if (state.focusedElement) {
+    let focusedLine = `Focused: ${state.focusedElement}`;
+    if (state.cursorPosition !== undefined && state.cursorPosition !== null) {
+      focusedLine += ` cursor=${state.cursorPosition}`;
+    }
+    lines.push(focusedLine);
+  }
+
+  if (state.elements.length > 0) {
+    lines.push('');
+    lines.push('Clickable:');
+    // Limit to 30 most relevant elements
+    const limited = state.elements.slice(0, 30);
+    for (const elem of limited) {
+      let line = `[${elem.id}] ${elem.tag}`;
+      if (elem.text) line += ` "${elem.text.slice(0, 40)}"`;
+      if (elem.type) line += ` type=${elem.type}`;
+      line += ` @(${elem.rect.x},${elem.rect.y})`;
+      lines.push(line);
+    }
+  }
+
+  return lines.join('\n');
+}

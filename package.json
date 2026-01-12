@@ -4,8 +4,9 @@
   "description": "Faria - The copilot for work on a computer",
   "main": "dist-electron/main.js",
   "scripts": {
-    "dev": "vite",
-    "build": "tsc && vite build && electron-builder",
+    "dev": "npm run build:native && vite",
+    "build": "npm run build:native && tsc && vite build && electron-builder",
+    "build:native": "swiftc -O -o native/ax-extract native/ax-extract.swift",
     "preview": "vite preview",
     "typecheck": "tsc --noEmit"
   },
@@ -69,6 +70,10 @@
         "filter": [
           "**/*"
         ]
+      },
+      {
+        "from": "native/ax-extract",
+        "to": "native/ax-extract"
       }
     ]
   }

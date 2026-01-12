@@ -45,20 +45,40 @@ const EXTRACTION_SCRIPT = `
     
     // Get interactive elements in viewport
     const elements = [];
-    const selectors = 'button, input, textarea, a, [role="button"], [role="link"], [role="textbox"], [onclick], select';
-    
-    document.querySelectorAll(selectors).forEach((el, i) => {
+    const seen = new Set();
+
+    // Standard interactive elements
+    const selectors = 'button, input, textarea, a, select, [role="button"], [role="link"], [role="textbox"], [role="listitem"], [role="option"], [role="menuitem"], [onclick], [data-action], [aria-label], [tabindex="0"]';
+
+    document.querySelectorAll(selectors).forEach((el) => {
+      if (elements.length >= 60) return;
+
       const rect = el.getBoundingClientRect();
-      
-      // Only include elements in viewport
-      if (rect.top >= -50 && rect.top <= window.innerHeight + 50 &&
+
+      // Only include elements in viewport with reasonable size
+      if (rect.top >= -50 && rect.top <= window.innerHeight + 100 &&
           rect.left >= -50 && rect.left <= window.innerWidth + 50 &&
-          rect.width > 0 && rect.height > 0) {
-        
+          rect.width > 10 && rect.height > 10) {
+
+        // Get meaningful text - try multiple sources
+        let text = el.getAttribute('aria-label') ||
+                   el.getAttribute('title') ||
+                   el.innerText?.slice(0, 100).trim() ||
+                   el.value ||
+                   el.placeholder || '';
+
+        // Skip if no meaningful text and not an input
+        if (!text && el.tagName !== 'INPUT' && el.tagName !== 'TEXTAREA') return;
+
+        // Dedupe by position (avoid overlapping elements)
+        const posKey = Math.round(rect.x/20) + ',' + Math.round(rect.y/20);
+        if (seen.has(posKey) && text.length < 5) return;
+        seen.add(posKey);
+
         const element = {
           id: elements.length + 1,
           tag: el.tagName,
-          text: (el.textContent || el.value || '').slice(0, 100).trim(),
+          text: text.slice(0, 80),
           role: el.getAttribute('role'),
           rect: {
             x: Math.round(rect.x),
@@ -67,18 +87,18 @@ const EXTRACTION_SCRIPT = `
             h: Math.round(rect.height)
           }
         };
-        
+
         // Add href for links
         if (el.tagName === 'A') {
           element.href = el.href;
         }
-        
+
         // Add type and placeholder for inputs
         if (el.tagName === 'INPUT') {
           element.type = el.type;
           element.placeholder = el.placeholder;
         }
-        
+
         elements.push(element);
       }
     });
