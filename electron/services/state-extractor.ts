@@ -41,22 +41,20 @@ export class StateExtractor {
     if (isBrowser(appName)) {
       const browserType = getBrowserType(appName);
       if (browserType) {
-        try {
-          const browserState = await extractViaJSInjection(browserType);
-          if (browserState && browserState.elements.length > 0) {
-            return {
-              tier: 1,
-              method: 'js_injection',
-              appName,
-              bundleId,
-              browserState,
-              formatted: formatBrowserState(browserState),
-              timestamp,
-            };
-          }
-        } catch (error) {
-          console.error('JS injection failed, falling through:', error);
+        // extractViaJSInjection handles its own error logging gracefully
+        const browserState = await extractViaJSInjection(browserType);
+        if (browserState && browserState.elements.length > 0) {
+          return {
+            tier: 1,
+            method: 'js_injection',
+            appName,
+            bundleId,
+            browserState,
+            formatted: formatBrowserState(browserState),
+            timestamp,
+          };
         }
+        // Falls through to other tiers if JS injection returns null or no elements
       }
     }
     

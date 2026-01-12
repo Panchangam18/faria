@@ -7,7 +7,6 @@
     "dev": "vite",
     "build": "tsc && vite build && electron-builder",
     "preview": "vite preview",
-    "electron:dev": "concurrently \"vite\" \"electron .\"",
     "typecheck": "tsc --noEmit"
   },
   "keywords": [

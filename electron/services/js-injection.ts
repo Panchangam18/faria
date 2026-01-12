@@ -112,6 +112,18 @@ const EXTRACTION_SCRIPT = `
 })()
 `;
 
+// Track browsers that have shown permission errors to avoid spamming logs
+const browserPermissionWarned = new Set<string>();
+
+/**
+ * Check if error is a Safari JavaScript permission error
+ */
+function isSafariPermissionError(error: unknown): boolean {
+  const message = error instanceof Error ? error.message : String(error);
+  return message.includes("Allow JavaScript from Apple Events") || 
+         message.includes("do JavaScript");
+}
+
 /**
  * Extract state from a browser via JavaScript injection
  */
@@ -134,6 +146,17 @@ export async function extractViaJSInjection(
     
     return parsed as BrowserState;
   } catch (error) {
+    // Handle Safari's JavaScript permission requirement gracefully
+    if (browser === 'Safari' && isSafariPermissionError(error)) {
+      if (!browserPermissionWarned.has(browser)) {
+        console.warn(
+          '[Faria] Safari JS injection unavailable - enable "Allow JavaScript from Apple Events" in Safari > Settings > Developer to enable rich browser state. Falling back to accessibility/screenshot methods.'
+        );
+        browserPermissionWarned.add(browser);
+      }
+      return null;
+    }
+    
     console.error('Failed to extract state via JS injection:', error);
     return null;
   }

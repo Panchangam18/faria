@@ -12,6 +12,76 @@ export interface AppleScriptState {
  * App-specific AppleScript extraction scripts
  */
 const APP_EXTRACTORS: Record<string, string> = {
+  'Safari': `
+    tell application "Safari"
+      try
+        set currentURL to URL of current tab of front window
+        set pageTitle to name of current tab of front window
+        set tabCount to count of tabs of front window
+        
+        -- Get list of all tab names
+        set tabNames to ""
+        repeat with i from 1 to tabCount
+          set tabNames to tabNames & i & ": " & name of tab i of front window & "\\n"
+        end repeat
+        
+        -- Get text content from page (requires JS permission, fallback if not available)
+        set pageText to ""
+        try
+          set pageText to do JavaScript "document.body.innerText.slice(0, 2000)" in current tab of front window
+        on error
+          set pageText to "[JS not enabled - enable 'Allow JavaScript from Apple Events' in Safari Developer settings for richer content]"
+        end try
+        
+        return "url:" & currentURL & "|title:" & pageTitle & "|tabs:" & tabCount & "|tablist:\\n" & tabNames & "|content:" & pageText
+      on error errMsg
+        return "error:" & errMsg
+      end try
+    end tell
+  `,
+  
+  'Google Chrome': `
+    tell application "Google Chrome"
+      try
+        set currentURL to URL of active tab of front window
+        set pageTitle to title of active tab of front window
+        set tabCount to count of tabs of front window
+        
+        -- Get list of all tab titles
+        set tabNames to ""
+        repeat with i from 1 to tabCount
+          set tabNames to tabNames & i & ": " & title of tab i of front window & "\\n"
+        end repeat
+        
+        -- Get text content from page
+        set pageText to ""
+        try
+          set pageText to execute active tab of front window javascript "document.body.innerText.slice(0, 2000)"
+        on error
+          set pageText to ""
+        end try
+        
+        return "url:" & currentURL & "|title:" & pageTitle & "|tabs:" & tabCount & "|tablist:\\n" & tabNames & "|content:" & pageText
+      on error errMsg
+        return "error:" & errMsg
+      end try
+    end tell
+  `,
+  
+  'Arc': `
+    tell application "Arc"
+      try
+        set currentURL to URL of active tab of front window
+        set pageTitle to title of active tab of front window
+        set tabCount to count of tabs of front window
+        
+        return "url:" & currentURL & "|title:" & pageTitle & "|tabs:" & tabCount
+      on error errMsg
+        return "error:" & errMsg
+      end try
+    end tell
+  `,
+  
   'Microsoft Word': `
     tell application "Microsoft Word"
       try
@@ -253,6 +323,19 @@ export function formatAppleScriptState(state: AppleScriptState): string {
   
   lines.push(`App: ${state.appName}`);
   
+  // Handle browser-specific fields first
+  if (state.additionalInfo?.url) {
+    lines.push(`URL: ${state.additionalInfo.url}`);
+  }
+  
+  if (state.additionalInfo?.title) {
+    lines.push(`Title: ${state.additionalInfo.title}`);
+  }
+  
+  if (state.additionalInfo?.tabs) {
+    lines.push(`Open tabs: ${state.additionalInfo.tabs}`);
+  }
+  
   if (state.documentName) {
     lines.push(`Document: ${state.documentName}`);
   }
@@ -261,15 +344,26 @@ export function formatAppleScriptState(state: AppleScriptState): string {
     lines.push(`Selection: "${state.selection.slice(0, 200)}"`);
   }
   
+  // Print remaining additionalInfo (excluding already-printed browser fields)
   if (state.additionalInfo) {
+    const browserFields = ['url', 'title', 'tabs', 'tablist'];
     Object.entries(state.additionalInfo).forEach(([key, value]) => {
-      lines.push(`${key}: ${value}`);
+      if (!browserFields.includes(key)) {
+        lines.push(`${key}: ${value}`);
+      }
     });
+    
+    // Print tab list if available
+    if (state.additionalInfo.tablist) {
+      lines.push('');
+      lines.push('Tabs:');
+      lines.push(state.additionalInfo.tablist);
+    }
   }
   
   if (state.documentContent) {
     lines.push('');
-    lines.push('Content:');
+    lines.push('Page content:');
     lines.push(state.documentContent.slice(0, 1000));
   }
   

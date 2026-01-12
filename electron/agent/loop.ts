@@ -151,9 +151,12 @@ export class AgentLoop {
       const memoryContext = this.memory.getMemoryContext();
       
       // Build initial messages for LangChain
+      const userPrompt = this.buildUserPrompt(query, state, memoryContext);
       const messages: (SystemMessage | HumanMessage | AIMessage | ToolMessage)[] = [
         new SystemMessage(SYSTEM_PROMPT),
-        new HumanMessage(this.buildUserPrompt(query, state, memoryContext)),
+        typeof userPrompt === 'string' 
+          ? new HumanMessage(userPrompt)
+          : new HumanMessage({ content: userPrompt }),
       ];
       
       // Get tool definitions and bind to model
@@ -163,6 +166,23 @@ export class AgentLoop {
       let iterations = 0;
       let finalResponse = '';
       const toolsUsed: string[] = [];
+      
+      // Helper to strip images from older messages to prevent token bloat
+      const stripOldImages = () => {
+        for (let i = 0; i < messages.length - 1; i++) {
+          const msg = messages[i];
+          if (msg instanceof HumanMessage && Array.isArray(msg.content)) {
+            // Replace image content with placeholder text
+            const hasImage = msg.content.some((c: { type: string }) => c.type === 'image_url');
+            if (hasImage) {
+              const textParts = msg.content
+                .filter((c: { type: string }) => c.type === 'text')
+                .map((c: { type: string; text?: string }) => c.text || '');
+              messages[i] = new HumanMessage(textParts.join('\n') + '\n[Previous screenshot removed to save context]');
+            }
+          }
+        }
+      };
       
       while (iterations < this.config.maxIterations && !this.shouldCancel) {
         iterations++;
@@ -222,8 +242,20 @@ export class AgentLoop {
           state = await this.stateExtractor.extractState();
           this.toolExecutor.setCurrentState(state);
           
-          // Add updated state context as a human message
-          messages.push(new HumanMessage(`Updated state:\n${this.stateExtractor.formatForAgent(state)}`));
+          // Add updated state context as a human message (with screenshot if available)
+          const stateText = `Updated state:\n${this.stateExtractor.formatForAgent(state)}`;
+          if (state.screenshot) {
+            // Remove images from older messages to prevent token bloat
+            stripOldImages();
+            messages.push(new HumanMessage({
+              content: [
+                { type: 'text', text: stateText },
+                { type: 'image_url', image_url: { url: state.screenshot } },
+              ],
+            }));
+          } else {
+            messages.push(new HumanMessage(stateText));
+          }
         } else {
           // No tool calls - agent is done
           finalResponse = typeof response.content === 'string' 
@@ -269,8 +301,9 @@ export class AgentLoop {
   
   /**
    * Build the user prompt with state context
+   * Returns either a string (text only) or content array (with images)
    */
-  private buildUserPrompt(query: string, state: AppState, memoryContext: string): string {
+  private buildUserPrompt(query: string, state: AppState, memoryContext: string): string | Array<{ type: string; text?: string; image_url?: { url: string } }> {
     const parts: string[] = [];
     
     if (memoryContext) {
@@ -283,7 +316,23 @@ export class AgentLoop {
     parts.push('=== User Request ===');
     parts.push(query);
     
-    return parts.join('\n');
+    const textContent = parts.join('\n');
+    
+    // If we have a screenshot, return multimodal content
+    if (state.screenshot) {
+      return [
+        { type: 'text', text: textContent },
+        { 
+          type: 'image_url', 
+          image_url: { 
+            // state.screenshot already includes "data:image/png;base64," prefix
+            url: state.screenshot 
+          } 
+        },
+      ];
+    }
+    
+    return textContent;
   }
   
   /**

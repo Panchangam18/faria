@@ -7,12 +7,41 @@ import { v4 as uuidv4 } from 'uuid';
 
 const execAsync = promisify(exec);
 
+// Max dimension for screenshots to reduce token usage (Claude vision handles this well)
+const MAX_SCREENSHOT_DIMENSION = 1568;
+
+/**
+ * Resize an image using sips (built into macOS)
+ * Maintains aspect ratio, resizes to fit within maxDimension
+ */
+async function resizeImage(inputPath: string, outputPath: string, maxDimension: number): Promise<void> {
+  // Get current dimensions
+  const { stdout: dimensions } = await execAsync(
+    `sips -g pixelWidth -g pixelHeight "${inputPath}" | tail -2 | awk '{print $2}'`
+  );
+  const [width, height] = dimensions.trim().split('\n').map(Number);
+  
+  // Only resize if larger than max dimension
+  if (width > maxDimension || height > maxDimension) {
+    // Determine which dimension to constrain
+    if (width >= height) {
+      await execAsync(`sips --resampleWidth ${maxDimension} "${inputPath}" --out "${outputPath}"`, { timeout: 10000 });
+    } else {
+      await execAsync(`sips --resampleHeight ${maxDimension} "${inputPath}" --out "${outputPath}"`, { timeout: 10000 });
+    }
+  } else {
+    // Just copy if already small enough
+    await execAsync(`cp "${inputPath}" "${outputPath}"`);
+  }
+}
+
 /**
  * Capture a screenshot of the entire screen
- * Returns base64 encoded PNG
+ * Returns base64 encoded PNG, resized to reduce token usage
  */
 export async function takeScreenshot(): Promise<string> {
   const tempPath = join(tmpdir(), `faria-screenshot-${uuidv4()}.png`);
+  const resizedPath = join(tmpdir(), `faria-screenshot-${uuidv4()}-resized.png`);
   
   try {
     // Use screencapture command (built into macOS)
@@ -20,17 +49,22 @@ export async function takeScreenshot(): Promise<string> {
       timeout: 5000,
     });
     
-    // Read the file and convert to base64
-    const imageBuffer = await readFile(tempPath);
+    // Resize to reduce token usage
+    await resizeImage(tempPath, resizedPath, MAX_SCREENSHOT_DIMENSION);
+    
+    // Read the resized file and convert to base64
+    const imageBuffer = await readFile(resizedPath);
     const base64 = imageBuffer.toString('base64');
     
-    // Clean up temp file
+    // Clean up temp files
     await unlink(tempPath).catch(() => {});
+    await unlink(resizedPath).catch(() => {});
     
     return `data:image/png;base64,${base64}`;
   } catch (error) {
-    // Clean up temp file on error
+    // Clean up temp files on error
     await unlink(tempPath).catch(() => {});
+    await unlink(resizedPath).catch(() => {});
     throw new Error(`Screenshot failed: ${(error as Error).message}`);
   }
 }

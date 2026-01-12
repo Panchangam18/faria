@@ -33,17 +33,12 @@ Faria is an AI-powered desktop assistant that helps you accomplish tasks across 
    # and place in resources/cliclick
    ```
 
-3. Start the development server:
+3. Start the app:
    ```bash
    npm run dev
    ```
 
-4. In a new terminal, start Electron:
-   ```bash
-   npm run electron:dev
-   ```
-
-5. On first launch:
+4. On first launch:
    - Go to Settings
    - Enter your Anthropic API key
    - Grant Accessibility permissions when prompted
