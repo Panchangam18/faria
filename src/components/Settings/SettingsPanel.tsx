@@ -12,6 +12,12 @@ interface CustomPalette {
   accent: string;
 }
 
+interface CommandBarPosition {
+  x: number;
+  y: number;
+  width: number;
+}
+
 const PRESET_THEMES = [
   { 
     id: 'default', 
@@ -40,6 +46,11 @@ function SettingsPanel({ currentTheme, onThemeChange }: SettingsPanelProps) {
   const [customPalettes, setCustomPalettes] = useState<CustomPalette[]>([]);
   const [showCustomForm, setShowCustomForm] = useState(false);
   const [saveStatus, setSaveStatus] = useState<string | null>(null);
+  const [commandBarPosition, setCommandBarPosition] = useState<CommandBarPosition>({
+    x: 0,
+    y: 0,
+    width: 600,
+  });
   const [newPalette, setNewPalette] = useState<CustomPalette>({
     name: '',
     primary: '#272932',
@@ -57,12 +68,19 @@ function SettingsPanel({ currentTheme, onThemeChange }: SettingsPanelProps) {
     const savedAnthropicKey = await window.faria.settings.get('anthropicKey');
     const savedLettaKey = await window.faria.settings.get('lettaKey');
     const savedCustomPalettes = await window.faria.settings.get('customPalettes');
+    const savedCommandBarPosition = await window.faria.settings.get('commandBarPosition');
 
     if (savedFirstName) setFirstName(savedFirstName);
     if (savedLastName) setLastName(savedLastName);
     if (savedAnthropicKey) setAnthropicKey(savedAnthropicKey);
     if (savedLettaKey) setLettaKey(savedLettaKey);
     if (savedCustomPalettes) setCustomPalettes(JSON.parse(savedCustomPalettes));
+    if (savedCommandBarPosition) {
+      setCommandBarPosition(JSON.parse(savedCommandBarPosition));
+    } else {
+      // Set sensible defaults based on screen size (will be centered)
+      setCommandBarPosition({ x: Math.round(window.screen.width / 2 - 300), y: Math.round(window.screen.height - 300), width: 600 });
+    }
   };
 
   const saveSettings = async (key: string, value: string) => {
@@ -230,6 +248,129 @@ function SettingsPanel({ currentTheme, onThemeChange }: SettingsPanelProps) {
                   {showLettaKey ? 'Hide' : 'Show'}
                 </button>
               </div>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      {/* Command Bar Section */}
+      <section style={{ marginBottom: 'var(--spacing-xl)' }}>
+        <h3 style={{ 
+          fontSize: 'var(--font-size-md)', 
+          marginBottom: 'var(--spacing-md)',
+          color: 'var(--color-text-muted)'
+        }}>
+          Command Bar Position
+        </h3>
+        
+        <div className="card">
+          <div style={{ padding: 'var(--spacing-md)' }}>
+            <p style={{ 
+              fontSize: 'var(--font-size-sm)', 
+              color: 'var(--color-text-muted)',
+              marginBottom: 'var(--spacing-md)'
+            }}>
+              Set the fixed position where the command bar appears on screen.
+            </p>
+            
+            <div style={{ 
+              display: 'grid', 
+              gridTemplateColumns: '1fr 1fr 1fr', 
+              gap: 'var(--spacing-md)',
+              marginBottom: 'var(--spacing-md)'
+            }}>
+              <div>
+                <label style={{ 
+                  display: 'block', 
+                  fontSize: 'var(--font-size-sm)', 
+                  marginBottom: 'var(--spacing-xs)',
+                  color: 'var(--color-text-muted)'
+                }}>
+                  X Position (px)
+                </label>
+                <input
+                  type="number"
+                  value={commandBarPosition.x}
+                  onChange={(e) => {
+                    const newPos = { ...commandBarPosition, x: parseInt(e.target.value) || 0 };
+                    setCommandBarPosition(newPos);
+                    saveSettings('commandBarPosition', JSON.stringify(newPos));
+                  }}
+                  min={0}
+                  style={{ width: '100%' }}
+                />
+              </div>
+              <div>
+                <label style={{ 
+                  display: 'block', 
+                  fontSize: 'var(--font-size-sm)', 
+                  marginBottom: 'var(--spacing-xs)',
+                  color: 'var(--color-text-muted)'
+                }}>
+                  Y Position (px)
+                </label>
+                <input
+                  type="number"
+                  value={commandBarPosition.y}
+                  onChange={(e) => {
+                    const newPos = { ...commandBarPosition, y: parseInt(e.target.value) || 0 };
+                    setCommandBarPosition(newPos);
+                    saveSettings('commandBarPosition', JSON.stringify(newPos));
+                  }}
+                  min={0}
+                  style={{ width: '100%' }}
+                />
+              </div>
+              <div>
+                <label style={{ 
+                  display: 'block', 
+                  fontSize: 'var(--font-size-sm)', 
+                  marginBottom: 'var(--spacing-xs)',
+                  color: 'var(--color-text-muted)'
+                }}>
+                  Width (px)
+                </label>
+                <input
+                  type="number"
+                  value={commandBarPosition.width}
+                  onChange={(e) => {
+                    const newPos = { ...commandBarPosition, width: Math.max(300, parseInt(e.target.value) || 600) };
+                    setCommandBarPosition(newPos);
+                    saveSettings('commandBarPosition', JSON.stringify(newPos));
+                  }}
+                  min={300}
+                  max={1200}
+                  style={{ width: '100%' }}
+                />
+              </div>
+            </div>
+            
+            <div style={{ display: 'flex', gap: 'var(--spacing-sm)' }}>
+              <button
+                className="btn btn-secondary"
+                onClick={() => {
+                  const defaultPos = { 
+                    x: Math.round(window.screen.width / 2 - 300), 
+                    y: Math.round(window.screen.height - 300), 
+                    width: 600 
+                  };
+                  setCommandBarPosition(defaultPos);
+                  saveSettings('commandBarPosition', JSON.stringify(defaultPos));
+                }}
+              >
+                Center on Screen
+              </button>
+              <button
+                className="btn btn-secondary"
+                onClick={async () => {
+                  await window.faria.settings.set('commandBarPosition', '');
+                  setCommandBarPosition({ x: 0, y: 0, width: 600 });
+                  setSaveStatus('Position cleared - will use defaults');
+                  setTimeout(() => setSaveStatus(null), 2000);
+                }}
+              >
+                Clear (Use Defaults)
+              </button>
             </div>
           </div>
         </div>

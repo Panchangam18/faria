@@ -102,29 +102,39 @@ function createCommandBarWindow() {
   });
 }
 
+function getCommandBarSettings() {
+  const db = initDatabase();
+  const row = db.prepare('SELECT value FROM settings WHERE key = ?').get('commandBarPosition') as { value: string } | undefined;
+  if (row?.value) {
+    try {
+      return JSON.parse(row.value);
+    } catch {
+      return null;
+    }
+  }
+  return null;
+}
+
 async function positionCommandBar() {
   if (!commandBarWindow) return;
 
   const { width: screenWidth, height: screenHeight } = screen.getPrimaryDisplay().workAreaSize;
   
-  // Try to get text cursor position first
-  try {
-    const textCursorPos = await getTextCursorPosition();
-    if (textCursorPos) {
-      const x = Math.max(0, Math.min(textCursorPos.x - 300, screenWidth - 600));
-      const y = Math.max(0, Math.min(textCursorPos.y + 20, screenHeight - 200));
-      commandBarWindow.setPosition(Math.round(x), Math.round(y));
-      return;
-    }
-  } catch (e) {
-    // Fall through to mouse position
+  // Use saved position from settings
+  const savedPosition = getCommandBarSettings();
+  if (savedPosition) {
+    const x = Math.max(0, Math.min(savedPosition.x, screenWidth - savedPosition.width));
+    const y = Math.max(0, Math.min(savedPosition.y, screenHeight - 200));
+    commandBarWindow.setPosition(Math.round(x), Math.round(y));
+    commandBarWindow.setSize(savedPosition.width, commandBarWindow.getSize()[1]);
+    return;
   }
 
-  // Fall back to mouse cursor position
-  const mousePos = screen.getCursorScreenPoint();
-  const x = Math.max(0, Math.min(mousePos.x - 300, screenWidth - 600));
-  const y = Math.max(0, Math.min(mousePos.y + 20, screenHeight - 200));
-  commandBarWindow.setPosition(Math.round(x), Math.round(y));
+  // Default: center horizontally, near bottom of screen
+  const defaultWidth = 600;
+  const x = Math.round((screenWidth - defaultWidth) / 2);
+  const y = Math.round(screenHeight - 300);
+  commandBarWindow.setPosition(x, y);
 }
 
 async function getFrontmostApp(): Promise<string | null> {
