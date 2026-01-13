@@ -28,5 +28,6 @@ export interface ToolContext {
   currentState: AppState | null;
   targetApp: string | null;
   setCurrentState: (state: AppState) => void;
+  setTargetApp: (appName: string | null) => void;
 }
 

@@ -73,6 +73,10 @@ export class ToolExecutor {
       setCurrentState: (state: AppState) => {
         this.currentState = state;
       },
+      setTargetApp: (appName: string | null) => {
+        this.targetApp = appName;
+        console.log(`[Faria] Target app updated to: ${appName}`);
+      },
     };
   }
   
@@ -95,7 +99,7 @@ export class ToolExecutor {
         case 'scroll':
           return await scroll(params as { direction: 'up' | 'down' | 'left' | 'right'; amount?: number });
         case 'focus_app':
-          return await focusApp(params as { name: string });
+          return await focusApp(params as { name: string }, context);
         case 'get_state':
           return await getState(context);
         case 'take_screenshot':
