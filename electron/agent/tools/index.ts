@@ -21,6 +21,7 @@ import { runShell } from './run-shell';
 import { searchTools } from './search-tools';
 import { createTool } from './create-tool';
 import { executeCustomTool } from './execute-custom-tool';
+import { chainActions } from './chain-actions';
 
 import type { ToolResult, ToolContext } from './types';
 
@@ -111,6 +112,9 @@ export class ToolExecutor {
           return await searchTools(params as { query: string; type?: 'bm25' | 'grep' });
         case 'create_tool':
           return await createTool(params as { name: string; description: string; parameters: string; code: string });
+        case 'chain_actions':
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
+          return await chainActions(params as any, context);
         default:
           // Try custom tool
           return await executeCustomTool(toolName, params, context);
