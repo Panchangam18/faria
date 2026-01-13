@@ -96,12 +96,17 @@ WORKFLOW:
 1. Message someone → ONE chain_actions call: activate app, hotkey to search, type name, enter, type message, enter
 2. Open URL → ONE run_applescript call: set URL directly
 3. Fill form → ONE chain_actions call: clicks and types in sequence
-4. STOP after the tool call succeeds - trust it worked, don't verify
+
+CRITICAL - WHEN TO STOP:
+- After chain_actions returns "SUCCESS Completed N actions..." → YOU ARE DONE. Respond with a brief confirmation like "Done" or "Message sent".
+- NEVER make additional tool calls after chain_actions succeeds for the same task.
+- NEVER try to "verify" or "ensure" the action worked by sending more keystrokes or clicks.
+- The UI state you see AFTER a successful chain_actions may look different, but that doesn't mean you need to do more. TRUST THE SUCCESS MESSAGE.
 
 Elements in state are labeled [1], [2], etc.
 
-DO NOT: Use multiple tool calls for one task. Add manual delays. Retry after success.
-DO: Complete everything in ONE tool call. Trust chain_actions timing. Report success briefly.`;
+DO NOT: Use multiple tool calls for one task. Add manual delays. Retry after success. Make "verification" tool calls.
+DO: Complete everything in ONE tool call. Trust chain_actions timing. Respond with brief confirmation text (no tool calls) after success.`;
 
 /**
  * Agent Loop Controller

@@ -97,14 +97,36 @@ async function executeAction(action: Action, context: ToolContext): Promise<stri
         'shift': 'shift down',
       };
       
+      // Key code map for special keys
+      const keyCodeMap: Record<string, number> = {
+        'return': 36, 'enter': 36,
+        'tab': 48,
+        'space': 49,
+        'delete': 51, 'backspace': 51,
+        'escape': 53, 'esc': 53,
+        'up': 126, 'down': 125, 'left': 123, 'right': 124,
+      };
+      
       const asModifiers = modifiers
         .map(m => modMap[m.toLowerCase()])
         .filter(Boolean)
         .join(', ');
       
-      const script = asModifiers 
-        ? `tell application "System Events" to keystroke "${key}" using {${asModifiers}}`
-        : `tell application "System Events" to keystroke "${key}"`;
+      // Check if this is a special key that needs key code
+      const keyCode = keyCodeMap[key.toLowerCase()];
+      let script: string;
+      
+      if (keyCode !== undefined) {
+        // Use key code for special keys
+        script = asModifiers 
+          ? `tell application "System Events" to key code ${keyCode} using {${asModifiers}}`
+          : `tell application "System Events" to key code ${keyCode}`;
+      } else {
+        // Use keystroke for regular character keys
+        script = asModifiers 
+          ? `tell application "System Events" to keystroke "${key}" using {${asModifiers}}`
+          : `tell application "System Events" to keystroke "${key}"`;
+      }
       
       console.log(`[Faria] Executing hotkey script: ${script}`);
       await runAppleScript(script);
