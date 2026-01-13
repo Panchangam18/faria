@@ -113,11 +113,26 @@ async function executeAction(action: Action, context: ToolContext): Promise<stri
     
     case 'type': {
       if (!action.text) throw new Error('Text required for type');
-      const escapedText = action.text.replace(/\\/g, '\\\\').replace(/"/g, '\\"');
-      const script = `tell application "System Events" to keystroke "${escapedText}"`;
       
-      console.log(`[Faria] Executing type script: ${script}`);
-      await runAppleScript(script);
+      // Split by newlines and type each line, pressing Return between them
+      const lines = action.text.split('\n');
+      
+      for (let i = 0; i < lines.length; i++) {
+        const line = lines[i];
+        if (line.length > 0) {
+          const escapedLine = line.replace(/\\/g, '\\\\').replace(/"/g, '\\"');
+          const script = `tell application "System Events" to keystroke "${escapedLine}"`;
+          console.log(`[Faria] Executing type script: ${script.slice(0, 100)}...`);
+          await runAppleScript(script);
+        }
+        
+        // Press Return for newlines (except after the last line)
+        if (i < lines.length - 1) {
+          await runAppleScript(`tell application "System Events" to key code 36`);
+          await sleep(MIN_DELAYS.afterKey);
+        }
+      }
+      
       return `Typed "${action.text.slice(0, 30)}${action.text.length > 30 ? '...' : ''}"`;
     }
     
