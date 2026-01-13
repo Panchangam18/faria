@@ -1,8 +1,26 @@
 import { exec } from 'child_process';
 import { promisify } from 'util';
+import { writeFileSync, unlinkSync } from 'fs';
+import { tmpdir } from 'os';
+import { join } from 'path';
 import { runAppleScript, getFrontmostApp, escapeForAppleScript } from './applescript';
 
 const execAsync = promisify(exec);
+
+/**
+ * Run AppleScript from a temp file to avoid shell escaping issues
+ */
+async function runAppleScriptSafe(script: string): Promise<string> {
+  const tmpFile = join(tmpdir(), `faria-ax-${Date.now()}.scpt`);
+  try {
+    console.log('[AX] Writing script to', tmpFile, '- length:', script.length, 'content:', script.substring(0, 100));
+    writeFileSync(tmpFile, script, 'utf-8');
+    const { stdout } = await execAsync(`osascript "${tmpFile}"`, { timeout: 5000 });
+    return stdout.trim();
+  } finally {
+    try { unlinkSync(tmpFile); } catch {}
+  }
+}
 
 export interface AccessibilityElement {
   id: number;
@@ -27,30 +45,65 @@ export interface AccessibilityState {
 
 /**
  * Get the position of the text cursor on screen
- * Uses accessibility APIs via AppleScript
+ * Simple approach: get focused element role and position
  */
 export async function getTextCursorPosition(): Promise<{ x: number; y: number } | null> {
   try {
-    const script = `
-      tell application "System Events"
-        set frontProcess to first process whose frontmost is true
-        tell frontProcess
-          set focusedUI to focused UI element
-          try
-            set cursorPos to position of focusedUI
-            set cursorSize to size of focusedUI
-            return (item 1 of cursorPos) & "," & (item 2 of cursorPos)
-          on error
-            return ""
-          end try
-        end tell
-      end tell
-    `;
+    const lines = [
+      'tell application "System Events"',
+      'tell (first process whose frontmost is true)',
+      'set f to focused UI element',
+      'set r to role of f',
+      'if r is "AXTextField" or r is "AXTextArea" or r is "AXComboBox" or r is "AXWebArea" or r is "AXScrollArea" then',
+      'set p to position of f',
+      'return (item 1 of p) & "," & (item 2 of p)',
+      'end if',
+      'end tell',
+      'end tell',
+      'return ""'
+    ];
+    const script = lines.join('\n');
     
-    const result = await runAppleScript(script);
-    if (result) {
+    const result = await runAppleScriptSafe(script);
+    if (result && result.includes(',')) {
       const [x, y] = result.split(',').map(Number);
       if (!isNaN(x) && !isNaN(y)) {
+        console.log('[Accessibility] Text cursor detected at:', x, y);
+        return { x, y };
+      }
+    }
+    return null;
+  } catch (e) {
+    console.log('[Accessibility] getTextCursorPosition error:', e);
+    return null;
+  }
+}
+
+/**
+ * Simpler check: just detect if we're in a text-editable context
+ * Returns cursor position if in text, null otherwise
+ */
+export async function isInTextEditContext(): Promise<{ x: number; y: number } | null> {
+  try {
+    const lines = [
+      'tell application "System Events"',
+      'tell (first process whose frontmost is true)',
+      'try',
+      'set f to focused UI element',
+      'set p to position of f',
+      'return (item 1 of p) & "," & (item 2 of p)',
+      'end try',
+      'end tell',
+      'end tell',
+      'return ""'
+    ];
+    const script = lines.join('\n');
+    
+    const result = await runAppleScriptSafe(script);
+    if (result && result.includes(',')) {
+      const [x, y] = result.split(',').map(Number);
+      if (!isNaN(x) && !isNaN(y)) {
+        console.log('[Accessibility] Focused element at:', x, y);
         return { x, y };
       }
     }
@@ -252,5 +305,31 @@ export function getElementById(
   id: number
 ): AccessibilityElement | undefined {
   return state.elements.find((e) => e.id === id);
+}
+
+/**
+ * Debug function: get info about the currently focused element
+ */
+export async function debugFocusedElement(): Promise<string> {
+  try {
+    const lines = [
+      'tell application "System Events"',
+      'tell (first process whose frontmost is true)',
+      'try',
+      'set f to focused UI element',
+      'set r to role of f',
+      'return r',
+      'on error e',
+      'return e',
+      'end try',
+      'end tell',
+      'end tell'
+    ];
+    const script = lines.join('\n');
+    
+    return await runAppleScriptSafe(script);
+  } catch (e) {
+    return `Exception: ${e}`;
+  }
 }
 

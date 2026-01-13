@@ -53,6 +53,27 @@ contextBridge.exposeInMainWorld('faria', {
     onFocus: (callback: () => void) => {
       ipcRenderer.on('command-bar:focus', () => callback());
     }
+  },
+
+  // Inline Command Bar
+  inlineBar: {
+    hide: () => ipcRenderer.send('inline-bar:hide'),
+    submit: (query: string, contextText: string) => ipcRenderer.invoke('inline-bar:submit', query, contextText),
+    onFocus: (callback: () => void) => {
+      ipcRenderer.on('inline-bar:focus', () => callback());
+    },
+    onContext: (callback: (context: string) => void) => {
+      ipcRenderer.on('inline-bar:context', (_event, context) => callback(context));
+    },
+    onStatus: (callback: (status: string) => void) => {
+      ipcRenderer.on('inline-bar:status', (_event, status) => callback(status));
+    },
+    onResponse: (callback: (response: string) => void) => {
+      ipcRenderer.on('inline-bar:response', (_event, response) => callback(response));
+    },
+    onEditApplied: (callback: () => void) => {
+      ipcRenderer.on('inline-bar:edit-applied', () => callback());
+    }
   }
 });
 
@@ -112,6 +133,15 @@ export interface FariaAPI {
     hide: () => void;
     resize: (height: number) => void;
     onFocus: (callback: () => void) => void;
+  };
+  inlineBar: {
+    hide: () => void;
+    submit: (query: string, contextText: string) => Promise<{ success: boolean; result?: string; error?: string }>;
+    onFocus: (callback: () => void) => void;
+    onContext: (callback: (context: string) => void) => void;
+    onStatus: (callback: (status: string) => void) => void;
+    onResponse: (callback: (response: string) => void) => void;
+    onEditApplied: (callback: () => void) => void;
   };
 }
 
