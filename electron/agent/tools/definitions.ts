@@ -94,15 +94,6 @@ export const toolDefinitions: ToolDefinition[] = [
     },
   },
   {
-    name: 'take_screenshot',
-    description: 'Capture a screenshot of the current screen for visual analysis',
-    parameters: {
-      type: 'object',
-      properties: {},
-      required: [],
-    },
-  },
-  {
     name: 'find_replace',
     description: 'Find and replace text using keyboard shortcuts (Cmd+H)',
     parameters: {

@@ -15,7 +15,6 @@ import { click } from './click';
 import { scroll } from './scroll';
 import { focusApp } from './focus-app';
 import { getState } from './get-state';
-import { takeScreenshotTool } from './take-screenshot';
 import { findReplace } from './find-replace';
 import { runAppleScriptTool } from './run-applescript';
 import { runShell } from './run-shell';
@@ -102,8 +101,6 @@ export class ToolExecutor {
           return await focusApp(params as { name: string }, context);
         case 'get_state':
           return await getState(context);
-        case 'take_screenshot':
-          return await takeScreenshotTool();
         case 'find_replace':
           return await findReplace(params as { find: string; replace: string });
         case 'run_applescript':
