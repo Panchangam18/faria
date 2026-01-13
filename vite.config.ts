@@ -51,8 +51,7 @@ export default defineConfig({
     rollupOptions: {
       input: {
         main: resolve(__dirname, 'index.html'),
-        commandBar: resolve(__dirname, 'command-bar.html'),
-        inlineBar: resolve(__dirname, 'inline-command-bar.html')
+        commandBar: resolve(__dirname, 'command-bar.html')
       }
     }
   }

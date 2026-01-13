@@ -14,11 +14,10 @@ const execAsync = promisify(exec);
 
 let mainWindow: BrowserWindow | null = null;
 let commandBarWindow: BrowserWindow | null = null;
-let inlineBarWindow: BrowserWindow | null = null;
 let isCommandBarVisible = false;
-let isInlineBarVisible = false;
 let targetAppName: string | null = null; // The app that was focused when command bar was invoked
 let currentContextText: string | null = null; // Text around cursor for inline mode
+let currentMode: 'agent' | 'inline' = 'agent';
 
 // Services
 let stateExtractor: StateExtractor;
@@ -106,44 +105,6 @@ function createCommandBarWindow() {
   });
 }
 
-function createInlineBarWindow() {
-  inlineBarWindow = new BrowserWindow({
-    width: 400,
-    height: 40,
-    frame: false,
-    transparent: true,
-    alwaysOnTop: true,
-    skipTaskbar: true,
-    resizable: false,
-    movable: false,
-    show: false,
-    vibrancy: 'under-window',
-    visualEffectState: 'active',
-    hasShadow: true,
-    focusable: true,
-    fullscreenable: false,
-    type: 'panel',
-    webPreferences: {
-      preload: join(__dirname, 'preload.js'),
-      contextIsolation: true,
-      nodeIntegration: false
-    }
-  });
-  
-  inlineBarWindow.setAlwaysOnTop(true, 'floating', 1);
-  inlineBarWindow.setVisibleOnAllWorkspaces(true);
-
-  if (isDev) {
-    inlineBarWindow.loadURL('http://localhost:5173/inline-command-bar.html');
-  } else {
-    inlineBarWindow.loadFile(join(__dirname, '../inline-command-bar.html'));
-  }
-
-  inlineBarWindow.on('closed', () => {
-    inlineBarWindow = null;
-  });
-}
-
 function getCommandBarSettings() {
   const db = initDatabase();
   const row = db.prepare('SELECT value FROM settings WHERE key = ?').get('commandBarPosition') as { value: string } | undefined;
@@ -190,14 +151,13 @@ async function getFrontmostApp(): Promise<string | null> {
 }
 
 async function toggleCommandBar() {
-  // If either bar is visible, hide both
-  if (isCommandBarVisible || isInlineBarVisible) {
+  // If command bar is visible, hide it
+  if (isCommandBarVisible) {
     commandBarWindow?.hide();
-    inlineBarWindow?.hide();
     isCommandBarVisible = false;
-    isInlineBarVisible = false;
     targetAppName = null;
     currentContextText = null;
+    currentMode = 'agent';
     return;
   }
 
@@ -205,20 +165,23 @@ async function toggleCommandBar() {
   targetAppName = await getFrontmostApp();
   console.log('[Faria] Target app captured:', targetAppName);
   
-  // Check if user has text selected - if so, show inline bar
+  // Check if user has text selected - if so, start in inline mode
   const selectedText = await getSelectedText(targetAppName);
   
   if (selectedText) {
-    console.log('[Faria] Text selected, showing inline bar. Length:', selectedText.length);
+    console.log('[Faria] Text selected, starting in inline mode. Length:', selectedText.length);
     currentContextText = selectedText;
-    await showInlineBar();
+    currentMode = 'inline';
   } else {
-    console.log('[Faria] No text selected, showing regular command bar');
-    await showRegularCommandBar();
+    console.log('[Faria] No text selected, starting in agent mode');
+    currentMode = 'agent';
+    currentContextText = null;
   }
+  
+  await showCommandBar();
 }
 
-async function showRegularCommandBar() {
+async function showCommandBar() {
   if (!commandBarWindow) {
     createCommandBarWindow();
   }
@@ -230,52 +193,12 @@ async function showRegularCommandBar() {
     if (commandBarWindow && isCommandBarVisible) {
       commandBarWindow.focus();
       commandBarWindow.webContents.send('command-bar:focus');
+      // Send the initial mode and context to the renderer
+      commandBarWindow.webContents.send('command-bar:mode-change', currentMode, currentContextText || undefined);
     }
   }, 50);
   
   isCommandBarVisible = true;
-}
-
-async function showInlineBar() {
-  if (!inlineBarWindow) {
-    createInlineBarWindow();
-  }
-
-  const { width: screenWidth, height: screenHeight } = screen.getPrimaryDisplay().workAreaSize;
-  const mousePos = screen.getCursorScreenPoint();
-  const barWidth = 400;
-  const barHeight = 40;
-  
-  // Position near the mouse cursor
-  let x = Math.max(0, Math.min(mousePos.x - barWidth / 2, screenWidth - barWidth));
-  let y: number;
-  
-  // If cursor is in upper half, show below; otherwise show above
-  if (mousePos.y < screenHeight / 2) {
-    y = mousePos.y + 30; // Below cursor
-  } else {
-    y = mousePos.y - barHeight - 10; // Above cursor
-  }
-  
-  y = Math.max(0, Math.min(y, screenHeight - barHeight));
-  
-  // Show the inline bar and focus it
-  inlineBarWindow?.setPosition(Math.round(x), Math.round(y));
-  inlineBarWindow?.showInactive();
-  isInlineBarVisible = true;
-  
-  // Focus and send context after a brief delay for window to be ready
-  setTimeout(() => {
-    if (inlineBarWindow && isInlineBarVisible) {
-      inlineBarWindow.focus();
-      inlineBarWindow.webContents.send('inline-bar:focus');
-      
-      // Send the selected text as context
-      if (currentContextText) {
-        inlineBarWindow.webContents.send('inline-bar:context', currentContextText);
-      }
-    }
-  }, 50);
 }
 
 function registerGlobalShortcut() {
@@ -394,6 +317,8 @@ function setupIPC() {
     if (commandBarWindow && isCommandBarVisible) {
       commandBarWindow.hide();
       isCommandBarVisible = false;
+      currentMode = 'agent';
+      currentContextText = null;
     }
   });
 
@@ -405,25 +330,14 @@ function setupIPC() {
     }
   });
 
-  // Forward agent status updates to command bar
-  ipcMain.on('agent:status', (_event, status: string) => {
-    commandBarWindow?.webContents.send('agent:status', status);
+  // Mode switching IPC
+  ipcMain.on('command-bar:set-mode', (_event, mode: 'agent' | 'inline') => {
+    currentMode = mode;
+    console.log('[Faria] Mode switched to:', mode);
   });
 
-  ipcMain.on('agent:response', (_event, response: string) => {
-    commandBarWindow?.webContents.send('agent:response', response);
-  });
-
-  // Inline bar IPC handlers
-  ipcMain.on('inline-bar:hide', () => {
-    if (inlineBarWindow && isInlineBarVisible) {
-      inlineBarWindow.hide();
-      isInlineBarVisible = false;
-      currentContextText = null;
-    }
-  });
-
-  ipcMain.handle('inline-bar:submit', async (_event, query: string, contextText: string) => {
+  // Inline submission IPC (for unified command bar)
+  ipcMain.handle('command-bar:submit-inline', async (_event, query: string, contextText: string) => {
     try {
       console.log('[Faria] Inline submit:', query, 'context length:', contextText?.length || 0);
       
@@ -431,22 +345,31 @@ function setupIPC() {
       
       // Set up status callback
       inlineAgent.setStatusCallback((status) => {
-        inlineBarWindow?.webContents.send('inline-bar:status', status);
+        commandBarWindow?.webContents.send('command-bar:inline-status', status);
       });
       
-      const result = await inlineAgent.run(query, contextText || null, targetAppName);
+      const result = await inlineAgent.run(query, contextText || currentContextText || null, targetAppName);
       
       if (result.type === 'edits') {
-        inlineBarWindow?.webContents.send('inline-bar:edit-applied');
+        commandBarWindow?.webContents.send('command-bar:edit-applied');
       }
       
-      inlineBarWindow?.webContents.send('inline-bar:response', result.content);
+      commandBarWindow?.webContents.send('command-bar:inline-response', result.content);
       return { success: true, result: result.content };
     } catch (error) {
       const errorMsg = String(error);
-      inlineBarWindow?.webContents.send('inline-bar:response', errorMsg);
+      commandBarWindow?.webContents.send('command-bar:inline-response', errorMsg);
       return { success: false, error: errorMsg };
     }
+  });
+
+  // Forward agent status updates to command bar
+  ipcMain.on('agent:status', (_event, status: string) => {
+    commandBarWindow?.webContents.send('agent:status', status);
+  });
+
+  ipcMain.on('agent:response', (_event, response: string) => {
+    commandBarWindow?.webContents.send('agent:response', response);
   });
 }
 
@@ -465,7 +388,6 @@ app.whenReady().then(async () => {
   await initializeServices();
   createMainWindow();
   createCommandBarWindow();
-  createInlineBarWindow();
   registerGlobalShortcut();
   setupIPC();
 
@@ -485,4 +407,3 @@ app.on('window-all-closed', () => {
 app.on('will-quit', () => {
   globalShortcut.unregisterAll();
 });
-

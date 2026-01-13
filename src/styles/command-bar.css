@@ -146,6 +146,12 @@ html, body, #root {
   background: rgba(0, 0, 0, 0.1);
 }
 
+.footer-right {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-sm);
+}
+
 /* Model Selector */
 .model-selector {
   position: relative;
@@ -200,6 +206,103 @@ html, body, #root {
 .model-option.active {
   background: var(--color-accent);
   color: var(--color-primary);
+}
+
+/* Mode Selector */
+.mode-selector {
+  position: relative;
+}
+
+.mode-selector-trigger {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-xs);
+  padding: var(--spacing-xs) var(--spacing-sm);
+  background: rgba(255, 255, 255, 0.05);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-sm);
+  color: var(--color-text);
+  font-size: var(--font-size-xs);
+  cursor: pointer;
+  transition: all var(--transition-fast);
+  -webkit-app-region: no-drag;
+}
+
+.mode-selector-trigger:hover:not(:disabled) {
+  border-color: var(--color-accent);
+  background: rgba(255, 255, 255, 0.08);
+}
+
+.mode-selector-trigger:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+/* Mode indicator dot */
+.mode-indicator {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  transition: background var(--transition-fast);
+}
+
+.mode-indicator.agent {
+  background: var(--color-accent);
+}
+
+.mode-indicator.inline {
+  background: #58A6FF; /* Blue for inline edit */
+}
+
+[data-theme="midnight"] .mode-indicator.inline {
+  background: #58A6FF;
+}
+
+[data-theme="forest"] .mode-indicator.inline {
+  background: #7CB342;
+}
+
+.mode-selector-menu {
+  position: absolute;
+  bottom: 100%;
+  right: 0;
+  margin-bottom: var(--spacing-xs);
+  background: var(--color-surface);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+  box-shadow: var(--shadow-lg);
+  min-width: 180px;
+  z-index: 100;
+  overflow: hidden;
+  -webkit-app-region: no-drag;
+}
+
+.mode-option {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-sm);
+  padding: var(--spacing-sm) var(--spacing-md);
+  cursor: pointer;
+  font-size: var(--font-size-sm);
+  transition: background var(--transition-fast);
+}
+
+.mode-option:hover {
+  background: var(--color-hover);
+}
+
+.mode-option.active {
+  background: rgba(255, 255, 255, 0.1);
+}
+
+.mode-option .mode-name {
+  flex: 1;
+}
+
+.mode-option .mode-shortcut {
+  font-size: var(--font-size-xs);
+  color: var(--color-text-muted);
+  font-family: system-ui, -apple-system, sans-serif;
 }
 
 /* Send Button */
@@ -263,4 +366,3 @@ html, body, #root {
   background: var(--color-border);
   border-radius: 2px;
 }
-

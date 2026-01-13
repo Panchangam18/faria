@@ -46,33 +46,26 @@ contextBridge.exposeInMainWorld('faria', {
     delete: (id: string) => ipcRenderer.invoke('tools:delete', id)
   },
 
-  // Command Bar
+  // Command Bar (unified for both agent and inline modes)
   commandBar: {
     hide: () => ipcRenderer.send('command-bar:hide'),
     resize: (height: number) => ipcRenderer.send('command-bar:resize', height),
+    setMode: (mode: 'agent' | 'inline') => ipcRenderer.send('command-bar:set-mode', mode),
+    submitInline: (query: string, contextText: string) => ipcRenderer.invoke('command-bar:submit-inline', query, contextText),
     onFocus: (callback: () => void) => {
       ipcRenderer.on('command-bar:focus', () => callback());
-    }
-  },
-
-  // Inline Command Bar
-  inlineBar: {
-    hide: () => ipcRenderer.send('inline-bar:hide'),
-    submit: (query: string, contextText: string) => ipcRenderer.invoke('inline-bar:submit', query, contextText),
-    onFocus: (callback: () => void) => {
-      ipcRenderer.on('inline-bar:focus', () => callback());
     },
-    onContext: (callback: (context: string) => void) => {
-      ipcRenderer.on('inline-bar:context', (_event, context) => callback(context));
+    onModeChange: (callback: (mode: 'agent' | 'inline', context?: string) => void) => {
+      ipcRenderer.on('command-bar:mode-change', (_event, mode, context) => callback(mode, context));
     },
-    onStatus: (callback: (status: string) => void) => {
-      ipcRenderer.on('inline-bar:status', (_event, status) => callback(status));
+    onInlineStatus: (callback: (status: string) => void) => {
+      ipcRenderer.on('command-bar:inline-status', (_event, status) => callback(status));
     },
-    onResponse: (callback: (response: string) => void) => {
-      ipcRenderer.on('inline-bar:response', (_event, response) => callback(response));
+    onInlineResponse: (callback: (response: string) => void) => {
+      ipcRenderer.on('command-bar:inline-response', (_event, response) => callback(response));
     },
     onEditApplied: (callback: () => void) => {
-      ipcRenderer.on('inline-bar:edit-applied', () => callback());
+      ipcRenderer.on('command-bar:edit-applied', () => callback());
     }
   }
 });
@@ -132,15 +125,12 @@ export interface FariaAPI {
   commandBar: {
     hide: () => void;
     resize: (height: number) => void;
+    setMode: (mode: 'agent' | 'inline') => void;
+    submitInline: (query: string, contextText: string) => Promise<{ success: boolean; result?: string; error?: string }>;
     onFocus: (callback: () => void) => void;
-  };
-  inlineBar: {
-    hide: () => void;
-    submit: (query: string, contextText: string) => Promise<{ success: boolean; result?: string; error?: string }>;
-    onFocus: (callback: () => void) => void;
-    onContext: (callback: (context: string) => void) => void;
-    onStatus: (callback: (status: string) => void) => void;
-    onResponse: (callback: (response: string) => void) => void;
+    onModeChange: (callback: (mode: 'agent' | 'inline', context?: string) => void) => void;
+    onInlineStatus: (callback: (status: string) => void) => void;
+    onInlineResponse: (callback: (response: string) => void) => void;
     onEditApplied: (callback: () => void) => void;
   };
 }
@@ -150,4 +140,3 @@ declare global {
     faria: FariaAPI;
   }
 }
-

@@ -1,8 +1,15 @@
 import React, { useState, useEffect, useRef, useCallback, useLayoutEffect } from 'react';
 
+type Mode = 'agent' | 'inline';
+
 const MODELS = [
   { id: 'claude-sonnet-4-20250514', name: 'Claude Sonnet 4' },
   { id: 'claude-3-5-sonnet-20241022', name: 'Claude 3.5 Sonnet' },
+];
+
+const MODES = [
+  { id: 'agent' as Mode, name: 'Agent', shortcut: '⌘1' },
+  { id: 'inline' as Mode, name: 'Inline Edit', shortcut: '⌘2' },
 ];
 
 // Line height is 15px * 1.5 = 22.5px, round to 23px
@@ -18,6 +25,9 @@ function CommandBar() {
   const [isProcessing, setIsProcessing] = useState(false);
   const [selectedModel, setSelectedModel] = useState(MODELS[0]);
   const [showModelMenu, setShowModelMenu] = useState(false);
+  const [mode, setMode] = useState<Mode>('agent');
+  const [showModeMenu, setShowModeMenu] = useState(false);
+  const [contextText, setContextText] = useState('');
   const inputRef = useRef<HTMLTextAreaElement>(null);
 
   // Resize window based on textarea content - runs synchronously after DOM updates
@@ -45,12 +55,20 @@ function CommandBar() {
     // Calculate and set window height
     const totalHeight = BASE_HEIGHT + contentHeight + (response ? 100 : 0);
     window.faria.commandBar.resize(totalHeight);
-  }, [query, response]); // Re-run whenever query or response changes
+  }, [query, response]);
 
   useEffect(() => {
     // Focus input when command bar becomes visible
     window.faria.commandBar.onFocus(() => {
       inputRef.current?.focus();
+    });
+
+    // Listen for mode changes from main process
+    window.faria.commandBar.onModeChange((newMode: Mode, context?: string) => {
+      setMode(newMode);
+      if (context) {
+        setContextText(context);
+      }
     });
 
     // Listen for status updates from agent
@@ -64,23 +82,59 @@ function CommandBar() {
       setIsProcessing(false);
       setStatus('');
     });
+
+    // Listen for inline status updates
+    window.faria.commandBar.onInlineStatus((newStatus: string) => {
+      setStatus(newStatus);
+    });
+
+    // Listen for inline response
+    window.faria.commandBar.onInlineResponse((newResponse: string) => {
+      setResponse(newResponse);
+      setIsProcessing(false);
+      setStatus('');
+    });
+
+    // Listen for edit applied
+    window.faria.commandBar.onEditApplied(() => {
+      setStatus('Done!');
+      setIsProcessing(false);
+    });
   }, []);
+
+  // Handle mode switching via keyboard shortcut
+  const switchMode = useCallback((newMode: Mode) => {
+    if (isProcessing) return;
+    setMode(newMode);
+    window.faria.commandBar.setMode(newMode);
+  }, [isProcessing]);
 
   const handleSubmit = useCallback(async () => {
     if (!query.trim() || isProcessing) return;
 
     setIsProcessing(true);
-    setStatus('Extracting state...');
     setResponse('');
 
     try {
-      const result = await window.faria.agent.submit(query);
-      if (result.success && result.result) {
-        setResponse(result.result);
-        // Add to history
-        await window.faria.history.add(query, result.result);
-      } else if (result.error) {
-        setResponse(`Error: ${result.error}`);
+      if (mode === 'agent') {
+        setStatus('Extracting state...');
+        const result = await window.faria.agent.submit(query);
+        if (result.success && result.result) {
+          setResponse(result.result);
+          // Add to history
+          await window.faria.history.add(query, result.result);
+        } else if (result.error) {
+          setResponse(`Error: ${result.error}`);
+        }
+      } else {
+        // Inline mode
+        setStatus('Thinking...');
+        const result = await window.faria.commandBar.submitInline(query, contextText);
+        if (result.success && result.result) {
+          setResponse(result.result);
+        } else if (result.error) {
+          setResponse(`Error: ${result.error}`);
+        }
       }
     } catch (error) {
       setResponse(`Error: ${String(error)}`);
@@ -88,7 +142,7 @@ function CommandBar() {
       setIsProcessing(false);
       setStatus('');
     }
-  }, [query, isProcessing]);
+  }, [query, isProcessing, mode, contextText]);
 
   const handleKeyDown = useCallback((e: React.KeyboardEvent) => {
     if (e.key === 'Enter' && !e.shiftKey) {
@@ -98,12 +152,24 @@ function CommandBar() {
     if (e.key === 'Escape') {
       window.faria.commandBar.hide();
     }
-  }, [handleSubmit]);
+    // Mode switching shortcuts: Cmd+1 for Agent, Cmd+2 for Inline
+    if (e.metaKey && e.key === '1') {
+      e.preventDefault();
+      switchMode('agent');
+    }
+    if (e.metaKey && e.key === '2') {
+      e.preventDefault();
+      switchMode('inline');
+    }
+  }, [handleSubmit, switchMode]);
 
   const handleInputChange = (e: React.ChangeEvent<HTMLTextAreaElement>) => {
     setQuery(e.target.value);
     // Resizing is handled by useLayoutEffect when query changes
   };
+
+  const currentMode = MODES.find(m => m.id === mode) || MODES[0];
+  const placeholder = mode === 'agent' ? 'Ask Faria...' : 'Edit or ask about selection...';
 
   return (
     <div className="command-bar">
@@ -111,7 +177,7 @@ function CommandBar() {
         <textarea
           ref={inputRef}
           className="command-bar-input"
-          placeholder="Ask Faria..."
+          placeholder={placeholder}
           value={query}
           onChange={handleInputChange}
           onKeyDown={handleKeyDown}
@@ -164,26 +230,61 @@ function CommandBar() {
           )}
         </div>
 
-        <button
-          className="send-button"
-          onClick={handleSubmit}
-          disabled={!query.trim() || isProcessing}
-          title="Send message"
-        >
-          <svg viewBox="0 0 24 24" fill="none">
-            <path
-              d="M22 2L11 13M22 2L15 22L11 13M22 2L2 9L11 13"
-              stroke="currentColor"
-              strokeWidth="2"
-              strokeLinecap="round"
-              strokeLinejoin="round"
-            />
-          </svg>
-        </button>
+        <div className="footer-right">
+          {/* Mode selector */}
+          <div className="mode-selector">
+            <button
+              className="mode-selector-trigger"
+              onClick={() => setShowModeMenu(!showModeMenu)}
+              disabled={isProcessing}
+            >
+              <span className={`mode-indicator ${mode}`} />
+              <span>{currentMode.name}</span>
+              <svg className={`chevron ${showModeMenu ? 'open' : ''}`} viewBox="0 0 10 6" fill="none">
+                <path d="M1 1L5 5L9 1" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
+              </svg>
+            </button>
+            
+            {showModeMenu && (
+              <div className="mode-selector-menu">
+                {MODES.map((m) => (
+                  <div
+                    key={m.id}
+                    className={`mode-option ${m.id === mode ? 'active' : ''}`}
+                    onClick={() => {
+                      switchMode(m.id);
+                      setShowModeMenu(false);
+                    }}
+                  >
+                    <span className={`mode-indicator ${m.id}`} />
+                    <span className="mode-name">{m.name}</span>
+                    <span className="mode-shortcut">{m.shortcut}</span>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+
+          <button
+            className="send-button"
+            onClick={handleSubmit}
+            disabled={!query.trim() || isProcessing}
+            title="Send message"
+          >
+            <svg viewBox="0 0 24 24" fill="none">
+              <path
+                d="M22 2L11 13M22 2L15 22L11 13M22 2L2 9L11 13"
+                stroke="currentColor"
+                strokeWidth="2"
+                strokeLinecap="round"
+                strokeLinejoin="round"
+              />
+            </svg>
+          </button>
+        </div>
       </div>
     </div>
   );
 }
 
 export default CommandBar;
-
