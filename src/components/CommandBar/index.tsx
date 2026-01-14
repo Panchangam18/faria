@@ -1,11 +1,7 @@
 import React, { useState, useEffect, useRef, useCallback, useLayoutEffect } from 'react';
+import { IoMdSend } from 'react-icons/io';
 
 type Mode = 'agent' | 'inline';
-
-const MODELS = [
-  { id: 'claude-sonnet-4-20250514', name: 'Claude Sonnet 4' },
-  { id: 'claude-3-5-sonnet-20241022', name: 'Claude 3.5 Sonnet' },
-];
 
 const MODES = [
   { id: 'agent' as Mode, name: 'Agent', shortcut: '⌘↵' },
@@ -23,8 +19,6 @@ function CommandBar() {
   const [response, setResponse] = useState('');
   const [status, setStatus] = useState('');
   const [isProcessing, setIsProcessing] = useState(false);
-  const [selectedModel, setSelectedModel] = useState(MODELS[0]);
-  const [showModelMenu, setShowModelMenu] = useState(false);
   const [mode, setMode] = useState<Mode>('agent');
   const [showModeMenu, setShowModeMenu] = useState(false);
   const [contextText, setContextText] = useState('');
@@ -196,36 +190,7 @@ function CommandBar() {
       )}
 
       <div className="command-bar-footer">
-        <div className="model-selector">
-          <button
-            className="model-selector-trigger"
-            onClick={() => setShowModelMenu(!showModelMenu)}
-            disabled={isProcessing}
-          >
-            <span>{selectedModel.name}</span>
-            <svg className={`chevron ${showModelMenu ? 'open' : ''}`} viewBox="0 0 10 6" fill="none">
-              <path d="M1 1L5 5L9 1" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
-            </svg>
-          </button>
-          
-          {showModelMenu && (
-            <div className="model-selector-menu">
-              {MODELS.map((model) => (
-                <div
-                  key={model.id}
-                  className={`model-option ${model.id === selectedModel.id ? 'active' : ''}`}
-                  onClick={() => {
-                    setSelectedModel(model);
-                    setShowModelMenu(false);
-                  }}
-                >
-                  {model.name}
-                </div>
-              ))}
-            </div>
-          )}
-        </div>
-
+        <div className="footer-left"></div>
         <div className="footer-right">
           {/* Mode selector */}
           <div className="mode-selector">
@@ -265,15 +230,7 @@ function CommandBar() {
             disabled={!query.trim() || isProcessing}
             title="Send message"
           >
-            <svg viewBox="0 0 24 24" fill="none">
-              <path
-                d="M22 2L11 13M22 2L15 22L11 13M22 2L2 9L11 13"
-                stroke="currentColor"
-                strokeWidth="2"
-                strokeLinecap="round"
-                strokeLinejoin="round"
-              />
-            </svg>
+<IoMdSend />
           </button>
         </div>
       </div>

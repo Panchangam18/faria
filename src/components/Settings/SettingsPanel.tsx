@@ -18,6 +18,11 @@ interface CommandBarPosition {
   width: number;
 }
 
+const MODELS = [
+  { id: 'claude-sonnet-4-20250514', name: 'Claude Sonnet 4' },
+  { id: 'claude-3-5-sonnet-20241022', name: 'Claude 3.5 Sonnet' },
+];
+
 const PRESET_THEMES = [
   { 
     id: 'default', 
@@ -43,6 +48,7 @@ function SettingsPanel({ currentTheme, onThemeChange }: SettingsPanelProps) {
   const [showAnthropicKey, setShowAnthropicKey] = useState(false);
   const [lettaKey, setLettaKey] = useState('');
   const [showLettaKey, setShowLettaKey] = useState(false);
+  const [selectedModel, setSelectedModel] = useState(MODELS[0].id);
   const [customPalettes, setCustomPalettes] = useState<CustomPalette[]>([]);
   const [showCustomForm, setShowCustomForm] = useState(false);
   const [saveStatus, setSaveStatus] = useState<string | null>(null);
@@ -67,6 +73,7 @@ function SettingsPanel({ currentTheme, onThemeChange }: SettingsPanelProps) {
     const savedLastName = await window.faria.settings.get('lastName');
     const savedAnthropicKey = await window.faria.settings.get('anthropicKey');
     const savedLettaKey = await window.faria.settings.get('lettaKey');
+    const savedModel = await window.faria.settings.get('selectedModel');
     const savedCustomPalettes = await window.faria.settings.get('customPalettes');
     const savedCommandBarPosition = await window.faria.settings.get('commandBarPosition');
 
@@ -74,6 +81,7 @@ function SettingsPanel({ currentTheme, onThemeChange }: SettingsPanelProps) {
     if (savedLastName) setLastName(savedLastName);
     if (savedAnthropicKey) setAnthropicKey(savedAnthropicKey);
     if (savedLettaKey) setLettaKey(savedLettaKey);
+    if (savedModel) setSelectedModel(savedModel);
     if (savedCustomPalettes) setCustomPalettes(JSON.parse(savedCustomPalettes));
     if (savedCommandBarPosition) {
       setCommandBarPosition(JSON.parse(savedCommandBarPosition));
@@ -175,6 +183,39 @@ function SettingsPanel({ currentTheme, onThemeChange }: SettingsPanelProps) {
                 }}
                 placeholder="Enter last name"
               />
+            </div>
+          </div>
+        </div>
+      </section>
+
+      {/* Model Section */}
+      <section style={{ marginBottom: 'var(--spacing-xl)' }}>
+        <h3 style={{ 
+          fontSize: 'var(--font-size-md)', 
+          marginBottom: 'var(--spacing-md)',
+          color: 'var(--color-text-muted)'
+        }}>
+          Model
+        </h3>
+        
+        <div className="card">
+          <div style={{ padding: 'var(--spacing-md)' }}>
+            <div style={{ display: 'flex', gap: 'var(--spacing-sm)', flexWrap: 'wrap' }}>
+              {MODELS.map((model) => (
+                <button
+                  key={model.id}
+                  className={`btn ${selectedModel === model.id ? '' : 'btn-secondary'}`}
+                  onClick={() => {
+                    setSelectedModel(model.id);
+                    saveSettings('selectedModel', model.id);
+                  }}
+                  style={{
+                    opacity: selectedModel === model.id ? 1 : 0.7,
+                  }}
+                >
+                  {model.name}
+                </button>
+              ))}
             </div>
           </div>
         </div>
