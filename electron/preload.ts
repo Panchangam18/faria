@@ -51,6 +51,7 @@ contextBridge.exposeInMainWorld('faria', {
     hide: () => ipcRenderer.send('command-bar:hide'),
     resize: (height: number) => ipcRenderer.send('command-bar:resize', height),
     setMode: (mode: 'agent' | 'inline') => ipcRenderer.send('command-bar:set-mode', mode),
+    setDropdownVisible: (visible: boolean) => ipcRenderer.send('command-bar:dropdown-visible', visible),
     submitInline: (query: string, contextText: string) => ipcRenderer.invoke('command-bar:submit-inline', query, contextText),
     onFocus: (callback: () => void) => {
       ipcRenderer.on('command-bar:focus', () => callback());
@@ -126,6 +127,7 @@ export interface FariaAPI {
     hide: () => void;
     resize: (height: number) => void;
     setMode: (mode: 'agent' | 'inline') => void;
+    setDropdownVisible: (visible: boolean) => void;
     submitInline: (query: string, contextText: string) => Promise<{ success: boolean; result?: string; error?: string }>;
     onFocus: (callback: () => void) => void;
     onModeChange: (callback: (mode: 'agent' | 'inline', context?: string) => void) => void;

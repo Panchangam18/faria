@@ -1,4 +1,3 @@
-import { AppRegistry } from '../../services/app-registry';
 import { StateExtractor, AppState } from '../../services/state-extractor';
 
 export interface ToolResult {
@@ -23,7 +22,6 @@ export interface ToolDefinition {
 }
 
 export interface ToolContext {
-  appRegistry: AppRegistry;
   stateExtractor: StateExtractor;
   currentState: AppState | null;
   targetApp: string | null;

@@ -1,4 +1,3 @@
-import { AppRegistry } from '../../services/app-registry';
 import { StateExtractor, AppState } from '../../services/state-extractor';
 
 // Types
@@ -8,7 +7,6 @@ export type { ToolResult, ToolDefinition, ToolContext } from './types';
 import { toolDefinitions } from './definitions';
 
 // Tool implementations
-import { executeScript } from './execute-script';
 import { sendKeystrokes } from './send-keystrokes';
 import { sendHotkey } from './send-hotkey';
 import { click } from './click';
@@ -29,13 +27,11 @@ import type { ToolResult, ToolContext } from './types';
  * Tool Executor - handles execution of all built-in and custom tools
  */
 export class ToolExecutor {
-  private appRegistry: AppRegistry;
   private stateExtractor: StateExtractor;
   private currentState: AppState | null = null;
   private targetApp: string | null = null; // The app that was focused when command bar opened
   
-  constructor(appRegistry: AppRegistry, stateExtractor: StateExtractor) {
-    this.appRegistry = appRegistry;
+  constructor(stateExtractor: StateExtractor) {
     this.stateExtractor = stateExtractor;
   }
   
@@ -66,7 +62,6 @@ export class ToolExecutor {
    */
   private getContext(): ToolContext {
     return {
-      appRegistry: this.appRegistry,
       stateExtractor: this.stateExtractor,
       currentState: this.currentState,
       targetApp: this.targetApp,
@@ -88,8 +83,6 @@ export class ToolExecutor {
     
     try {
       switch (toolName) {
-        case 'execute_script':
-          return await executeScript(params as { app: string; code: string; language?: string }, context);
         case 'send_keystrokes':
           return await sendKeystrokes(params as { text: string }, context);
         case 'send_hotkey':

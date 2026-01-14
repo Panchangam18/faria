@@ -26,6 +26,7 @@ function CommandBar() {
   const [contextText, setContextText] = useState('');
   const inputRef = useRef<HTMLTextAreaElement>(null);
   const responseRef = useRef<HTMLDivElement>(null);
+  const modeSelectorRef = useRef<HTMLDivElement>(null);
 
   // Resize window based on textarea content - runs synchronously after DOM updates
   useLayoutEffect(() => {
@@ -120,6 +121,30 @@ function CommandBar() {
     window.faria.commandBar.setMode(newMode);
   }, [isProcessing]);
 
+  // Close dropdown when clicking outside
+  useEffect(() => {
+    const handleClickOutside = (e: MouseEvent) => {
+      if (showModeMenu && modeSelectorRef.current && !modeSelectorRef.current.contains(e.target as Node)) {
+        setShowModeMenu(false);
+        window.faria.commandBar.setDropdownVisible(false);
+      }
+    };
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, [showModeMenu]);
+
+  // Add/remove dropdown-open class on root element
+  useEffect(() => {
+    const root = document.getElementById('root');
+    if (root) {
+      if (showModeMenu) {
+        root.classList.add('dropdown-open');
+      } else {
+        root.classList.remove('dropdown-open');
+      }
+    }
+  }, [showModeMenu]);
+
   const handleSubmit = useCallback(async () => {
     if (!query.trim() || isProcessing) return;
 
@@ -161,14 +186,20 @@ function CommandBar() {
       handleSubmit();
     }
     if (e.key === 'Escape') {
-      window.faria.commandBar.hide();
+      // Close dropdown first if open, otherwise hide command bar
+      if (showModeMenu) {
+        setShowModeMenu(false);
+        window.faria.commandBar.setDropdownVisible(false);
+      } else {
+        window.faria.commandBar.hide();
+      }
     }
     // Mode switching shortcut: Cmd+Enter to toggle between modes
     if (e.metaKey && e.key === 'Enter') {
       e.preventDefault();
       switchMode(mode === 'agent' ? 'inline' : 'agent');
     }
-  }, [handleSubmit, switchMode]);
+  }, [handleSubmit, switchMode, showModeMenu]);
 
   const handleInputChange = (e: React.ChangeEvent<HTMLTextAreaElement>) => {
     setQuery(e.target.value);
@@ -218,10 +249,14 @@ function CommandBar() {
         <div className="footer-right">
           {/* Mode selector */}
           <span className="mode-shortcut-hint">⌘↵</span>
-          <div className="mode-selector">
+          <div className="mode-selector" ref={modeSelectorRef}>
             <button
               className="mode-selector-trigger"
-              onClick={() => setShowModeMenu(!showModeMenu)}
+              onClick={() => {
+                const newState = !showModeMenu;
+                setShowModeMenu(newState);
+                window.faria.commandBar.setDropdownVisible(newState);
+              }}
               disabled={isProcessing}
             >
               <span>{currentMode.name}</span>
@@ -239,6 +274,7 @@ function CommandBar() {
                     onClick={() => {
                       switchMode(m.id);
                       setShowModeMenu(false);
+                      window.faria.commandBar.setDropdownVisible(false);
                     }}
                   >
                     <span className="mode-name">{m.name}</span>

@@ -5,7 +5,6 @@ import { initDatabase } from '../../db/sqlite';
 import { runAppleScript, focusApp as focusAppAS } from '../../services/applescript';
 import { sendKeystrokes as cliSendKeystrokes, sendHotkey as cliSendHotkey, click as cliClick, scroll as cliScroll, sleep } from '../../services/cliclick';
 import { click } from './click';
-import { executeScript } from './execute-script';
 
 const execAsync = promisify(exec);
 
@@ -36,11 +35,6 @@ export async function executeCustomTool(
       click: async (x: number, y: number) => {
         const result = await click({ x, y }, context);
         if (!result.success) throw new Error(result.error);
-      },
-      executeScript: async (app: string, code: string) => {
-        const result = await executeScript({ app, code }, context);
-        if (!result.success) throw new Error(result.error);
-        return result.result;
       },
       focusApp: (name: string) => focusAppAS(name),
       getState: () => context.stateExtractor.extractState(),

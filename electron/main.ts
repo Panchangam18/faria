@@ -2,7 +2,6 @@ import { app, BrowserWindow, globalShortcut, ipcMain, screen } from 'electron';
 import { join } from 'path';
 import { initDatabase } from './db/sqlite';
 import { StateExtractor } from './services/state-extractor';
-import { AppRegistry } from './services/app-registry';
 import { AgentLoop } from './agent/loop';
 import { ToolExecutor } from './agent/tools';
 import { getInlineAgent } from './agent/inline-loop';
@@ -22,7 +21,6 @@ let cachedCommandBarPosition: { x: number; y: number } | null = null; // Cached 
 
 // Services
 let stateExtractor: StateExtractor;
-let appRegistry: AppRegistry;
 let agentLoop: AgentLoop;
 let toolExecutor: ToolExecutor;
 
@@ -76,7 +74,7 @@ function createCommandBarWindow() {
     show: false,
     vibrancy: 'under-window',
     visualEffectState: 'active',
-    hasShadow: true,
+    hasShadow: false,
     // Critical for overlay behavior - don't take focus from other apps
     focusable: true,
     // macOS specific: float above full-screen apps
@@ -343,11 +341,34 @@ function setupIPC() {
     }
   });
 
+  // Track dropdown state for resize coordination
+  let isDropdownOpen = false;
+  let baseContentHeight = DEFAULT_COMMAND_BAR_HEIGHT;
+  const DROPDOWN_EXTRA_HEIGHT = 80;
+
   ipcMain.on('command-bar:resize', (_event, height: number) => {
     if (commandBarWindow) {
       const [width] = commandBarWindow.getSize();
       // Min: ~60 (single line with minimal padding), Max: ~350 (5 lines + response area)
-      commandBarWindow.setSize(width, Math.min(Math.max(height, 60), 350));
+      const clampedHeight = Math.min(Math.max(height, 60), 350);
+      baseContentHeight = clampedHeight;
+      
+      if (isDropdownOpen) {
+        // When dropdown is open, add extra height and keep window expanded upward
+        const [x, y] = commandBarWindow.getPosition();
+        const currentHeight = commandBarWindow.getSize()[1];
+        const newTotalHeight = clampedHeight + DROPDOWN_EXTRA_HEIGHT;
+        const heightDiff = newTotalHeight - currentHeight;
+        
+        commandBarWindow.setBounds({
+          x,
+          y: y - heightDiff,
+          width,
+          height: newTotalHeight
+        });
+      } else {
+        commandBarWindow.setSize(width, clampedHeight);
+      }
     }
   });
 
@@ -355,6 +376,34 @@ function setupIPC() {
   ipcMain.on('command-bar:set-mode', (_event, mode: 'agent' | 'inline') => {
     currentMode = mode;
     console.log('[Faria] Mode switched to:', mode);
+  });
+
+  // Dropdown visibility - expand window upward to make room
+  ipcMain.on('command-bar:dropdown-visible', (_event, visible: boolean) => {
+    if (!commandBarWindow) return;
+    
+    const [width, height] = commandBarWindow.getSize();
+    const [x, y] = commandBarWindow.getPosition();
+    
+    if (visible && !isDropdownOpen) {
+      isDropdownOpen = true;
+      // Expand window upward: move Y up and increase height
+      commandBarWindow.setBounds({
+        x,
+        y: y - DROPDOWN_EXTRA_HEIGHT,
+        width,
+        height: height + DROPDOWN_EXTRA_HEIGHT
+      });
+    } else if (!visible && isDropdownOpen) {
+      isDropdownOpen = false;
+      // Restore to base content height
+      commandBarWindow.setBounds({
+        x,
+        y: y + DROPDOWN_EXTRA_HEIGHT,
+        width,
+        height: baseContentHeight
+      });
+    }
   });
 
   // Inline submission IPC (for unified command bar)
@@ -399,9 +448,8 @@ async function initializeServices() {
   initDatabase();
 
   // Initialize services
-  appRegistry = new AppRegistry();
-  stateExtractor = new StateExtractor(appRegistry);
-  toolExecutor = new ToolExecutor(appRegistry, stateExtractor);
+  stateExtractor = new StateExtractor();
+  toolExecutor = new ToolExecutor(stateExtractor);
   agentLoop = new AgentLoop(stateExtractor, toolExecutor);
 }
 

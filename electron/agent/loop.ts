@@ -454,7 +454,6 @@ export class AgentLoop {
    */
   private getToolDisplayName(toolName: string): string {
     const names: Record<string, string> = {
-      execute_script: 'Running script',
       send_keystrokes: 'Typing',
       send_hotkey: 'Pressing keys',
       click: 'Clicking',

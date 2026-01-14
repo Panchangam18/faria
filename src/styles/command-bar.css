@@ -10,6 +10,12 @@ html, body, #root {
   height: 100%;
   background: transparent;
   font-family: var(--font-family);
+  overflow: visible;
+}
+
+/* When dropdown is open, add top padding to push content down */
+.dropdown-open {
+  padding-top: 80px;
 }
 
 .command-bar {
@@ -21,7 +27,7 @@ html, body, #root {
   -webkit-backdrop-filter: blur(20px);
   border-radius: var(--radius-lg);
   border: 1px solid var(--color-border);
-  overflow: hidden;
+  overflow: visible;
   -webkit-app-region: drag; /* Entire bar is draggable */
 }
 
@@ -168,20 +174,6 @@ html, body, #root {
   color: var(--color-text);
 }
 
-.model-selector-menu {
-  position: absolute;
-  bottom: 100%;
-  left: 0;
-  margin-bottom: var(--spacing-xs);
-  background: var(--color-surface);
-  border: 1px solid var(--color-border);
-  border-radius: var(--radius-md);
-  box-shadow: var(--shadow-lg);
-  min-width: 180px;
-  z-index: 100;
-  overflow: hidden;
-  -webkit-app-region: no-drag; /* Allow clicking menu items */
-}
 
 .model-option {
   padding: var(--spacing-sm) var(--spacing-md);

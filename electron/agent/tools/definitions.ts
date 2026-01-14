@@ -2,23 +2,6 @@ import { ToolDefinition } from './types';
 
 export const toolDefinitions: ToolDefinition[] = [
   {
-    name: 'execute_script',
-    description: 'Execute native code in an application\'s scripting runtime (Python for Blender, JavaScript for Photoshop, AppleScript for Office apps)',
-    parameters: {
-      type: 'object',
-      properties: {
-        app: { type: 'string', description: 'Name of the application to execute code in' },
-        code: { type: 'string', description: 'The code to execute' },
-        language: { 
-          type: 'string', 
-          description: 'Override language (optional)',
-          enum: ['python', 'javascript', 'applescript']
-        },
-      },
-      required: ['app', 'code'],
-    },
-  },
-  {
     name: 'send_keystrokes',
     description: 'Type text using keyboard simulation',
     parameters: {

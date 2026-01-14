@@ -2,7 +2,6 @@ import { getFrontmostApp } from './applescript';
 import { extractViaNativeAX, formatNativeState, hasUsefulContent, NativeExtractionResult } from './native-ax';
 import { extractViaJSInjection, isBrowser, getBrowserType, BrowserState } from './js-injection';
 import { takeScreenshot } from './screenshot';
-import { AppRegistry } from './app-registry';
 
 export type ExtractionMethod = 'native_ax' | 'js_injection' | 'screenshot';
 
@@ -23,9 +22,8 @@ export interface AppState {
 }
 
 export class StateExtractor {
-  // Keep appRegistry for potential future use with app-specific extraction
-  constructor(_appRegistry: AppRegistry) {
-    // App registry available for future app-specific logic
+  constructor() {
+    // State extractor initialization
   }
 
   /**
