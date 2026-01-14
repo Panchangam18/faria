@@ -27,6 +27,10 @@ let toolExecutor: ToolExecutor;
 
 const isDev = process.env.NODE_ENV === 'development' || !app.isPackaged;
 
+// Default command bar dimensions
+const DEFAULT_COMMAND_BAR_WIDTH = 400;
+const DEFAULT_COMMAND_BAR_HEIGHT = 83; // Single line: 80 (base) + 23 (one line)
+
 function createMainWindow() {
   mainWindow = new BrowserWindow({
     width: 1200,
@@ -58,9 +62,9 @@ function createCommandBarWindow() {
   const { width: screenWidth, height: screenHeight } = screen.getPrimaryDisplay().workAreaSize;
   
   commandBarWindow = new BrowserWindow({
-    width: 600,
-    height: 103, // Single line: 80 (base) + 23 (one line)
-    x: Math.round((screenWidth - 600) / 2),
+    width: DEFAULT_COMMAND_BAR_WIDTH,
+    height: DEFAULT_COMMAND_BAR_HEIGHT,
+    x: Math.round((screenWidth - DEFAULT_COMMAND_BAR_WIDTH) / 2),
     y: Math.round(screenHeight - 300),
     frame: false,
     transparent: true,
@@ -123,21 +127,23 @@ async function positionCommandBar() {
 
   const { width: screenWidth, height: screenHeight } = screen.getPrimaryDisplay().workAreaSize;
   
-  // Use saved position from settings
+  // Use saved position from settings, but always use current default width
   const savedPosition = getCommandBarSettings();
-  if (savedPosition) {
-    const x = Math.max(0, Math.min(savedPosition.x, screenWidth - savedPosition.width));
+  if (savedPosition && savedPosition.width === DEFAULT_COMMAND_BAR_WIDTH) {
+    // Only use saved position if width matches current default
+    const x = Math.max(0, Math.min(savedPosition.x, screenWidth - DEFAULT_COMMAND_BAR_WIDTH));
     const y = Math.max(0, Math.min(savedPosition.y, screenHeight - 200));
     commandBarWindow.setPosition(Math.round(x), Math.round(y));
-    commandBarWindow.setSize(savedPosition.width, commandBarWindow.getSize()[1]);
+    commandBarWindow.setSize(DEFAULT_COMMAND_BAR_WIDTH, commandBarWindow.getSize()[1]);
     return;
   }
 
   // Default: center horizontally, near bottom of screen
-  const defaultWidth = 600;
-  const x = Math.round((screenWidth - defaultWidth) / 2);
+  // Also used when saved position width doesn't match current default
+  const x = Math.round((screenWidth - DEFAULT_COMMAND_BAR_WIDTH) / 2);
   const y = Math.round(screenHeight - 300);
   commandBarWindow.setPosition(x, y);
+  commandBarWindow.setSize(DEFAULT_COMMAND_BAR_WIDTH, commandBarWindow.getSize()[1]);
 }
 
 async function getFrontmostApp(): Promise<string | null> {
@@ -325,8 +331,8 @@ function setupIPC() {
   ipcMain.on('command-bar:resize', (_event, height: number) => {
     if (commandBarWindow) {
       const [width] = commandBarWindow.getSize();
-      // Min: ~100 (single line), Max: ~410 (10 lines + response area)
-      commandBarWindow.setSize(width, Math.min(Math.max(height, 100), 450));
+      // Min: ~100 (single line), Max: ~295 (5 lines + response area)
+      commandBarWindow.setSize(width, Math.min(Math.max(height, 100), 300));
     }
   });
 

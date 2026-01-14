@@ -10,8 +10,8 @@ const MODES = [
 
 // Line height is 15px * 1.5 = 22.5px, round to 23px
 const LINE_HEIGHT = 23;
-const MAX_LINES = 10;
-const MAX_TEXTAREA_HEIGHT = LINE_HEIGHT * MAX_LINES; // 230px for 10 lines
+const MAX_LINES = 5;
+const MAX_TEXTAREA_HEIGHT = LINE_HEIGHT * MAX_LINES; // 115px for 5 lines
 const BASE_HEIGHT = 80; // Footer + padding
 
 function CommandBar() {
@@ -193,6 +193,7 @@ function CommandBar() {
         <div className="footer-left"></div>
         <div className="footer-right">
           {/* Mode selector */}
+          <span className="mode-shortcut-hint">⌘↵</span>
           <div className="mode-selector">
             <button
               className="mode-selector-trigger"
