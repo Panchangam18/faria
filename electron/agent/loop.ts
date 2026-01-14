@@ -60,16 +60,20 @@ export class AgentLoop {
   private async initializeClients(): Promise<void> {
     const db = initDatabase();
     
+    // Get selected model from settings, fallback to default
+    const selectedModelRow = db.prepare('SELECT value FROM settings WHERE key = ?').get('selectedModel') as { value: string } | undefined;
+    const modelToUse = selectedModelRow?.value || this.config.model;
+    
     // Get Anthropic API key
     const anthropicKey = db.prepare('SELECT value FROM settings WHERE key = ?').get('anthropicKey') as { value: string } | undefined;
     if (anthropicKey?.value) {
       // Use LangChain's ChatAnthropic which automatically integrates with LangSmith
       this.model = new ChatAnthropic({
-        model: this.config.model,
+        model: modelToUse,
         anthropicApiKey: anthropicKey.value,
         maxTokens: this.config.maxTokens,
       });
-      console.log('[Faria] LangChain ChatAnthropic initialized');
+      console.log(`[Faria] LangChain ChatAnthropic initialized with model: ${modelToUse}`);
     }
   }
   
@@ -89,7 +93,7 @@ export class AgentLoop {
     console.log(`[Faria] Starting agent run with targetApp: ${targetApp}`);
     
     try {
-      // Refresh API clients in case keys were updated
+      // Refresh API clients in case keys or model were updated
       await this.initializeClients();
       
       if (!this.model) {

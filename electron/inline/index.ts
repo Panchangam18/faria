@@ -49,12 +49,19 @@ export class InlineAgentLoop {
   
   private initializeClient(): void {
     const db = initDatabase();
+    
+    // Get selected inline model from settings, fallback to default
+    const selectedInlineModelRow = db.prepare('SELECT value FROM settings WHERE key = ?').get('selectedInlineModel') as { value: string } | undefined;
+    const modelToUse = selectedInlineModelRow?.value || this.config.model;
+    this.config.model = modelToUse;
+    
     const anthropicKey = db.prepare('SELECT value FROM settings WHERE key = ?').get('anthropicKey') as { value: string } | undefined;
     
     if (anthropicKey?.value) {
       this.client = new Anthropic({
         apiKey: anthropicKey.value
       });
+      console.log(`[InlineAgent] Initialized with model: ${modelToUse}`);
     }
   }
   
@@ -84,6 +91,13 @@ export class InlineAgentLoop {
       if (!this.client) {
         return { type: 'error', content: 'API key not configured. Add your Anthropic key in Settings.' };
       }
+    }
+    
+    // Refresh model setting in case it was changed
+    const db = initDatabase();
+    const selectedInlineModelRow = db.prepare('SELECT value FROM settings WHERE key = ?').get('selectedInlineModel') as { value: string } | undefined;
+    if (selectedInlineModelRow?.value) {
+      this.config.model = selectedInlineModelRow.value;
     }
     
     // Build the user message with context
