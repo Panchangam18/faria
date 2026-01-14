@@ -9,7 +9,8 @@
 import Anthropic from '@anthropic-ai/sdk';
 import { config } from 'dotenv';
 import { initDatabase } from '../db/sqlite';
-import { applyTextEdits, insertImageFromUrl, TextEdit } from '../services/text-extraction';
+import { INLINE_TOOLS, executeTool } from './tools';
+import type { InlineResult } from './tools/types';
 
 // Load environment variables
 config();
@@ -55,86 +56,7 @@ Examples:
 - User selects some text and asks "what does this mean?" → answer with explanation (no edits)
 - User asks "add a picture of a sunset" → insert_image("beautiful sunset over ocean")`;
 
-// Tool definitions for Anthropic API
-const INLINE_TOOLS: Anthropic.Tool[] = [
-  {
-    name: 'web_search',
-    description: 'Search the web for information and facts. NOT for images - use search_image for images.',
-    input_schema: {
-      type: 'object' as const,
-      properties: {
-        query: {
-          type: 'string',
-          description: 'The search query'
-        }
-      },
-      required: ['query']
-    }
-  },
-  {
-    name: 'suggest_edits',
-    description: 'Suggest text replacements. Each edit specifies exact text to find and what to replace it with. The oldText MUST match exactly what appears in the context.',
-    input_schema: {
-      type: 'object' as const,
-      properties: {
-        edits: {
-          type: 'array',
-          items: {
-            type: 'object',
-            properties: {
-              oldText: {
-                type: 'string',
-                description: 'The exact text to find and replace (must match context exactly)'
-              },
-              newText: {
-                type: 'string', 
-                description: 'The replacement text'
-              }
-            },
-            required: ['oldText', 'newText']
-          },
-          description: 'Array of text replacements to make'
-        }
-      },
-      required: ['edits']
-    }
-  },
-  {
-    name: 'insert_image',
-    description: 'Search Google Images and insert the best result at cursor position.',
-    input_schema: {
-      type: 'object' as const,
-      properties: {
-        query: {
-          type: 'string',
-          description: 'Google image search query (e.g. "golden retriever puppy", "sunset over ocean", "modern office workspace")'
-        }
-      },
-      required: ['query']
-    }
-  },
-  {
-    name: 'answer',
-    description: 'Respond with a text answer. Use this when no action is needed, just information.',
-    input_schema: {
-      type: 'object' as const,
-      properties: {
-        text: {
-          type: 'string',
-          description: 'The response text'
-        }
-      },
-      required: ['text']
-    }
-  }
-];
-
-export interface InlineResult {
-  type: 'answer' | 'edits' | 'image' | 'error';
-  content: string;
-  edits?: TextEdit[];
-  imageUrl?: string;
-}
+export type { InlineResult };
 
 export class InlineAgentLoop {
   private client: Anthropic | null = null;
@@ -243,7 +165,13 @@ export class InlineAgentLoop {
             return { type: 'answer', content: '' };
           }
           
-          const result = await this.executeTool(toolUse.name, toolUse.input, targetApp, contextText);
+          const result = await executeTool(
+            toolUse.name,
+            toolUse.input,
+            targetApp,
+            contextText,
+            (status: string) => this.sendStatus(status)
+          );
           
           // If this is a terminal action (edits, image, answer), return immediately
           if (result.terminal) {
@@ -295,169 +223,6 @@ export class InlineAgentLoop {
     } catch (error) {
       console.error('[InlineAgent] Error:', error);
       return { type: 'error', content: String(error) };
-    }
-  }
-  
-  /**
-   * Execute a tool and return the result
-   */
-  private async executeTool(
-    name: string, 
-    input: unknown,
-    targetApp: string | null,
-    contextText: string | null
-  ): Promise<{ output: string; terminal: boolean; result: InlineResult }> {
-    const params = input as Record<string, unknown>;
-    
-    switch (name) {
-      case 'web_search': {
-        this.sendStatus('Searching the web...');
-        const query = params.query as string;
-        
-        try {
-          // Use DuckDuckGo instant answer API (no key needed)
-          const searchUrl = `https://api.duckduckgo.com/?q=${encodeURIComponent(query)}&format=json&no_html=1`;
-          const response = await fetch(searchUrl);
-          const data = await response.json();
-          
-          let resultText = '';
-          
-          if (data.AbstractText) {
-            resultText = data.AbstractText;
-          } else if (data.RelatedTopics && data.RelatedTopics.length > 0) {
-            resultText = data.RelatedTopics
-              .slice(0, 3)
-              .filter((t: any) => t.Text)
-              .map((t: any) => t.Text)
-              .join('\n');
-          }
-          
-          if (!resultText) {
-            resultText = `No instant results for "${query}". Try being more specific.`;
-          }
-          
-          return {
-            output: resultText,
-            terminal: false,
-            result: { type: 'answer', content: resultText }
-          };
-        } catch (e) {
-          return {
-            output: `Search failed: ${e}`,
-            terminal: false,
-            result: { type: 'error', content: `Search failed: ${e}` }
-          };
-        }
-      }
-      
-      case 'suggest_edits': {
-        this.sendStatus('Applying edits...');
-        const edits = params.edits as TextEdit[];
-        
-        const result = await applyTextEdits(targetApp, edits);
-        
-        if (result.success) {
-          return {
-            output: `Applied ${result.appliedCount} edit(s)`,
-            terminal: true,
-            result: { 
-              type: 'edits', 
-              content: `Applied ${result.appliedCount} edit(s)`,
-              edits 
-            }
-          };
-        } else {
-          return {
-            output: `Edit errors: ${result.errors.join(', ')}`,
-            terminal: true,
-            result: { 
-              type: 'error', 
-              content: result.errors.join(', ') 
-            }
-          };
-        }
-      }
-      
-      case 'insert_image': {
-        const query = params.query as string;
-        this.sendStatus('Searching for image...');
-        
-        const serperKey = process.env.SERPER_API_KEY;
-        if (!serperKey) {
-          return {
-            output: 'Serper API key not configured',
-            terminal: true,
-            result: { type: 'error', content: 'Serper API key not configured in .env' }
-          };
-        }
-        
-        let imageUrl: string;
-        try {
-          const response = await fetch('https://google.serper.dev/images', {
-            method: 'POST',
-            headers: {
-              'X-API-KEY': serperKey,
-              'Content-Type': 'application/json'
-            },
-            body: JSON.stringify({ q: query, num: 5 })
-          });
-          
-          if (!response.ok) {
-            throw new Error(`Serper API error: ${response.status}`);
-          }
-          
-          const data = await response.json();
-          
-          if (!data.images || data.images.length === 0) {
-            return {
-              output: `No images found for "${query}"`,
-              terminal: true,
-              result: { type: 'error', content: `No images found for "${query}"` }
-            };
-          }
-          
-          imageUrl = data.images[0].imageUrl;
-        } catch (e) {
-          return {
-            output: `Image search failed: ${e}`,
-            terminal: true,
-            result: { type: 'error', content: `Image search failed: ${e}` }
-          };
-        }
-        
-        this.sendStatus('Inserting image...');
-        const result = await insertImageFromUrl(targetApp, imageUrl);
-        
-        if (result.success) {
-          return {
-            output: 'Image inserted',
-            terminal: true,
-            result: { type: 'image', content: 'Image inserted', imageUrl }
-          };
-        } else {
-          return {
-            output: `Failed to insert image: ${result.error}`,
-            terminal: true,
-            result: { type: 'error', content: result.error || 'Failed to insert image' }
-          };
-        }
-      }
-      
-      case 'answer': {
-        const text = params.text as string;
-        return {
-          output: text,
-          terminal: true,
-          result: { type: 'answer', content: text }
-        };
-      }
-      
-      default:
-        return {
-          output: `Unknown tool: ${name}`,
-          terminal: false,
-          result: { type: 'error', content: `Unknown tool: ${name}` }
-        };
     }
   }
 }

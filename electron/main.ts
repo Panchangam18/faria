@@ -4,7 +4,7 @@ import { initDatabase } from './db/sqlite';
 import { StateExtractor } from './services/state-extractor';
 import { AgentLoop } from './agent/loop';
 import { ToolExecutor } from './agent/tools';
-import { getInlineAgent } from './agent/inline-loop';
+import { getInlineAgent } from './inline';
 import { getSelectedText } from './services/text-extraction';
 import { exec } from 'child_process';
 import { promisify } from 'util';
