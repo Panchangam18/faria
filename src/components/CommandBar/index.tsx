@@ -8,8 +8,8 @@ const MODELS = [
 ];
 
 const MODES = [
-  { id: 'agent' as Mode, name: 'Agent', shortcut: '⌘1' },
-  { id: 'inline' as Mode, name: 'Inline Edit', shortcut: '⌘2' },
+  { id: 'agent' as Mode, name: 'Agent', shortcut: '⌘↵' },
+  { id: 'inline' as Mode, name: 'Inline', shortcut: '⌘↵' },
 ];
 
 // Line height is 15px * 1.5 = 22.5px, round to 23px
@@ -95,10 +95,10 @@ function CommandBar() {
       setStatus('');
     });
 
-    // Listen for edit applied
+    // Listen for edit applied - silently complete, the edit speaks for itself
     window.faria.commandBar.onEditApplied(() => {
-      setStatus('Done!');
       setIsProcessing(false);
+      setStatus('');
     });
   }, []);
 
@@ -152,14 +152,10 @@ function CommandBar() {
     if (e.key === 'Escape') {
       window.faria.commandBar.hide();
     }
-    // Mode switching shortcuts: Cmd+1 for Agent, Cmd+2 for Inline
-    if (e.metaKey && e.key === '1') {
+    // Mode switching shortcut: Cmd+Enter to toggle between modes
+    if (e.metaKey && e.key === 'Enter') {
       e.preventDefault();
-      switchMode('agent');
-    }
-    if (e.metaKey && e.key === '2') {
-      e.preventDefault();
-      switchMode('inline');
+      switchMode(mode === 'agent' ? 'inline' : 'agent');
     }
   }, [handleSubmit, switchMode]);
 
@@ -169,7 +165,7 @@ function CommandBar() {
   };
 
   const currentMode = MODES.find(m => m.id === mode) || MODES[0];
-  const placeholder = mode === 'agent' ? 'Ask Faria...' : 'Edit or ask about selection...';
+  const placeholder = mode === 'agent' ? 'Take action...' : 'Edit or ask about selection...';
 
   return (
     <div className="command-bar">
@@ -238,7 +234,6 @@ function CommandBar() {
               onClick={() => setShowModeMenu(!showModeMenu)}
               disabled={isProcessing}
             >
-              <span className={`mode-indicator ${mode}`} />
               <span>{currentMode.name}</span>
               <svg className={`chevron ${showModeMenu ? 'open' : ''}`} viewBox="0 0 10 6" fill="none">
                 <path d="M1 1L5 5L9 1" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
@@ -256,7 +251,6 @@ function CommandBar() {
                       setShowModeMenu(false);
                     }}
                   >
-                    <span className={`mode-indicator ${m.id}`} />
                     <span className="mode-name">{m.name}</span>
                     <span className="mode-shortcut">{m.shortcut}</span>
                   </div>
