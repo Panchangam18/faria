@@ -247,6 +247,12 @@ export class AgentLoop {
         this.sendStatus('Thinking...');
         console.log(`[Faria] Iteration ${iterations}/${this.config.maxIterations}`);
         
+        // Check for cancellation before API call
+        if (this.shouldCancel) {
+          console.log('[Faria] Cancelled before API call');
+          break;
+        }
+        
         // Get LangChain callbacks that connect to the parent LangSmith trace
         // This ensures model calls appear as children of this agent loop trace
         const callbacks = await getLangchainCallbacks();
@@ -264,6 +270,12 @@ export class AgentLoop {
           betas: ['computer-use-2024-10-22'],
         });
         
+        // Check for cancellation after API call
+        if (this.shouldCancel) {
+          console.log('[Faria] Cancelled after API call');
+          break;
+        }
+        
         console.log(`[Faria] Response received, tool_calls:`, response.tool_calls?.length || 0);
         
         // Check if there are tool calls
@@ -276,6 +288,12 @@ export class AgentLoop {
           
           // Execute tool calls and add ToolMessage for each
           for (const toolCall of response.tool_calls) {
+            // Check for cancellation before each tool call
+            if (this.shouldCancel) {
+              console.log('[Faria] Cancelled before tool execution');
+              break;
+            }
+            
             console.log(`[Faria] Tool call: ${toolCall.name}`, JSON.stringify(toolCall.args).slice(0, 500));
             this.sendStatus(`${this.getToolDisplayName(toolCall.name)}...`);
             toolsUsed.push(toolCall.name);
@@ -316,6 +334,12 @@ export class AgentLoop {
             }
           }
           
+          // Break out of main loop if cancelled during tool execution
+          if (this.shouldCancel) {
+            console.log('[Faria] Cancelled after tool execution');
+            break;
+          }
+          
           // Refresh state after tool execution
           this.sendStatus('Checking result...');
           state = await this.stateExtractor.extractState();
@@ -341,6 +365,12 @@ export class AgentLoop {
           console.log(`[Faria] Final response: ${finalResponse.slice(0, 200)}...`);
           break;
         }
+      }
+      
+      // If cancelled, return empty string (UI already cleared status)
+      if (this.shouldCancel) {
+        console.log('[Faria] Run cancelled, returning early');
+        return '';
       }
       
       // Store interaction in memory
@@ -373,6 +403,7 @@ export class AgentLoop {
    * Cancel the current run
    */
   cancel(): void {
+    console.log('[Faria] Cancel requested');
     this.shouldCancel = true;
   }
   

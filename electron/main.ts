@@ -18,6 +18,7 @@ let isCommandBarVisible = false;
 let targetAppName: string | null = null; // The app that was focused when command bar was invoked
 let currentContextText: string | null = null; // Text around cursor for inline mode
 let currentMode: 'agent' | 'inline' = 'agent';
+let cachedCommandBarPosition: { x: number; y: number } | null = null; // Cached position for instant toggle
 
 // Services
 let stateExtractor: StateExtractor;
@@ -122,28 +123,29 @@ function getCommandBarSettings() {
   return null;
 }
 
-async function positionCommandBar() {
-  if (!commandBarWindow) return;
-
+// Calculate and cache position at startup - call this once
+function cacheCommandBarPosition() {
   const { width: screenWidth, height: screenHeight } = screen.getPrimaryDisplay().workAreaSize;
   
-  // Use saved position from settings, but always use current default width
+  // Check for saved position
   const savedPosition = getCommandBarSettings();
   if (savedPosition && savedPosition.width === DEFAULT_COMMAND_BAR_WIDTH) {
-    // Only use saved position if width matches current default
-    const x = Math.max(0, Math.min(savedPosition.x, screenWidth - DEFAULT_COMMAND_BAR_WIDTH));
-    const y = Math.max(0, Math.min(savedPosition.y, screenHeight - 200));
-    commandBarWindow.setPosition(Math.round(x), Math.round(y));
-    commandBarWindow.setSize(DEFAULT_COMMAND_BAR_WIDTH, commandBarWindow.getSize()[1]);
-    return;
+    cachedCommandBarPosition = {
+      x: Math.round(Math.max(0, Math.min(savedPosition.x, screenWidth - DEFAULT_COMMAND_BAR_WIDTH))),
+      y: Math.round(Math.max(0, Math.min(savedPosition.y, screenHeight - 200)))
+    };
+  } else {
+    // Default: center horizontally, near bottom of screen
+    cachedCommandBarPosition = {
+      x: Math.round((screenWidth - DEFAULT_COMMAND_BAR_WIDTH) / 2),
+      y: Math.round(screenHeight - 300)
+    };
   }
+}
 
-  // Default: center horizontally, near bottom of screen
-  // Also used when saved position width doesn't match current default
-  const x = Math.round((screenWidth - DEFAULT_COMMAND_BAR_WIDTH) / 2);
-  const y = Math.round(screenHeight - 300);
-  commandBarWindow.setPosition(x, y);
-  commandBarWindow.setSize(DEFAULT_COMMAND_BAR_WIDTH, commandBarWindow.getSize()[1]);
+function positionCommandBar() {
+  if (!commandBarWindow || !cachedCommandBarPosition) return;
+  commandBarWindow.setPosition(cachedCommandBarPosition.x, cachedCommandBarPosition.y);
 }
 
 async function getFrontmostApp(): Promise<string | null> {
@@ -156,8 +158,8 @@ async function getFrontmostApp(): Promise<string | null> {
   }
 }
 
-async function toggleCommandBar() {
-  // If command bar is visible, hide it
+function toggleCommandBar() {
+  // If command bar is visible, hide it immediately (synchronous)
   if (isCommandBarVisible) {
     commandBarWindow?.hide();
     isCommandBarVisible = false;
@@ -167,44 +169,57 @@ async function toggleCommandBar() {
     return;
   }
 
-  // Capture target app BEFORE anything else
-  targetAppName = await getFrontmostApp();
-  console.log('[Faria] Target app captured:', targetAppName);
+  // Show window immediately with default mode (synchronous)
+  currentMode = 'agent';
+  currentContextText = null;
+  showCommandBar();
   
-  // Check if user has text selected - if so, start in inline mode
-  const selectedText = await getSelectedText(targetAppName);
-  
-  if (selectedText) {
-    console.log('[Faria] Text selected, starting in inline mode. Length:', selectedText.length);
-    currentContextText = selectedText;
-    currentMode = 'inline';
-  } else {
-    console.log('[Faria] No text selected, starting in agent mode');
-    currentMode = 'agent';
-    currentContextText = null;
-  }
-  
-  await showCommandBar();
+  // Capture target app and selected text in the background, then update mode
+  (async () => {
+    // Only proceed if window is still visible
+    if (!isCommandBarVisible || !commandBarWindow) return;
+    
+    targetAppName = await getFrontmostApp();
+    console.log('[Faria] Target app captured:', targetAppName);
+    
+    // Check if window is still visible before updating
+    if (!isCommandBarVisible || !commandBarWindow) return;
+    
+    // Check if user has text selected - if so, switch to inline mode
+    const selectedText = await getSelectedText(targetAppName);
+    
+    // Final check before updating
+    if (!isCommandBarVisible || !commandBarWindow) return;
+    
+    if (selectedText) {
+      console.log('[Faria] Text selected, switching to inline mode. Length:', selectedText.length);
+      currentContextText = selectedText;
+      currentMode = 'inline';
+      // Update the renderer with the new mode and context
+      commandBarWindow.webContents.send('command-bar:mode-change', currentMode, selectedText);
+    } else {
+      console.log('[Faria] No text selected, staying in agent mode');
+    }
+  })();
 }
 
-async function showCommandBar() {
+function showCommandBar() {
   if (!commandBarWindow) {
     createCommandBarWindow();
+    positionCommandBar();
   }
 
-  await positionCommandBar();
-  commandBarWindow?.showInactive();
+  // Just show - position is already set
+  commandBarWindow?.show();
+  isCommandBarVisible = true;
   
-  setTimeout(() => {
+  // Send focus event in next tick to not block
+  setImmediate(() => {
     if (commandBarWindow && isCommandBarVisible) {
-      commandBarWindow.focus();
       commandBarWindow.webContents.send('command-bar:focus');
-      // Send the initial mode and context to the renderer
       commandBarWindow.webContents.send('command-bar:mode-change', currentMode, currentContextText || undefined);
     }
-  }, 50);
-  
-  isCommandBarVisible = true;
+  });
 }
 
 function registerGlobalShortcut() {
@@ -393,7 +408,9 @@ async function initializeServices() {
 app.whenReady().then(async () => {
   await initializeServices();
   createMainWindow();
+  cacheCommandBarPosition(); // Cache position before creating window
   createCommandBarWindow();
+  positionCommandBar(); // Position once at startup
   registerGlobalShortcut();
   setupIPC();
 

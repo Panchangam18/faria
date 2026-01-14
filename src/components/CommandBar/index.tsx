@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useRef, useCallback, useLayoutEffect } from 'react';
 import { IoMdSend } from 'react-icons/io';
+import { IoStopCircleSharp } from 'react-icons/io5';
 
 type Mode = 'agent' | 'inline';
 
@@ -158,6 +159,13 @@ function CommandBar() {
     // Resizing is handled by useLayoutEffect when query changes
   };
 
+  const handleStop = useCallback(async () => {
+    if (!isProcessing) return;
+    await window.faria.agent.cancel();
+    setIsProcessing(false);
+    setStatus('');
+  }, [isProcessing]);
+
   const currentMode = MODES.find(m => m.id === mode) || MODES[0];
   const placeholder = mode === 'agent' ? 'Take action...' : 'Edit or ask about selection...';
 
@@ -225,14 +233,24 @@ function CommandBar() {
             )}
           </div>
 
-          <button
-            className="send-button"
-            onClick={handleSubmit}
-            disabled={!query.trim() || isProcessing}
-            title="Send message"
-          >
-<IoMdSend />
-          </button>
+          {isProcessing ? (
+            <button
+              className="stop-button"
+              onClick={handleStop}
+              title="Stop"
+            >
+              <IoStopCircleSharp />
+            </button>
+          ) : (
+            <button
+              className="send-button"
+              onClick={handleSubmit}
+              disabled={!query.trim()}
+              title="Send message"
+            >
+              <IoMdSend />
+            </button>
+          )}
         </div>
       </div>
     </div>
