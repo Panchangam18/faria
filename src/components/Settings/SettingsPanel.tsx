@@ -14,8 +14,10 @@ interface CustomPalette {
 
 
 const MODELS = [
-  { id: 'claude-sonnet-4-20250514', name: 'Claude Sonnet 4' },
-  { id: 'claude-3-5-sonnet-20241022', name: 'Claude 3.5 Sonnet' },
+  { id: 'claude-sonnet-4-20250514', name: 'Claude Sonnet 4', provider: 'anthropic' },
+  { id: 'claude-3-5-sonnet-20241022', name: 'Claude 3.5 Sonnet', provider: 'anthropic' },
+  { id: 'gemini-2.5-flash-preview-04-17', name: 'Gemini 2.5 Flash', provider: 'google' },
+  { id: 'gemini-2.0-flash', name: 'Gemini 2.0 Flash', provider: 'google' },
 ];
 
 const PRESET_THEMES = [
@@ -41,6 +43,8 @@ function SettingsPanel({ currentTheme, onThemeChange }: SettingsPanelProps) {
   const [lastName, setLastName] = useState('');
   const [anthropicKey, setAnthropicKey] = useState('');
   const [showAnthropicKey, setShowAnthropicKey] = useState(false);
+  const [googleKey, setGoogleKey] = useState('');
+  const [showGoogleKey, setShowGoogleKey] = useState(false);
   const [selectedModel, setSelectedModel] = useState(MODELS[0].id);
   const [selectedInlineModel, setSelectedInlineModel] = useState(MODELS[0].id);
   const [customPalettes, setCustomPalettes] = useState<CustomPalette[]>([]);
@@ -61,6 +65,7 @@ function SettingsPanel({ currentTheme, onThemeChange }: SettingsPanelProps) {
     const savedFirstName = await window.faria.settings.get('firstName');
     const savedLastName = await window.faria.settings.get('lastName');
     const savedAnthropicKey = await window.faria.settings.get('anthropicKey');
+    const savedGoogleKey = await window.faria.settings.get('googleKey');
     const savedModel = await window.faria.settings.get('selectedModel');
     const savedInlineModel = await window.faria.settings.get('selectedInlineModel');
     const savedCustomPalettes = await window.faria.settings.get('customPalettes');
@@ -68,6 +73,7 @@ function SettingsPanel({ currentTheme, onThemeChange }: SettingsPanelProps) {
     if (savedFirstName) setFirstName(savedFirstName);
     if (savedLastName) setLastName(savedLastName);
     if (savedAnthropicKey) setAnthropicKey(savedAnthropicKey);
+    if (savedGoogleKey) setGoogleKey(savedGoogleKey);
     if (savedModel) setSelectedModel(savedModel);
     if (savedInlineModel) setSelectedInlineModel(savedInlineModel);
     if (savedCustomPalettes) setCustomPalettes(JSON.parse(savedCustomPalettes));
@@ -278,31 +284,62 @@ function SettingsPanel({ currentTheme, onThemeChange }: SettingsPanelProps) {
         
         <div className="card">
           <div style={{ padding: 'var(--spacing-md)' }}>
-            <label style={{ 
-              display: 'block', 
-              fontSize: 'var(--font-size-sm)', 
-              marginBottom: 'var(--spacing-xs)',
-              color: 'var(--color-text-muted)'
-            }}>
-              Anthropic API Key
-            </label>
-            <div style={{ display: 'flex', gap: 'var(--spacing-sm)' }}>
-              <input
-                type={showAnthropicKey ? 'text' : 'password'}
-                value={anthropicKey}
-                onChange={(e) => {
-                  setAnthropicKey(e.target.value);
-                  saveSettings('anthropicKey', e.target.value);
-                }}
-                placeholder="sk-ant-..."
-                style={{ flex: 1 }}
-              />
-              <button
-                className="btn btn-secondary"
-                onClick={() => setShowAnthropicKey(!showAnthropicKey)}
-              >
-                {showAnthropicKey ? 'Hide' : 'Show'}
-              </button>
+            <div style={{ marginBottom: 'var(--spacing-md)' }}>
+              <label style={{ 
+                display: 'block', 
+                fontSize: 'var(--font-size-sm)', 
+                marginBottom: 'var(--spacing-xs)',
+                color: 'var(--color-text-muted)'
+              }}>
+                Anthropic API Key
+              </label>
+              <div style={{ display: 'flex', gap: 'var(--spacing-sm)' }}>
+                <input
+                  type={showAnthropicKey ? 'text' : 'password'}
+                  value={anthropicKey}
+                  onChange={(e) => {
+                    setAnthropicKey(e.target.value);
+                    saveSettings('anthropicKey', e.target.value);
+                  }}
+                  placeholder="sk-ant-..."
+                  style={{ flex: 1 }}
+                />
+                <button
+                  className="btn btn-secondary"
+                  onClick={() => setShowAnthropicKey(!showAnthropicKey)}
+                >
+                  {showAnthropicKey ? 'Hide' : 'Show'}
+                </button>
+              </div>
+            </div>
+            
+            <div>
+              <label style={{ 
+                display: 'block', 
+                fontSize: 'var(--font-size-sm)', 
+                marginBottom: 'var(--spacing-xs)',
+                color: 'var(--color-text-muted)'
+              }}>
+                Google AI API Key
+              </label>
+              <div style={{ display: 'flex', gap: 'var(--spacing-sm)' }}>
+                <input
+                  type={showGoogleKey ? 'text' : 'password'}
+                  value={googleKey}
+                  onChange={(e) => {
+                    setGoogleKey(e.target.value);
+                    saveSettings('googleKey', e.target.value);
+                  }}
+                  placeholder="AIzaSy..."
+                  style={{ flex: 1 }}
+                />
+                <button
+                  className="btn btn-secondary"
+                  onClick={() => setShowGoogleKey(!showGoogleKey)}
+                >
+                  {showGoogleKey ? 'Hide' : 'Show'}
+                </button>
+              </div>
             </div>
           </div>
         </div>

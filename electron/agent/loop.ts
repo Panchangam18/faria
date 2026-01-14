@@ -1,4 +1,3 @@
-import { ChatAnthropic } from '@langchain/anthropic';
 import { HumanMessage, SystemMessage, AIMessage, ToolMessage } from '@langchain/core/messages';
 import { BrowserWindow, screen } from 'electron';
 import { StateExtractor, AppState } from '../services/state-extractor';
@@ -8,18 +7,24 @@ import { initDatabase } from '../db/sqlite';
 import { traceable } from 'langsmith/traceable';
 import { getLangchainCallbacks } from 'langsmith/langchain';
 import { AGENT_SYSTEM_PROMPT } from '../static/prompts';
+import { 
+  createModelWithTools, 
+  getSelectedModel, 
+  getMissingKeyError,
+  isComputerUseTool,
+  getToolDisplayName,
+  BoundModel 
+} from '../services/models';
 
 // Load environment variables for LangSmith tracing
 import 'dotenv/config';
 
 interface AgentConfig {
-  model: string;
   maxIterations: number;
   maxTokens: number;
 }
 
 const DEFAULT_CONFIG: AgentConfig = {
-  model: 'claude-sonnet-4-20250514',
   maxIterations: 10,
   maxTokens: 4096,
 };
@@ -33,7 +38,6 @@ export class AgentLoop {
   private stateExtractor: StateExtractor;
   private toolExecutor: ToolExecutor;
   private memory: AgentMemory;
-  private model: ChatAnthropic | null = null;
   private config: AgentConfig;
   private isRunning = false;
   private shouldCancel = false;
@@ -49,31 +53,6 @@ export class AgentLoop {
       console.log('[LangSmith] Tracing enabled for project:', process.env.LANGCHAIN_PROJECT || 'default');
     } else {
       console.log('[LangSmith] Tracing not configured. Set LANGCHAIN_API_KEY and LANGCHAIN_TRACING_V2=true in .env');
-    }
-    
-    this.initializeClients();
-  }
-  
-  /**
-   * Initialize API clients
-   */
-  private async initializeClients(): Promise<void> {
-    const db = initDatabase();
-    
-    // Get selected model from settings, fallback to default
-    const selectedModelRow = db.prepare('SELECT value FROM settings WHERE key = ?').get('selectedModel') as { value: string } | undefined;
-    const modelToUse = selectedModelRow?.value || this.config.model;
-    
-    // Get Anthropic API key
-    const anthropicKey = db.prepare('SELECT value FROM settings WHERE key = ?').get('anthropicKey') as { value: string } | undefined;
-    if (anthropicKey?.value) {
-      // Use LangChain's ChatAnthropic which automatically integrates with LangSmith
-      this.model = new ChatAnthropic({
-        model: modelToUse,
-        anthropicApiKey: anthropicKey.value,
-        maxTokens: this.config.maxTokens,
-      });
-      console.log(`[Faria] LangChain ChatAnthropic initialized with model: ${modelToUse}`);
     }
   }
   
@@ -93,13 +72,6 @@ export class AgentLoop {
     console.log(`[Faria] Starting agent run with targetApp: ${targetApp}`);
     
     try {
-      // Refresh API clients in case keys or model were updated
-      await this.initializeClients();
-      
-      if (!this.model) {
-        throw new Error('Anthropic API key not configured. Please add it in Settings.');
-      }
-      
       // Set the target app for tools to use
       this.toolExecutor.setTargetApp(targetApp || null);
       
@@ -144,17 +116,20 @@ export class AgentLoop {
       const primaryDisplay = screen.getPrimaryDisplay();
       const { width: displayWidth, height: displayHeight } = primaryDisplay.size;
       
-      // Add Claude's computer use tool (Anthropic beta format)
-      // This is passed directly to the API as a special tool type
-      const computerTool = {
-        type: 'computer_20250124' as const,
-        name: 'computer',
-        display_width_px: displayWidth,
-        display_height_px: displayHeight,
-      };
+      // Get selected model and create model with tools bound
+      const modelName = getSelectedModel('selectedModel');
+      const boundModel = createModelWithTools(
+        modelName,
+        regularTools,
+        { width: displayWidth, height: displayHeight },
+        this.config.maxTokens
+      );
       
-      // Bind both regular tools and the computer use tool
-      const modelWithTools = this.model!.bindTools([...regularTools, computerTool]);
+      if (!boundModel) {
+        throw new Error(getMissingKeyError(modelName));
+      }
+      
+      const { model: modelWithTools, invokeOptions: providerInvokeOptions } = boundModel;
       
       let iterations = 0;
       let finalResponse = '';
@@ -178,8 +153,9 @@ export class AgentLoop {
         const callbacks = await getLangchainCallbacks();
         
         // Call LangChain model with callbacks to nest under parent trace
-        // Include computer-use beta for Claude's computer use tool
-        const response = await modelWithTools.invoke(messages, {
+        // Merge provider-specific options with common options
+        const invokeOptions: Record<string, unknown> = {
+          ...providerInvokeOptions,
           callbacks,
           tags: ['faria', 'agent-loop'],
           metadata: {
@@ -187,8 +163,9 @@ export class AgentLoop {
             iteration: iterations,
             query: query.slice(0, 100),
           },
-          betas: ['computer-use-2024-10-22'],
-        });
+        };
+        
+        const response = await modelWithTools.invoke(messages, invokeOptions);
         
         // Check for cancellation after API call
         if (this.shouldCancel) {
@@ -215,11 +192,11 @@ export class AgentLoop {
             }
             
             console.log(`[Faria] Tool call: ${toolCall.name}`, JSON.stringify(toolCall.args).slice(0, 500));
-            this.sendStatus(`${this.getToolDisplayName(toolCall.name)}...`);
+            this.sendStatus(`${getToolDisplayName(toolCall.name)}...`);
             toolsUsed.push(toolCall.name);
             
-            // Handle computer tool specially
-            if (toolCall.name === 'computer') {
+            // Handle computer tool specially (works for both providers)
+            if (isComputerUseTool(toolCall.name)) {
               try {
                 const computerResult = await executeComputerAction(toolCall.args as ComputerAction);
                 console.log(`[Faria] Computer tool result: SUCCESS`);
@@ -366,22 +343,6 @@ export class AgentLoop {
       description: tool.description,
       schema: tool.parameters,
     };
-  }
-  
-  /**
-   * Get human-readable tool name
-   */
-  private getToolDisplayName(toolName: string): string {
-    const names: Record<string, string> = {
-      focus_app: 'Switching app',
-      get_state: 'Checking state',
-      computer: 'Using computer',
-      run_applescript: 'Running AppleScript',
-      search_tools: 'Searching tools',
-      create_tool: 'Creating tool',
-      chain_actions: 'Executing actions',
-    };
-    return names[toolName] || 'Taking action';
   }
   
   /**

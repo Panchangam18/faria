@@ -5,7 +5,7 @@ import { executeSuggestEdits } from './suggest-edits';
 import { executeInsertImage } from './insert-image';
 import { executeAnswer } from './answer';
 
-export { INLINE_TOOLS } from './definitions';
+export { INLINE_TOOLS, INLINE_TOOLS_GOOGLE } from './definitions';
 export type { InlineResult, ToolExecutionResult } from './types';
 
 /**
