@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Wrench, Trash2 } from 'lucide-react';
+import { MdBuild, MdDelete } from 'react-icons/md';
 
 interface CustomTool {
   id: string;
@@ -37,7 +37,7 @@ function ToolboxPanel() {
       <div className="toolbox-panel">
         <div className="empty-state">
           <div className="empty-state-icon">
-            <Wrench size={48} strokeWidth={1.5} />
+            <MdBuild size={48} />
           </div>
           <p>No custom tools yet</p>
         </div>
@@ -100,7 +100,7 @@ function ToolboxPanel() {
                   }}
                   title="Delete tool"
                 >
-                  <Trash2 size={16} />
+                  <MdDelete size={16} />
                 </button>
               </div>
             </div>

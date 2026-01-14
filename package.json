@@ -27,7 +27,6 @@
     "electron-store": "^8.2.0",
     "icons": "^1.0.0",
     "langsmith": "^0.4.5",
-    "lucide-react": "^0.562.0",
     "magnitude-core": "^0.3.0",
     "react-icons": "^5.5.0",
     "uuid": "^10.0.0"

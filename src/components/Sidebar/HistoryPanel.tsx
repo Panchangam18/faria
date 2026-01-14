@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { FileText } from 'lucide-react';
+import { MdDescription } from 'react-icons/md';
 
 interface HistoryItem {
   id: number;
@@ -62,7 +62,7 @@ function HistoryPanel() {
       <div className="history-panel">
         <div className="empty-state">
           <div className="empty-state-icon">
-            <FileText size={48} strokeWidth={1.5} />
+            <MdDescription size={48} />
           </div>
           <p>No queries yet</p>
           <p style={{ fontSize: 'var(--font-size-sm)', marginTop: 'var(--spacing-sm)' }}>

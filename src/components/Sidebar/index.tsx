@@ -1,5 +1,5 @@
 import React from 'react';
-import { FileText, Wrench, Settings } from 'lucide-react';
+import { MdDescription, MdBuild, MdSettings } from 'react-icons/md';
 
 interface SidebarProps {
   activeTab: 'history' | 'toolbox' | 'settings';
@@ -14,21 +14,21 @@ function Sidebar({ activeTab, onTabChange }: SidebarProps) {
         onClick={() => onTabChange('history')}
         title="History"
       >
-        <FileText size={20} />
+        <MdDescription size={20} />
       </button>
       <button
         className={`sidebar-tab ${activeTab === 'toolbox' ? 'active' : ''}`}
         onClick={() => onTabChange('toolbox')}
         title="Toolbox"
       >
-        <Wrench size={20} />
+        <MdBuild size={20} />
       </button>
       <button
         className={`sidebar-tab ${activeTab === 'settings' ? 'active' : ''}`}
         onClick={() => onTabChange('settings')}
         title="Settings"
       >
-        <Settings size={20} />
+        <MdSettings size={20} />
       </button>
     </nav>
   );
