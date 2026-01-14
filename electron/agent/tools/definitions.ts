@@ -2,61 +2,6 @@ import { ToolDefinition } from './types';
 
 export const toolDefinitions: ToolDefinition[] = [
   {
-    name: 'send_keystrokes',
-    description: 'Type text using keyboard simulation',
-    parameters: {
-      type: 'object',
-      properties: {
-        text: { type: 'string', description: 'The text to type' },
-      },
-      required: ['text'],
-    },
-  },
-  {
-    name: 'send_hotkey',
-    description: 'Send a keyboard shortcut (e.g., Cmd+C, Ctrl+Shift+P)',
-    parameters: {
-      type: 'object',
-      properties: {
-        modifiers: { 
-          type: 'array',
-          items: { type: 'string' },
-          description: 'Modifier keys: cmd, ctrl, alt, shift'
-        },
-        key: { type: 'string', description: 'The key to press (e.g., c, v, enter, tab, escape)' },
-      },
-      required: ['key'],
-    },
-  },
-  {
-    name: 'click',
-    description: 'Click at screen coordinates. Use the coordinates shown in the state (e.g., @(553,132) means x=553, y=132)',
-    parameters: {
-      type: 'object',
-      properties: {
-        x: { type: 'number', description: 'X coordinate on screen' },
-        y: { type: 'number', description: 'Y coordinate on screen' },
-      },
-      required: ['x', 'y'],
-    },
-  },
-  {
-    name: 'scroll',
-    description: 'Scroll the current view',
-    parameters: {
-      type: 'object',
-      properties: {
-        direction: { 
-          type: 'string',
-          enum: ['up', 'down', 'left', 'right'],
-          description: 'Direction to scroll'
-        },
-        amount: { type: 'number', description: 'Number of pages to scroll (default: 1)' },
-      },
-      required: ['direction'],
-    },
-  },
-  {
     name: 'focus_app',
     description: 'Bring an application to the foreground',
     parameters: {
@@ -77,18 +22,6 @@ export const toolDefinitions: ToolDefinition[] = [
     },
   },
   {
-    name: 'find_replace',
-    description: 'Find and replace text using keyboard shortcuts (Cmd+H)',
-    parameters: {
-      type: 'object',
-      properties: {
-        find: { type: 'string', description: 'Text to find' },
-        replace: { type: 'string', description: 'Text to replace with' },
-      },
-      required: ['find', 'replace'],
-    },
-  },
-  {
     name: 'run_applescript',
     description: 'Execute raw AppleScript code',
     parameters: {
@@ -97,17 +30,6 @@ export const toolDefinitions: ToolDefinition[] = [
         script: { type: 'string', description: 'The AppleScript code to execute' },
       },
       required: ['script'],
-    },
-  },
-  {
-    name: 'run_shell',
-    description: 'Execute a shell command',
-    parameters: {
-      type: 'object',
-      properties: {
-        command: { type: 'string', description: 'The shell command to execute' },
-      },
-      required: ['command'],
     },
   },
   {

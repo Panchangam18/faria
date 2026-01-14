@@ -2,20 +2,15 @@ import { StateExtractor, AppState } from '../../services/state-extractor';
 
 // Types
 export type { ToolResult, ToolDefinition, ToolContext } from './types';
+export { executeComputerAction, type ComputerAction, type ComputerActionResult } from './computer-use';
 
 // Tool definitions
 import { toolDefinitions } from './definitions';
 
 // Tool implementations
-import { sendKeystrokes } from './send-keystrokes';
-import { sendHotkey } from './send-hotkey';
-import { click } from './click';
-import { scroll } from './scroll';
 import { focusApp } from './focus-app';
 import { getState } from './get-state';
-import { findReplace } from './find-replace';
 import { runAppleScriptTool } from './run-applescript';
-import { runShell } from './run-shell';
 import { searchTools } from './search-tools';
 import { createTool } from './create-tool';
 import { executeCustomTool } from './execute-custom-tool';
@@ -83,24 +78,12 @@ export class ToolExecutor {
     
     try {
       switch (toolName) {
-        case 'send_keystrokes':
-          return await sendKeystrokes(params as { text: string }, context);
-        case 'send_hotkey':
-          return await sendHotkey(params as { modifiers?: string[]; key: string }, context);
-        case 'click':
-          return await click(params as { x: number; y: number }, context);
-        case 'scroll':
-          return await scroll(params as { direction: 'up' | 'down' | 'left' | 'right'; amount?: number });
         case 'focus_app':
           return await focusApp(params as { name: string }, context);
         case 'get_state':
           return await getState(context);
-        case 'find_replace':
-          return await findReplace(params as { find: string; replace: string });
         case 'run_applescript':
           return await runAppleScriptTool(params as { script: string });
-        case 'run_shell':
-          return await runShell(params as { command: string });
         case 'search_tools':
           return await searchTools(params as { query: string; type?: 'bm25' | 'grep' });
         case 'create_tool':
