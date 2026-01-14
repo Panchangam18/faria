@@ -35,11 +35,18 @@ async function resizeImage(inputPath: string, outputPath: string, maxDimension: 
   }
 }
 
+export interface ScreenshotOptions {
+  /** If true, skip resizing to preserve exact pixel coordinates for computer use */
+  preserveSize?: boolean;
+}
+
 /**
  * Capture a screenshot of the entire screen
- * Returns base64 encoded PNG, resized to reduce token usage
+ * Returns base64 encoded PNG
+ * 
+ * @param options.preserveSize - If true, don't resize (important for computer use coordinate accuracy)
  */
-export async function takeScreenshot(): Promise<string> {
+export async function takeScreenshot(options: ScreenshotOptions = {}): Promise<string> {
   const tempPath = join(tmpdir(), `faria-screenshot-${uuidv4()}.png`);
   const resizedPath = join(tmpdir(), `faria-screenshot-${uuidv4()}-resized.png`);
   
@@ -48,6 +55,15 @@ export async function takeScreenshot(): Promise<string> {
     await execAsync(`screencapture -x -t png "${tempPath}"`, {
       timeout: 5000,
     });
+    
+    // For computer use, preserve original size so coordinates match exactly
+    // For other uses (like inline agent), resize to save tokens
+    if (options.preserveSize) {
+      const imageBuffer = await readFile(tempPath);
+      const base64 = imageBuffer.toString('base64');
+      await unlink(tempPath).catch(() => {});
+      return `data:image/png;base64,${base64}`;
+    }
     
     // Resize to reduce token usage
     await resizeImage(tempPath, resizedPath, MAX_SCREENSHOT_DIMENSION);

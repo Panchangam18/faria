@@ -56,7 +56,8 @@ export const anthropicProvider: ModelProvider = {
   
   getInvokeOptions(): Record<string, unknown> {
     return {
-      betas: ['computer-use-2024-10-22'],
+      // Use latest computer use beta (matches computer_20250124 tool version)
+      betas: ['computer-use-2025-01-24'],
     };
   },
 };

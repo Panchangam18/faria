@@ -99,6 +99,15 @@ export function isComputerUseTool(toolName: string): boolean {
 }
 
 /**
+ * Check if a provider supports computer use
+ */
+export function supportsComputerUse(modelName: string): boolean {
+  const provider = getProvider(modelName);
+  // Both Anthropic and Google support computer use
+  return provider?.name === 'anthropic' || provider?.name === 'google';
+}
+
+/**
  * Get a human-readable display name for a tool
  */
 export function getToolDisplayName(toolName: string): string {

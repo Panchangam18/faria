@@ -1,9 +1,10 @@
 import { takeScreenshot } from '../../services/screenshot';
 import * as cliclick from '../../services/cliclick';
 
-// Computer use action type
+// Computer use action type - supports both Anthropic and Google formats
 export interface ComputerAction {
   action: string;
+  // Anthropic format
   coordinate?: [number, number];
   start_coordinate?: [number, number];
   end_coordinate?: [number, number];
@@ -12,6 +13,13 @@ export interface ComputerAction {
   scroll_direction?: 'up' | 'down' | 'left' | 'right';
   scroll_amount?: number;
   duration?: number;
+  // Google format (normalized 0-1 coordinates)
+  x?: number;
+  y?: number;
+  start_x?: number;
+  start_y?: number;
+  end_x?: number;
+  end_y?: number;
 }
 
 // Return type for computer actions
@@ -25,15 +33,59 @@ export type ComputerActionResult = string | Array<{
 }>;
 
 /**
+ * Normalize action name to handle both Anthropic and Google formats
+ */
+function normalizeAction(action: string): string {
+  const aliases: Record<string, string> = {
+    // Google -> Anthropic mappings
+    'click': 'left_click',
+    'click_at': 'left_click',
+    'left_click_at': 'left_click',
+    'right_click_at': 'right_click',
+    'double_click_at': 'double_click',
+    'type_text': 'type',
+    'type_text_at': 'type',
+    'press_key': 'key',
+    'key_press': 'key',
+    'take_screenshot': 'screenshot',
+    'move_mouse': 'mouse_move',
+    'drag': 'left_click_drag',
+    'drag_and_drop': 'left_click_drag',
+  };
+  return aliases[action] || action;
+}
+
+/**
+ * Get coordinates from action, handling both formats
+ * Anthropic uses coordinate: [x, y]
+ * Google might use x, y as separate normalized (0-1) values
+ */
+function getCoordinate(action: ComputerAction, screenWidth = 1920, screenHeight = 1080): [number, number] | undefined {
+  if (action.coordinate) {
+    return action.coordinate;
+  }
+  // Google uses normalized coordinates (0-1), convert to pixels
+  if (action.x !== undefined && action.y !== undefined) {
+    const x = action.x <= 1 ? Math.round(action.x * screenWidth) : action.x;
+    const y = action.y <= 1 ? Math.round(action.y * screenHeight) : action.y;
+    return [x, y];
+  }
+  return undefined;
+}
+
+/**
  * Execute a computer use tool action
  * Returns content for ToolMessage (string or image array)
+ * Handles both Anthropic and Google action formats
  */
 export async function executeComputerAction(action: ComputerAction): Promise<ComputerActionResult> {
-  console.log(`[Faria] Computer action: ${action.action}`, JSON.stringify(action).slice(0, 200));
+  const normalizedAction = normalizeAction(action.action);
+  console.log(`[Faria] Computer action: ${action.action} -> ${normalizedAction}`, JSON.stringify(action).slice(0, 200));
   
-  switch (action.action) {
+  switch (normalizedAction) {
     case 'screenshot': {
-      const screenshot = await takeScreenshot();
+      // Use preserveSize to ensure coordinates match the screen dimensions we told Claude
+      const screenshot = await takeScreenshot({ preserveSize: true });
       // Return base64 data without the data:image/png;base64, prefix
       const base64Data = screenshot.replace(/^data:image\/\w+;base64,/, '');
       return [{
@@ -47,53 +99,59 @@ export async function executeComputerAction(action: ComputerAction): Promise<Com
     }
     
     case 'left_click': {
-      if (action.coordinate) {
-        await cliclick.click(action.coordinate[0], action.coordinate[1]);
-        return `Clicked at (${action.coordinate[0]}, ${action.coordinate[1]})`;
+      const coord = getCoordinate(action);
+      if (coord) {
+        await cliclick.click(coord[0], coord[1]);
+        return `Clicked at (${coord[0]}, ${coord[1]})`;
       }
       throw new Error('Coordinate required for left_click');
     }
     
     case 'right_click': {
-      if (action.coordinate) {
-        await cliclick.rightClick(action.coordinate[0], action.coordinate[1]);
-        return `Right-clicked at (${action.coordinate[0]}, ${action.coordinate[1]})`;
+      const coord = getCoordinate(action);
+      if (coord) {
+        await cliclick.rightClick(coord[0], coord[1]);
+        return `Right-clicked at (${coord[0]}, ${coord[1]})`;
       }
       throw new Error('Coordinate required for right_click');
     }
     
     case 'middle_click': {
-      if (action.coordinate) {
+      const coord = getCoordinate(action);
+      if (coord) {
         // Middle click - use cliclick with middle button
-        await cliclick.click(action.coordinate[0], action.coordinate[1]);
-        return `Middle-clicked at (${action.coordinate[0]}, ${action.coordinate[1]})`;
+        await cliclick.click(coord[0], coord[1]);
+        return `Middle-clicked at (${coord[0]}, ${coord[1]})`;
       }
       throw new Error('Coordinate required for middle_click');
     }
     
     case 'double_click': {
-      if (action.coordinate) {
-        await cliclick.doubleClick(action.coordinate[0], action.coordinate[1]);
-        return `Double-clicked at (${action.coordinate[0]}, ${action.coordinate[1]})`;
+      const coord = getCoordinate(action);
+      if (coord) {
+        await cliclick.doubleClick(coord[0], coord[1]);
+        return `Double-clicked at (${coord[0]}, ${coord[1]})`;
       }
       throw new Error('Coordinate required for double_click');
     }
     
     case 'triple_click': {
-      if (action.coordinate) {
+      const coord = getCoordinate(action);
+      if (coord) {
         // Triple click - three rapid clicks
-        await cliclick.click(action.coordinate[0], action.coordinate[1]);
-        await cliclick.click(action.coordinate[0], action.coordinate[1]);
-        await cliclick.click(action.coordinate[0], action.coordinate[1]);
-        return `Triple-clicked at (${action.coordinate[0]}, ${action.coordinate[1]})`;
+        await cliclick.click(coord[0], coord[1]);
+        await cliclick.click(coord[0], coord[1]);
+        await cliclick.click(coord[0], coord[1]);
+        return `Triple-clicked at (${coord[0]}, ${coord[1]})`;
       }
       throw new Error('Coordinate required for triple_click');
     }
     
     case 'mouse_move': {
-      if (action.coordinate) {
-        await cliclick.moveMouse(action.coordinate[0], action.coordinate[1]);
-        return `Moved mouse to (${action.coordinate[0]}, ${action.coordinate[1]})`;
+      const coord = getCoordinate(action);
+      if (coord) {
+        await cliclick.moveMouse(coord[0], coord[1]);
+        return `Moved mouse to (${coord[0]}, ${coord[1]})`;
       }
       throw new Error('Coordinate required for mouse_move');
     }
@@ -126,13 +184,25 @@ export async function executeComputerAction(action: ComputerAction): Promise<Com
     }
     
     case 'left_click_drag': {
+      // Handle both formats
+      let startX: number, startY: number, endX: number, endY: number;
+      
       if (action.start_coordinate && action.end_coordinate) {
-        const [startX, startY] = action.start_coordinate;
-        const [endX, endY] = action.end_coordinate;
-        await cliclick.drag(startX, startY, endX, endY);
-        return `Dragged from (${startX}, ${startY}) to (${endX}, ${endY})`;
+        [startX, startY] = action.start_coordinate;
+        [endX, endY] = action.end_coordinate;
+      } else if (action.start_x !== undefined && action.start_y !== undefined && 
+                 action.end_x !== undefined && action.end_y !== undefined) {
+        // Google normalized format
+        startX = action.start_x <= 1 ? Math.round(action.start_x * 1920) : action.start_x;
+        startY = action.start_y <= 1 ? Math.round(action.start_y * 1080) : action.start_y;
+        endX = action.end_x <= 1 ? Math.round(action.end_x * 1920) : action.end_x;
+        endY = action.end_y <= 1 ? Math.round(action.end_y * 1080) : action.end_y;
+      } else {
+        throw new Error('Start and end coordinates required for drag');
       }
-      throw new Error('Start and end coordinates required for drag');
+      
+      await cliclick.drag(startX, startY, endX, endY);
+      return `Dragged from (${startX}, ${startY}) to (${endX}, ${endY})`;
     }
     
     case 'wait': {
@@ -145,4 +215,3 @@ export async function executeComputerAction(action: ComputerAction): Promise<Com
       return `Unknown action: ${action.action}`;
   }
 }
-

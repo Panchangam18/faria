@@ -95,7 +95,12 @@ export function formatNativeState(result: NativeExtractionResult): string {
 
       let line = `- ${elem.role}`;
       if (truncLabel) line += ` "${truncLabel}"`;
-      if (elem.rect) line += ` @(${elem.rect.x},${elem.rect.y})`;
+      // Show center coordinates for clicking (not top-left corner)
+      if (elem.rect) {
+        const centerX = Math.round(elem.rect.x + elem.rect.w / 2);
+        const centerY = Math.round(elem.rect.y + elem.rect.h / 2);
+        line += ` @(${centerX},${centerY})`;
+      }
       if (!elem.enabled) line += ' [disabled]';
       lines.push(line);
     }

@@ -87,7 +87,8 @@ export class StateExtractor {
     }
 
     // Last resort: screenshot fallback (for Electron apps, etc.)
-    const screenshot = await takeScreenshot();
+    // Use preserveSize to ensure coordinates match the screen dimensions for computer use
+    const screenshot = await takeScreenshot({ preserveSize: true });
     return {
       method: 'screenshot',
       appName,

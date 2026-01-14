@@ -227,8 +227,12 @@ export class InlineAgentLoop {
     }
     
     // Start chat with tools
+    // Google requires systemInstruction as Content object, not plain string
     const chat = model.startChat({
-      systemInstruction: INLINE_SYSTEM_PROMPT,
+      systemInstruction: {
+        role: 'user',
+        parts: [{ text: INLINE_SYSTEM_PROMPT }]
+      },
       tools: [{
         functionDeclarations: INLINE_TOOLS_GOOGLE
       }],

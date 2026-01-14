@@ -1,6 +1,28 @@
 import { ToolResult, ToolContext } from './types';
 import { runAppleScript, focusApp } from '../../services/applescript';
 import * as cliclick from '../../services/cliclick';
+import { screen } from 'electron';
+
+/**
+ * Convert coordinates from Google's 0-999 normalized grid to actual pixels
+ * Google Gemini outputs coordinates in a normalized 0-999 range regardless of screen size
+ * Anthropic uses actual pixel coordinates, so no conversion needed
+ */
+function convertCoordinates(x: number, y: number, provider: 'anthropic' | 'google' | null): { x: number; y: number } {
+  // Only convert for Google - Anthropic uses real pixel coordinates
+  if (provider !== 'google') {
+    return { x, y };
+  }
+  
+  const primaryDisplay = screen.getPrimaryDisplay();
+  const { width: screenWidth, height: screenHeight } = primaryDisplay.size;
+  
+  // Google uses 0-999 normalized coordinates
+  const pixelX = Math.round((x / 999) * screenWidth);
+  const pixelY = Math.round((y / 999) * screenHeight);
+  console.log(`[Faria] Converting Google normalized coords (${x},${y}) -> pixels (${pixelX},${pixelY}) for screen ${screenWidth}x${screenHeight}`);
+  return { x: pixelX, y: pixelY };
+}
 
 // Timeout limits for waiting (ms)
 const TIMEOUTS = {
@@ -190,8 +212,10 @@ async function executeAction(action: Action, context: ToolContext): Promise<stri
       if (action.x === undefined || action.y === undefined) {
         throw new Error('Coordinates required for click');
       }
-      await cliclick.click(action.x, action.y);
-      return `Clicked (${action.x}, ${action.y})`;
+      // Convert from Google's 0-999 normalized coords to actual pixels (Anthropic uses real pixels)
+      const { x, y } = convertCoordinates(action.x, action.y, context.provider);
+      await cliclick.click(x, y);
+      return `Clicked (${x}, ${y})`;
     }
     
     case 'scroll': {

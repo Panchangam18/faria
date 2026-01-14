@@ -13,6 +13,7 @@ import {
   getMissingKeyError,
   isComputerUseTool,
   getToolDisplayName,
+  getProviderName,
   BoundModel 
 } from '../services/models';
 
@@ -118,6 +119,12 @@ export class AgentLoop {
       
       // Get selected model and create model with tools bound
       const modelName = getSelectedModel('selectedModel');
+      const providerName = getProviderName(modelName);
+      // Set provider for coordinate conversion (Google uses 0-999 normalized, Anthropic uses pixels)
+      this.toolExecutor.setProvider(
+        providerName === 'anthropic' || providerName === 'google' ? providerName : null
+      );
+      
       const boundModel = createModelWithTools(
         modelName,
         regularTools,

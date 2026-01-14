@@ -36,7 +36,8 @@ export const googleProvider: ModelProvider = {
     const model = this.createModel(config);
     if (!model) return null;
     
-    // Google's computer use tool format
+    // Google's computer use tool format (from LangChain Python docs)
+    // Bind it alongside regular tools
     const computerTool = { computer_use: {} };
     
     // eslint-disable-next-line @typescript-eslint/no-explicit-any

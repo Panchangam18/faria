@@ -25,6 +25,7 @@ export class ToolExecutor {
   private stateExtractor: StateExtractor;
   private currentState: AppState | null = null;
   private targetApp: string | null = null; // The app that was focused when command bar opened
+  private provider: 'anthropic' | 'google' | null = null; // Which model provider is being used
   
   constructor(stateExtractor: StateExtractor) {
     this.stateExtractor = stateExtractor;
@@ -36,6 +37,14 @@ export class ToolExecutor {
   setTargetApp(appName: string | null): void {
     this.targetApp = appName;
     console.log(`[Faria] Tool executor target app set to: ${appName}`);
+  }
+  
+  /**
+   * Set the model provider (for coordinate format handling)
+   */
+  setProvider(provider: 'anthropic' | 'google' | null): void {
+    this.provider = provider;
+    console.log(`[Faria] Tool executor provider set to: ${provider}`);
   }
   
   /**
@@ -60,6 +69,7 @@ export class ToolExecutor {
       stateExtractor: this.stateExtractor,
       currentState: this.currentState,
       targetApp: this.targetApp,
+      provider: this.provider,
       setCurrentState: (state: AppState) => {
         this.currentState = state;
       },

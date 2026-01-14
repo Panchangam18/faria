@@ -25,6 +25,7 @@ export interface ToolContext {
   stateExtractor: StateExtractor;
   currentState: AppState | null;
   targetApp: string | null;
+  provider: 'anthropic' | 'google' | null;  // Which model provider is being used
   setCurrentState: (state: AppState) => void;
   setTargetApp: (appName: string | null) => void;
 }
