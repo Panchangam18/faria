@@ -30,7 +30,7 @@ const isDev = process.env.NODE_ENV === 'development' || !app.isPackaged;
 
 // Default command bar dimensions
 const DEFAULT_COMMAND_BAR_WIDTH = 400;
-const DEFAULT_COMMAND_BAR_HEIGHT = 83; // Single line: 80 (base) + 23 (one line)
+const DEFAULT_COMMAND_BAR_HEIGHT = 67; // Single line: 46 (base) + 21 (one line)
 
 function createMainWindow() {
   mainWindow = new BrowserWindow({
@@ -158,7 +158,7 @@ async function getFrontmostApp(): Promise<string | null> {
   }
 }
 
-function toggleCommandBar() {
+async function toggleCommandBar() {
   // If command bar is visible, hide it immediately (synchronous)
   if (isCommandBarVisible) {
     commandBarWindow?.hide();
@@ -169,38 +169,36 @@ function toggleCommandBar() {
     return;
   }
 
-  // Show window immediately with default mode (synchronous)
-  currentMode = 'agent';
-  currentContextText = null;
+  // IMPORTANT: Capture frontmost app AND selected text BEFORE showing the command bar
+  // Otherwise:
+  // 1. getFrontmostApp would return "Faria" since the window is already showing
+  // 2. getSelectedText would fail because the alwaysOnTop command bar interferes
+  const capturedApp = await getFrontmostApp();
+  targetAppName = capturedApp;
+  console.log('[Faria] Target app captured BEFORE showing:', targetAppName);
+  
+  // Get selected text while the original app is still active
+  const selectedText = await getSelectedText(capturedApp);
+  
+  if (selectedText) {
+    console.log('[Faria] Text selected, will start in inline mode. Length:', selectedText.length);
+    currentContextText = selectedText;
+    currentMode = 'inline';
+  } else {
+    console.log('[Faria] No text selected, starting in agent mode');
+    currentContextText = null;
+    currentMode = 'agent';
+  }
+
+  // Now show window with the correct mode already set
   showCommandBar();
   
-  // Capture target app and selected text in the background, then update mode
-  (async () => {
-    // Only proceed if window is still visible
-    if (!isCommandBarVisible || !commandBarWindow) return;
-    
-    targetAppName = await getFrontmostApp();
-    console.log('[Faria] Target app captured:', targetAppName);
-    
-    // Check if window is still visible before updating
-    if (!isCommandBarVisible || !commandBarWindow) return;
-    
-    // Check if user has text selected - if so, switch to inline mode
-    const selectedText = await getSelectedText(targetAppName);
-    
-    // Final check before updating
-    if (!isCommandBarVisible || !commandBarWindow) return;
-    
-    if (selectedText) {
-      console.log('[Faria] Text selected, switching to inline mode. Length:', selectedText.length);
-      currentContextText = selectedText;
-      currentMode = 'inline';
-      // Update the renderer with the new mode and context
-      commandBarWindow.webContents.send('command-bar:mode-change', currentMode, selectedText);
-    } else {
-      console.log('[Faria] No text selected, staying in agent mode');
+  // Send mode to renderer immediately after showing
+  setImmediate(() => {
+    if (commandBarWindow && isCommandBarVisible) {
+      commandBarWindow.webContents.send('command-bar:mode-change', currentMode, currentContextText || undefined);
     }
-  })();
+  });
 }
 
 function showCommandBar() {
@@ -245,7 +243,9 @@ function setupIPC() {
   });
 
   ipcMain.handle('agent:cancel', async () => {
+    // Cancel both agent and inline agent
     agentLoop.cancel();
+    getInlineAgent().cancel();
     return { success: true };
   });
 
@@ -346,8 +346,8 @@ function setupIPC() {
   ipcMain.on('command-bar:resize', (_event, height: number) => {
     if (commandBarWindow) {
       const [width] = commandBarWindow.getSize();
-      // Min: ~100 (single line), Max: ~295 (5 lines + response area)
-      commandBarWindow.setSize(width, Math.min(Math.max(height, 100), 300));
+      // Min: ~60 (single line with minimal padding), Max: ~350 (5 lines + response area)
+      commandBarWindow.setSize(width, Math.min(Math.max(height, 60), 350));
     }
   });
 

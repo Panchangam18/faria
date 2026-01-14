@@ -21,7 +21,6 @@ html, body, #root {
   -webkit-backdrop-filter: blur(20px);
   border-radius: var(--radius-lg);
   border: 1px solid var(--color-border);
-  box-shadow: var(--shadow-lg);
   overflow: hidden;
   -webkit-app-region: drag; /* Entire bar is draggable */
 }
@@ -39,7 +38,7 @@ html, body, #root {
   flex: 0 0 auto; /* Don't grow or shrink - size determined by content */
   display: flex;
   flex-direction: column;
-  padding: var(--spacing-md);
+  padding: var(--spacing-sm) 0 2px var(--spacing-md); /* Reduced top padding */
 }
 
 .command-bar-input {
@@ -48,17 +47,18 @@ html, body, #root {
   border: none;
   color: var(--color-text);
   font-family: var(--font-family);
-  font-size: var(--font-size-md);
+  font-size: var(--font-size-sm);
   resize: none;
   line-height: 1.5;
   overflow: hidden; /* Hide scrollbar by default */
-  min-height: 23px; /* At least one line */
+  min-height: 21px; /* At least one line (14px font * 1.5 line-height) */
+  padding: 0 20px 0 0; /* 20px right padding - scrollbar will take 4px of this */
   -webkit-app-region: no-drag; /* Allow text selection, not dragging */
 }
 
 .command-bar-input.scrollable {
-  overflow-y: overlay; /* Scrollbar overlays content, doesn't push it */
-  padding-right: 10px; /* Space between text and scrollbar */
+  overflow-y: auto;
+  padding-right: 16px; /* Reduce to 16px when scrollbar visible (4px scrollbar + 16px = 20px total) */
 }
 
 .command-bar-input:focus {
@@ -69,27 +69,22 @@ html, body, #root {
   color: var(--color-text-muted);
 }
 
-/* Scrollbar for input textarea */
+/* Scrollbar styling */
 .command-bar-input::-webkit-scrollbar {
-  width: 14px; /* Width includes the margin space */
+  width: 4px;
 }
 
 .command-bar-input::-webkit-scrollbar-track {
   background: transparent;
-  margin: 4px 0;
 }
 
 .command-bar-input::-webkit-scrollbar-thumb {
   background: var(--color-border);
-  border-radius: 3px;
-  border: 4px solid transparent; /* Creates space on sides */
-  background-clip: padding-box; /* Thumb only fills the inner area */
+  border-radius: 2px;
 }
 
 .command-bar-input::-webkit-scrollbar-thumb:hover {
   background: var(--color-text-muted);
-  border: 4px solid transparent;
-  background-clip: padding-box;
 }
 
 /* Response Area */
@@ -101,6 +96,7 @@ html, body, #root {
   font-size: var(--font-size-sm);
   line-height: 1.6;
   color: var(--color-accent);
+  -webkit-app-region: no-drag; /* Allow scrolling, not dragging */
 }
 
 .command-bar-response:empty {
@@ -109,16 +105,11 @@ html, body, #root {
 
 /* Status Text */
 .command-bar-status {
-  padding: var(--spacing-xs) var(--spacing-md);
   font-size: var(--font-size-xs);
   color: var(--color-accent);
   display: flex;
   align-items: center;
   gap: var(--spacing-xs);
-}
-
-.command-bar-status:empty {
-  display: none;
 }
 
 .status-spinner {
@@ -141,7 +132,7 @@ html, body, #root {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  padding: var(--spacing-sm) var(--spacing-md);
+  padding: var(--spacing-xs) var(--spacing-md) var(--spacing-sm) var(--spacing-md); /* Reduced top padding, kept bottom */
 }
 
 .footer-left {

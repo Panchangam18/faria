@@ -26,9 +26,9 @@ const DEFAULT_CONFIG: InlineAgentConfig = {
 
 const INLINE_SYSTEM_PROMPT = `You are Faria Inline, a focused text assistant. You help with:
 
-1. **Edit selected text** - When given selected text, replace it with improved/expanded/modified version.
-2. **Answer questions** - Use web_search to find information and give brief, direct answers.
-3. **Insert images** - Find and insert images into documents.
+1. Edit selected text - When given selected text, replace it with improved/expanded/modified version.
+2. Answer questions - Use web_search to find information and give brief, direct answers.
+3. Insert images - Find and insert images into documents.
 
 IMPORTANT RULES:
 - The user has SELECTED TEXT in their document. Your edits will REPLACE their selection.
@@ -36,6 +36,7 @@ IMPORTANT RULES:
 - Be concise but thorough. Match the style/tone of the original text.
 - For questions without edits: just use answer() to respond.
 - For images: use insert_image with a DETAILED description to find and insert the best matching image.
+- DO NOT use markdown formatting in your responses. Output plain text only - no bold, italics, headers, bullet points, or code blocks.
 
 You have these tools:
 - suggest_edits(edits) - Replace the selected text. Use [{oldText: <selected text>, newText: <your replacement>}]
@@ -139,10 +140,19 @@ export class InlineAgentLoop {
   private client: Anthropic | null = null;
   private config: InlineAgentConfig;
   private onStatus: ((status: string) => void) | null = null;
+  private shouldCancel = false;
   
   constructor() {
     this.config = DEFAULT_CONFIG;
     this.initializeClient();
+  }
+  
+  /**
+   * Cancel the current run
+   */
+  cancel(): void {
+    console.log('[InlineAgent] Cancel requested');
+    this.shouldCancel = true;
   }
   
   private initializeClient(): void {
@@ -174,6 +184,9 @@ export class InlineAgentLoop {
     contextText: string | null,
     targetApp: string | null
   ): Promise<InlineResult> {
+    // Reset cancel flag at start of run
+    this.shouldCancel = false;
+    
     if (!this.client) {
       this.initializeClient();
       if (!this.client) {
@@ -194,6 +207,12 @@ export class InlineAgentLoop {
         { role: 'user', content: userMessage }
       ];
       
+      // Check for cancellation before API call
+      if (this.shouldCancel) {
+        console.log('[InlineAgent] Cancelled before API call');
+        return { type: 'answer', content: '' };
+      }
+      
       // First API call
       let response = await this.client.messages.create({
         model: this.config.model,
@@ -203,8 +222,14 @@ export class InlineAgentLoop {
         messages
       });
       
+      // Check for cancellation after API call
+      if (this.shouldCancel) {
+        console.log('[InlineAgent] Cancelled after API call');
+        return { type: 'answer', content: '' };
+      }
+      
       // Handle tool use
-      while (response.stop_reason === 'tool_use') {
+      while (response.stop_reason === 'tool_use' && !this.shouldCancel) {
         const toolUseBlocks = response.content.filter(
           (block): block is Anthropic.ToolUseBlock => block.type === 'tool_use'
         );
@@ -212,6 +237,12 @@ export class InlineAgentLoop {
         const toolResults: Anthropic.ToolResultBlockParam[] = [];
         
         for (const toolUse of toolUseBlocks) {
+          // Check for cancellation before each tool
+          if (this.shouldCancel) {
+            console.log('[InlineAgent] Cancelled before tool execution');
+            return { type: 'answer', content: '' };
+          }
+          
           const result = await this.executeTool(toolUse.name, toolUse.input, targetApp, contextText);
           
           // If this is a terminal action (edits, image, answer), return immediately
@@ -226,6 +257,12 @@ export class InlineAgentLoop {
           });
         }
         
+        // Check for cancellation after tool execution
+        if (this.shouldCancel) {
+          console.log('[InlineAgent] Cancelled after tool execution');
+          return { type: 'answer', content: '' };
+        }
+        
         // Continue conversation with tool results
         messages.push({ role: 'assistant', content: response.content });
         messages.push({ role: 'user', content: toolResults });
@@ -237,6 +274,12 @@ export class InlineAgentLoop {
           tools: INLINE_TOOLS,
           messages
         });
+      }
+      
+      // Check for cancellation at end
+      if (this.shouldCancel) {
+        console.log('[InlineAgent] Cancelled at end');
+        return { type: 'answer', content: '' };
       }
       
       // Extract final text response

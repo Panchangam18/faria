@@ -9,11 +9,12 @@ const MODES = [
   { id: 'inline' as Mode, name: 'Inline', shortcut: '⌘↵' },
 ];
 
-// Line height is 15px * 1.5 = 22.5px, round to 23px
-const LINE_HEIGHT = 23;
+// Line height is 14px (font-size-sm) * 1.5 = 21px
+const LINE_HEIGHT = 21;
 const MAX_LINES = 5;
 const MAX_TEXTAREA_HEIGHT = LINE_HEIGHT * MAX_LINES; // 115px for 5 lines
-const BASE_HEIGHT = 80; // Footer + padding
+const BASE_HEIGHT = 46; // Footer + padding (8px top input + 2px bottom input + 4px top footer + 8px bottom footer + ~24px footer content)
+const MAX_RESPONSE_HEIGHT = 200; // Max height before scrolling kicks in
 
 function CommandBar() {
   const [query, setQuery] = useState('');
@@ -24,6 +25,7 @@ function CommandBar() {
   const [showModeMenu, setShowModeMenu] = useState(false);
   const [contextText, setContextText] = useState('');
   const inputRef = useRef<HTMLTextAreaElement>(null);
+  const responseRef = useRef<HTMLDivElement>(null);
 
   // Resize window based on textarea content - runs synchronously after DOM updates
   useLayoutEffect(() => {
@@ -39,16 +41,30 @@ function CommandBar() {
     const contentHeight = Math.max(LINE_HEIGHT, Math.min(scrollHeight, MAX_TEXTAREA_HEIGHT));
     textarea.style.height = `${contentHeight}px`;
     
+    // Clear inline overflow style so CSS class can control it
+    textarea.style.overflow = '';
+    
     // Only enable scrolling when content exceeds max height
     if (scrollHeight > MAX_TEXTAREA_HEIGHT) {
-      textarea.style.overflow = 'auto';
       textarea.classList.add('scrollable');
     } else {
       textarea.classList.remove('scrollable');
     }
     
+    // Calculate response height (actual content height, capped at max)
+    let responseHeight = 0;
+    if (response && responseRef.current) {
+      // Temporarily remove max-height to measure true content height
+      const el = responseRef.current;
+      const originalMaxHeight = el.style.maxHeight;
+      el.style.maxHeight = 'none';
+      const actualHeight = el.scrollHeight;
+      el.style.maxHeight = originalMaxHeight;
+      responseHeight = Math.min(actualHeight, MAX_RESPONSE_HEIGHT) + 16; // +16 for margin
+    }
+    
     // Calculate and set window height
-    const totalHeight = BASE_HEIGHT + contentHeight + (response ? 100 : 0);
+    const totalHeight = BASE_HEIGHT + contentHeight + responseHeight;
     window.faria.commandBar.resize(totalHeight);
   }, [query, response]);
 
@@ -185,20 +201,20 @@ function CommandBar() {
       </div>
 
       {response && (
-        <div className="command-bar-response">
+        <div className="command-bar-response" ref={responseRef}>
           {response}
         </div>
       )}
 
-      {status && (
-        <div className="command-bar-status">
-          <div className="status-spinner" />
-          <span>{status}</span>
-        </div>
-      )}
-
       <div className="command-bar-footer">
-        <div className="footer-left"></div>
+        <div className="footer-left">
+          {status && (
+            <div className="command-bar-status">
+              <div className="status-spinner" />
+              <span>{status}</span>
+            </div>
+          )}
+        </div>
         <div className="footer-right">
           {/* Mode selector */}
           <span className="mode-shortcut-hint">⌘↵</span>
