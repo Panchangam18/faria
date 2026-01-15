@@ -90,9 +90,8 @@ export async function getSelectedText(targetApp: string | null): Promise<string 
     clipboard.writeText('');
 
     if (targetApp && targetApp !== 'Electron' && targetApp !== 'Faria') {
-      await runAppleScript(`tell application "${targetApp}" to activate`);
-      await cliclick.sleep(50);
-
+      // Don't re-activate the app - it's already frontmost and activate can
+      // cause window switching in apps like Chrome with multiple windows
       // Use Edit menu to copy - not affected by modifier keys still being held
       await copyViaEditMenu(targetApp);
     } else {
@@ -122,11 +121,8 @@ export async function extractTextAroundCursor(targetApp: string | null): Promise
   const savedClipboard = clipboard.readText();
 
   try {
-    // First, ensure the target app is focused
-    if (targetApp && targetApp !== 'Electron' && targetApp !== 'Faria') {
-      await runAppleScript(`tell application "${targetApp}" to activate`);
-      await cliclick.sleep(50);
-    }
+    // Don't call activate - it causes window switching in Chrome with multiple windows
+    // The target app should still be frontmost since we used showInactive()
 
     // Strategy: Select text before cursor, copy, then select text after cursor, copy
     // Option+Shift+Left selects one word at a time going backward
@@ -205,10 +201,7 @@ export async function extractTextFast(targetApp: string | null): Promise<Extract
   const savedClipboard = clipboard.readText();
 
   try {
-    if (targetApp && targetApp !== 'Electron' && targetApp !== 'Faria') {
-      await runAppleScript(`tell application "${targetApp}" to activate`);
-      await cliclick.sleep(50);
-    }
+    // Don't call activate - it causes window switching in Chrome with multiple windows
 
     // Try selecting current paragraph (triple-click or Cmd+Shift+Up/Down from cursor)
     // For most apps, selecting the current line + adjacent lines is good enough
@@ -265,21 +258,19 @@ export interface TextEdit {
 }
 
 export async function applyTextEdits(
-  targetApp: string | null, 
+  targetApp: string | null,
   edits: TextEdit[]
 ): Promise<{ success: boolean; appliedCount: number; errors: string[] }> {
   const errors: string[] = [];
   let appliedCount = 0;
-  
+
   console.log('[TextEdit] Applying', edits.length, 'edit(s) to', targetApp);
-  
-  // Ensure target app is focused
-  if (targetApp && targetApp !== 'Electron' && targetApp !== 'Faria') {
-    await runAppleScript(`tell application "${targetApp}" to activate`);
-    await cliclick.sleep(300);
-  } else {
-    console.log('[TextEdit] WARNING: No target app to activate');
+
+  if (!targetApp || targetApp === 'Electron' || targetApp === 'Faria') {
+    console.log('[TextEdit] WARNING: No target app specified');
   }
+  // Don't call activate - it causes window switching in Chrome with multiple windows
+  // The target app should still be frontmost since we used showInactive()
   
   try {
     // The text should still be selected from when we copied it
@@ -352,13 +343,10 @@ export async function applyTextEditsDirectSelection(
   if (newText === contextText) {
     return { success: true, appliedCount: 0, errors: [] };
   }
-  
-  // Ensure target app is focused
-  if (targetApp && targetApp !== 'Electron' && targetApp !== 'Faria') {
-    await runAppleScript(`tell application "${targetApp}" to activate`);
-    await cliclick.sleep(100);
-  }
-  
+
+  // Don't call activate - it causes window switching in Chrome with multiple windows
+  // The target app should still be frontmost since we used showInactive()
+
   try {
     // Select all the context text (we extracted it earlier, now select it again)
     // Go back to the start of what we extracted
@@ -414,13 +402,10 @@ export async function insertImageFromUrl(
     }
     
     clipboard.writeImage(image);
-    
-    // Focus target app
-    if (targetApp && targetApp !== 'Electron' && targetApp !== 'Faria') {
-      await runAppleScript(`tell application "${targetApp}" to activate`);
-      await cliclick.sleep(300);
-    }
-    
+
+    // Don't call activate - it causes window switching in Chrome with multiple windows
+    // The target app should still be frontmost since we used showInactive()
+
     // Paste via Edit menu
     const menuScript = `
       tell application "System Events"
