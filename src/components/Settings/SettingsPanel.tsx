@@ -89,8 +89,6 @@ const AVAILABLE_FONTS = [
 ];
 
 function SettingsPanel({ currentTheme, onThemeChange }: SettingsPanelProps) {
-  const [firstName, setFirstName] = useState('');
-  const [lastName, setLastName] = useState('');
   const [anthropicKey, setAnthropicKey] = useState('');
   const [showAnthropicKey, setShowAnthropicKey] = useState(false);
   const [googleKey, setGoogleKey] = useState('');
@@ -112,6 +110,8 @@ function SettingsPanel({ currentTheme, onThemeChange }: SettingsPanelProps) {
   const [hasLoadedSettings, setHasLoadedSettings] = useState(false);
   const [hoverInlineModel, setHoverInlineModel] = useState(false);
   const [hoverAgentModel, setHoverAgentModel] = useState(false);
+  const [inlinePrompt, setInlinePrompt] = useState('');
+  const [agentPrompt, setAgentPrompt] = useState('');
 
   useEffect(() => {
     loadSettings().then(() => {
@@ -140,18 +140,31 @@ function SettingsPanel({ currentTheme, onThemeChange }: SettingsPanelProps) {
   }, [anthropicKey, googleKey, hasLoadedSettings, selectedModel, selectedInlineModel]);
 
   const loadSettings = async () => {
-    const savedFirstName = await window.faria.settings.get('firstName');
-    const savedLastName = await window.faria.settings.get('lastName');
     const savedAnthropicKey = await window.faria.settings.get('anthropicKey');
     const savedGoogleKey = await window.faria.settings.get('googleKey');
     const savedModel = await window.faria.settings.get('selectedModel');
     const savedInlineModel = await window.faria.settings.get('selectedInlineModel');
     const savedCustomPalettes = await window.faria.settings.get('customPalettes');
+    const savedInlinePrompt = await window.faria.settings.get('inlineSystemPrompt');
+    const savedAgentPrompt = await window.faria.settings.get('agentSystemPrompt');
 
-    if (savedFirstName) setFirstName(savedFirstName);
-    if (savedLastName) setLastName(savedLastName);
     if (savedAnthropicKey) setAnthropicKey(savedAnthropicKey);
     if (savedGoogleKey) setGoogleKey(savedGoogleKey);
+    
+    // Load prompts: use saved if available, otherwise load defaults
+    if (savedInlinePrompt) {
+      setInlinePrompt(savedInlinePrompt);
+    } else {
+      const defaultInlinePrompt = await window.faria.settings.getDefaultPrompt('inline');
+      setInlinePrompt(defaultInlinePrompt);
+    }
+    
+    if (savedAgentPrompt) {
+      setAgentPrompt(savedAgentPrompt);
+    } else {
+      const defaultAgentPrompt = await window.faria.settings.getDefaultPrompt('agent');
+      setAgentPrompt(defaultAgentPrompt);
+    }
     
     // Check which models are available based on saved API keys
     const hasAnthropicKey = savedAnthropicKey && savedAnthropicKey.trim().length > 0;
@@ -440,243 +453,8 @@ function SettingsPanel({ currentTheme, onThemeChange }: SettingsPanelProps) {
   return (
     <div className="settings-panel">
 
-      {/* Profile Section */}
-      <section style={{ marginBottom: 'var(--spacing-xl)' }}>
-        <h3 style={{ 
-          fontSize: 'var(--font-size-md)', 
-          marginBottom: 'var(--spacing-md)',
-          color: 'var(--color-text-muted)'
-        }}>
-          Profile
-        </h3>
-        
-        <div className="card">
-          <div style={{ 
-            display: 'grid', 
-            gridTemplateColumns: '1fr 1fr', 
-            gap: 'var(--spacing-md)',
-            padding: 'var(--spacing-md)'
-          }}>
-            <div>
-              <label style={{ 
-                display: 'block', 
-                fontSize: 'var(--font-size-sm)', 
-                marginBottom: 'var(--spacing-xs)',
-                color: 'var(--color-text-muted)'
-              }}>
-                First Name
-              </label>
-              <input
-                type="text"
-                value={firstName}
-                onChange={(e) => {
-                  setFirstName(e.target.value);
-                  saveSettings('firstName', e.target.value);
-                }}
-                placeholder="Enter first name"
-              />
-            </div>
-            <div>
-              <label style={{ 
-                display: 'block', 
-                fontSize: 'var(--font-size-sm)', 
-                marginBottom: 'var(--spacing-xs)',
-                color: 'var(--color-text-muted)'
-              }}>
-                Last Name
-              </label>
-              <input
-                type="text"
-                value={lastName}
-                onChange={(e) => {
-                  setLastName(e.target.value);
-                  saveSettings('lastName', e.target.value);
-                }}
-                placeholder="Enter last name"
-              />
-            </div>
-          </div>
-        </div>
-      </section>
-
-      {/* Model Section */}
-      <section style={{ marginBottom: 'var(--spacing-xl)' }}>
-        <h3 style={{ 
-          fontSize: 'var(--font-size-md)', 
-          marginBottom: 'var(--spacing-md)',
-          color: 'var(--color-text-muted)'
-        }}>
-          Models
-        </h3>
-        
-        <div className="card">
-          <div style={{ padding: 'var(--spacing-md)' }}>
-            <div style={{ 
-              display: 'grid', 
-              gridTemplateColumns: '1fr 1fr', 
-              gap: 'var(--spacing-md)' 
-            }}>
-              <div>
-                <label style={{ 
-                  display: 'block', 
-                  fontSize: 'var(--font-size-sm)', 
-                  marginBottom: 'var(--spacing-xs)',
-                  color: 'var(--color-text-muted)'
-                }}>
-                  Inline
-                </label>
-                <select
-                  value={selectedInlineModel}
-                  onChange={(e) => {
-                    setSelectedInlineModel(e.target.value);
-                    saveSettings('selectedInlineModel', e.target.value);
-                  }}
-                  onMouseEnter={() => setHoverInlineModel(true)}
-                  onMouseLeave={() => setHoverInlineModel(false)}
-                  style={{
-                    width: '100%',
-                    padding: 'var(--spacing-sm)',
-                    fontSize: 'var(--font-size-sm)',
-                    borderRadius: 'var(--radius-sm)',
-                    border: `1px solid ${hoverInlineModel ? 'var(--color-accent)' : 'var(--color-border)'}`,
-                    backgroundColor: hoverInlineModel ? 'var(--color-hover)' : 'var(--color-primary)',
-                    color: 'var(--color-text)',
-                    appearance: 'none',
-                    WebkitAppearance: 'none',
-                    MozAppearance: 'none',
-                    cursor: 'pointer',
-                    transition: 'all var(--transition-fast)',
-                  }}
-                >
-                  <option value="none">None</option>
-                  {getAvailableModels().map((model) => (
-                    <option key={model.id} value={model.id}>
-                      {model.name}
-                    </option>
-                  ))}
-                </select>
-              </div>
-              
-              <div>
-                <label style={{ 
-                  display: 'block', 
-                  fontSize: 'var(--font-size-sm)', 
-                  marginBottom: 'var(--spacing-xs)',
-                  color: 'var(--color-text-muted)'
-                }}>
-                  Agent (beta)
-                </label>
-                <select
-                  value={selectedModel}
-                  onChange={(e) => {
-                    setSelectedModel(e.target.value);
-                    saveSettings('selectedModel', e.target.value);
-                  }}
-                  onMouseEnter={() => setHoverAgentModel(true)}
-                  onMouseLeave={() => setHoverAgentModel(false)}
-                  style={{
-                    width: '100%',
-                    padding: 'var(--spacing-sm)',
-                    fontSize: 'var(--font-size-sm)',
-                    borderRadius: 'var(--radius-sm)',
-                    border: `1px solid ${hoverAgentModel ? 'var(--color-accent)' : 'var(--color-border)'}`,
-                    backgroundColor: hoverAgentModel ? 'var(--color-hover)' : 'var(--color-primary)',
-                    color: 'var(--color-text)',
-                    appearance: 'none',
-                    WebkitAppearance: 'none',
-                    MozAppearance: 'none',
-                    cursor: 'pointer',
-                    transition: 'all var(--transition-fast)',
-                  }}
-                >
-                  <option value="none">None</option>
-                  {getAvailableModels().map((model) => (
-                    <option key={model.id} value={model.id}>
-                      {model.name}
-                    </option>
-                  ))}
-                </select>
-              </div>
-            </div>
-          </div>
-        </div>
-      </section>
-
-      {/* API Keys Section */}
-      <section style={{ marginBottom: 'var(--spacing-xl)' }}>
-        <h3 style={{ 
-          fontSize: 'var(--font-size-md)', 
-          marginBottom: 'var(--spacing-md)',
-          color: 'var(--color-text-muted)'
-        }}>
-          API Keys
-        </h3>
-        
-        <div className="card">
-          <div style={{ padding: 'var(--spacing-md)' }}>
-            <div style={{ marginBottom: 'var(--spacing-md)' }}>
-              <label style={{ 
-                display: 'block', 
-                fontSize: 'var(--font-size-sm)', 
-                marginBottom: 'var(--spacing-xs)',
-                color: 'var(--color-text-muted)'
-              }}>
-                Anthropic API Key
-              </label>
-              <div style={{ display: 'flex', gap: 'var(--spacing-sm)' }}>
-                <input
-                  type={showAnthropicKey ? 'text' : 'password'}
-                  value={anthropicKey}
-                  onChange={(e) => {
-                    setAnthropicKey(e.target.value);
-                    saveSettings('anthropicKey', e.target.value);
-                  }}
-                  placeholder="sk-ant-..."
-                  style={{ flex: 1 }}
-                />
-                <button
-                  className="btn btn-secondary"
-                  onClick={() => setShowAnthropicKey(!showAnthropicKey)}
-                >
-                  {showAnthropicKey ? 'Hide' : 'Show'}
-                </button>
-              </div>
-            </div>
-            
-            <div>
-              <label style={{ 
-                display: 'block', 
-                fontSize: 'var(--font-size-sm)', 
-                marginBottom: 'var(--spacing-xs)',
-                color: 'var(--color-text-muted)'
-              }}>
-                Google AI API Key
-              </label>
-              <div style={{ display: 'flex', gap: 'var(--spacing-sm)' }}>
-                <input
-                  type={showGoogleKey ? 'text' : 'password'}
-                  value={googleKey}
-                  onChange={(e) => {
-                    setGoogleKey(e.target.value);
-                    saveSettings('googleKey', e.target.value);
-                  }}
-                  placeholder="AIxxxx..."
-                  style={{ flex: 1 }}
-                />
-                <button
-                  className="btn btn-secondary"
-                  onClick={() => setShowGoogleKey(!showGoogleKey)}
-                >
-                  {showGoogleKey ? 'Hide' : 'Show'}
-                </button>
-              </div>
-            </div>
-          </div>
-        </div>
-      </section>
-
       {/* Theme Section */}
-      <section>
+      <section style={{ marginBottom: 'var(--spacing-xl)' }}>
         <h3 style={{ 
           fontSize: 'var(--font-size-md)', 
           marginBottom: 'var(--spacing-md)',
@@ -1173,6 +951,259 @@ function SettingsPanel({ currentTheme, onThemeChange }: SettingsPanelProps) {
             </div>
           </div>
         )}
+      </section>
+
+      {/* Model Section */}
+      <section style={{ marginBottom: 'var(--spacing-xl)' }}>
+        <h3 style={{ 
+          fontSize: 'var(--font-size-md)', 
+          marginBottom: 'var(--spacing-md)',
+          color: 'var(--color-text-muted)'
+        }}>
+          Models
+        </h3>
+        
+        <div className="card">
+          <div style={{ padding: 'var(--spacing-md)' }}>
+            <div style={{ 
+              display: 'grid', 
+              gridTemplateColumns: '1fr 1fr', 
+              gap: 'var(--spacing-md)' 
+            }}>
+              <div>
+                <label style={{ 
+                  display: 'block', 
+                  fontSize: 'var(--font-size-sm)', 
+                  marginBottom: 'var(--spacing-xs)',
+                  color: 'var(--color-text-muted)'
+                }}>
+                  Inline
+                </label>
+                <select
+                  value={selectedInlineModel}
+                  onChange={(e) => {
+                    setSelectedInlineModel(e.target.value);
+                    saveSettings('selectedInlineModel', e.target.value);
+                  }}
+                  onMouseEnter={() => setHoverInlineModel(true)}
+                  onMouseLeave={() => setHoverInlineModel(false)}
+                  style={{
+                    width: '100%',
+                    padding: 'var(--spacing-sm)',
+                    fontSize: 'var(--font-size-sm)',
+                    borderRadius: 'var(--radius-sm)',
+                    border: `1px solid ${hoverInlineModel ? 'var(--color-accent)' : 'var(--color-border)'}`,
+                    backgroundColor: hoverInlineModel ? 'var(--color-hover)' : 'var(--color-primary)',
+                    color: 'var(--color-text)',
+                    appearance: 'none',
+                    WebkitAppearance: 'none',
+                    MozAppearance: 'none',
+                    cursor: 'pointer',
+                    transition: 'all var(--transition-fast)',
+                  }}
+                >
+                  <option value="none">None</option>
+                  {getAvailableModels().map((model) => (
+                    <option key={model.id} value={model.id}>
+                      {model.name}
+                    </option>
+                  ))}
+                </select>
+              </div>
+              
+              <div>
+                <label style={{ 
+                  display: 'block', 
+                  fontSize: 'var(--font-size-sm)', 
+                  marginBottom: 'var(--spacing-xs)',
+                  color: 'var(--color-text-muted)'
+                }}>
+                  Agent (beta)
+                </label>
+                <select
+                  value={selectedModel}
+                  onChange={(e) => {
+                    setSelectedModel(e.target.value);
+                    saveSettings('selectedModel', e.target.value);
+                  }}
+                  onMouseEnter={() => setHoverAgentModel(true)}
+                  onMouseLeave={() => setHoverAgentModel(false)}
+                  style={{
+                    width: '100%',
+                    padding: 'var(--spacing-sm)',
+                    fontSize: 'var(--font-size-sm)',
+                    borderRadius: 'var(--radius-sm)',
+                    border: `1px solid ${hoverAgentModel ? 'var(--color-accent)' : 'var(--color-border)'}`,
+                    backgroundColor: hoverAgentModel ? 'var(--color-hover)' : 'var(--color-primary)',
+                    color: 'var(--color-text)',
+                    appearance: 'none',
+                    WebkitAppearance: 'none',
+                    MozAppearance: 'none',
+                    cursor: 'pointer',
+                    transition: 'all var(--transition-fast)',
+                  }}
+                >
+                  <option value="none">None</option>
+                  {getAvailableModels().map((model) => (
+                    <option key={model.id} value={model.id}>
+                      {model.name}
+                    </option>
+                  ))}
+                </select>
+              </div>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      {/* API Keys Section */}
+      <section style={{ marginBottom: 'var(--spacing-xl)' }}>
+        <h3 style={{ 
+          fontSize: 'var(--font-size-md)', 
+          marginBottom: 'var(--spacing-md)',
+          color: 'var(--color-text-muted)'
+        }}>
+          API Keys
+        </h3>
+        
+        <div className="card">
+          <div style={{ padding: 'var(--spacing-md)' }}>
+            <div style={{ marginBottom: 'var(--spacing-md)' }}>
+              <label style={{ 
+                display: 'block', 
+                fontSize: 'var(--font-size-sm)', 
+                marginBottom: 'var(--spacing-xs)',
+                color: 'var(--color-text-muted)'
+              }}>
+                Anthropic API Key
+              </label>
+              <div style={{ display: 'flex', gap: 'var(--spacing-sm)' }}>
+                <input
+                  type={showAnthropicKey ? 'text' : 'password'}
+                  value={anthropicKey}
+                  onChange={(e) => {
+                    setAnthropicKey(e.target.value);
+                    saveSettings('anthropicKey', e.target.value);
+                  }}
+                  placeholder="sk-ant-..."
+                  style={{ flex: 1 }}
+                />
+                <button
+                  className="btn btn-secondary"
+                  onClick={() => setShowAnthropicKey(!showAnthropicKey)}
+                >
+                  {showAnthropicKey ? 'Hide' : 'Show'}
+                </button>
+              </div>
+            </div>
+            
+            <div>
+              <label style={{ 
+                display: 'block', 
+                fontSize: 'var(--font-size-sm)', 
+                marginBottom: 'var(--spacing-xs)',
+                color: 'var(--color-text-muted)'
+              }}>
+                Google AI API Key
+              </label>
+              <div style={{ display: 'flex', gap: 'var(--spacing-sm)' }}>
+                <input
+                  type={showGoogleKey ? 'text' : 'password'}
+                  value={googleKey}
+                  onChange={(e) => {
+                    setGoogleKey(e.target.value);
+                    saveSettings('googleKey', e.target.value);
+                  }}
+                  placeholder="AIxxxx..."
+                  style={{ flex: 1 }}
+                />
+                <button
+                  className="btn btn-secondary"
+                  onClick={() => setShowGoogleKey(!showGoogleKey)}
+                >
+                  {showGoogleKey ? 'Hide' : 'Show'}
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      {/* System Prompt Section */}
+      <section style={{ marginBottom: 'var(--spacing-xl)' }}>
+        <h3 style={{ 
+          fontSize: 'var(--font-size-md)', 
+          marginBottom: 'var(--spacing-md)',
+          color: 'var(--color-text-muted)'
+        }}>
+          System Prompt
+        </h3>
+        
+        <div className="card">
+          <div style={{ padding: 'var(--spacing-md)' }}>
+            <div style={{ marginBottom: 'var(--spacing-md)' }}>
+              <label style={{ 
+                display: 'block', 
+                fontSize: 'var(--font-size-sm)', 
+                marginBottom: 'var(--spacing-xs)',
+                color: 'var(--color-text-muted)'
+              }}>
+                Inline Prompt
+              </label>
+              <textarea
+                value={inlinePrompt}
+                onChange={(e) => {
+                  setInlinePrompt(e.target.value);
+                  saveSettings('inlineSystemPrompt', e.target.value);
+                }}
+                placeholder="Enter custom inline system prompt..."
+                style={{
+                  width: '100%',
+                  minHeight: '150px',
+                  padding: 'var(--spacing-sm)',
+                  fontSize: 'var(--font-size-sm)',
+                  fontFamily: 'monospace',
+                  borderRadius: 'var(--radius-sm)',
+                  border: '1px solid var(--color-border)',
+                  backgroundColor: 'var(--color-primary)',
+                  color: 'var(--color-text)',
+                  resize: 'vertical',
+                }}
+              />
+            </div>
+            
+            <div>
+              <label style={{ 
+                display: 'block', 
+                fontSize: 'var(--font-size-sm)', 
+                marginBottom: 'var(--spacing-xs)',
+                color: 'var(--color-text-muted)'
+              }}>
+                Agent Prompt
+              </label>
+              <textarea
+                value={agentPrompt}
+                onChange={(e) => {
+                  setAgentPrompt(e.target.value);
+                  saveSettings('agentSystemPrompt', e.target.value);
+                }}
+                placeholder="Enter custom agent system prompt..."
+                style={{
+                  width: '100%',
+                  minHeight: '150px',
+                  padding: 'var(--spacing-sm)',
+                  fontSize: 'var(--font-size-sm)',
+                  fontFamily: 'monospace',
+                  borderRadius: 'var(--radius-sm)',
+                  border: '1px solid var(--color-border)',
+                  backgroundColor: 'var(--color-primary)',
+                  color: 'var(--color-text)',
+                  resize: 'vertical',
+                }}
+              />
+            </div>
+          </div>
+        </div>
       </section>
     </div>
   );

@@ -23,7 +23,8 @@ contextBridge.exposeInMainWorld('faria', {
   // Settings
   settings: {
     get: (key: string) => ipcRenderer.invoke('settings:get', key),
-    set: (key: string, value: string) => ipcRenderer.invoke('settings:set', key, value)
+    set: (key: string, value: string) => ipcRenderer.invoke('settings:set', key, value),
+    getDefaultPrompt: (promptType: 'inline' | 'agent') => ipcRenderer.invoke('settings:getDefaultPrompt', promptType)
   },
 
   // History
@@ -91,6 +92,7 @@ export interface FariaAPI {
   settings: {
     get: (key: string) => Promise<string | null>;
     set: (key: string, value: string) => Promise<{ success: boolean }>;
+    getDefaultPrompt: (promptType: 'inline' | 'agent') => Promise<string>;
   };
   history: {
     get: () => Promise<Array<{

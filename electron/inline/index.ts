@@ -13,7 +13,7 @@ import { GoogleGenerativeAI, FunctionCallingMode } from '@google/generative-ai';
 import { config } from 'dotenv';
 import { INLINE_TOOLS, INLINE_TOOLS_GOOGLE, executeTool } from './tools';
 import type { InlineResult } from './tools/types';
-import { INLINE_SYSTEM_PROMPT } from '../static/prompts';
+import { getInlineSystemPrompt } from '../static/prompts/loader';
 import { 
   getSelectedModel, 
   getProviderName, 
@@ -179,10 +179,11 @@ export class InlineAgentLoop {
     }
     
     // First API call
+    const systemPrompt = getInlineSystemPrompt();
     let response = await client.messages.create({
       model: modelName,
       max_tokens: this.config.maxTokens,
-      system: INLINE_SYSTEM_PROMPT,
+      system: systemPrompt,
       tools: INLINE_TOOLS,
       messages
     });
@@ -250,7 +251,7 @@ export class InlineAgentLoop {
       response = await client.messages.create({
         model: modelName,
         max_tokens: this.config.maxTokens,
-        system: INLINE_SYSTEM_PROMPT,
+        system: systemPrompt,
         tools: INLINE_TOOLS,
         messages
       });
@@ -301,10 +302,11 @@ export class InlineAgentLoop {
     
     // Start chat with tools
     // Google requires systemInstruction as Content object, not plain string
+    const systemPrompt = getInlineSystemPrompt();
     const chat = model.startChat({
       systemInstruction: {
         role: 'user',
-        parts: [{ text: INLINE_SYSTEM_PROMPT }]
+        parts: [{ text: systemPrompt }]
       },
       tools: [{
         functionDeclarations: INLINE_TOOLS_GOOGLE

@@ -6,7 +6,7 @@ import { AgentMemory } from './langchain-agent';
 import { initDatabase } from '../db/sqlite';
 import { traceable } from 'langsmith/traceable';
 import { getLangchainCallbacks } from 'langsmith/langchain';
-import { AGENT_SYSTEM_PROMPT } from '../static/prompts';
+import { getAgentSystemPrompt } from '../static/prompts/loader';
 import { 
   createModelWithTools, 
   getSelectedModel, 
@@ -103,8 +103,9 @@ export class AgentLoop {
       
       // Build initial messages for LangChain
       const userPrompt = this.buildUserPrompt(query, state, memoryContext);
+      const systemPrompt = getAgentSystemPrompt();
       const messages: (SystemMessage | HumanMessage | AIMessage | ToolMessage)[] = [
-        new SystemMessage(AGENT_SYSTEM_PROMPT),
+        new SystemMessage(systemPrompt),
         typeof userPrompt === 'string'
           ? new HumanMessage(userPrompt)
           : new HumanMessage({ content: userPrompt }),

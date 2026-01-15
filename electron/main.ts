@@ -312,6 +312,17 @@ function setupIPC() {
     return { success: true };
   });
 
+  // Get default prompts
+  ipcMain.handle('settings:getDefaultPrompt', async (_event, promptType: 'inline' | 'agent') => {
+    if (promptType === 'inline') {
+      const { INLINE_SYSTEM_PROMPT } = await import('./static/prompts/inline');
+      return INLINE_SYSTEM_PROMPT;
+    } else {
+      const { AGENT_SYSTEM_PROMPT } = await import('./static/prompts/agent');
+      return AGENT_SYSTEM_PROMPT;
+    }
+  });
+
   // History IPC
   ipcMain.handle('history:get', async () => {
     const db = initDatabase();
