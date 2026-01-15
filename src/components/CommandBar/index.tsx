@@ -181,6 +181,13 @@ function CommandBar() {
   }, [query, isProcessing, mode, contextText]);
 
   const handleKeyDown = useCallback((e: React.KeyboardEvent) => {
+    // Mode switching shortcut: Cmd+Enter to toggle between modes
+    // Check this FIRST to prevent submitting when switching modes
+    if (e.metaKey && e.key === 'Enter') {
+      e.preventDefault();
+      switchMode(mode === 'agent' ? 'inline' : 'agent');
+      return;
+    }
     if (e.key === 'Enter' && !e.shiftKey) {
       e.preventDefault();
       handleSubmit();
@@ -194,12 +201,7 @@ function CommandBar() {
         window.faria.commandBar.hide();
       }
     }
-    // Mode switching shortcut: Cmd+Enter to toggle between modes
-    if (e.metaKey && e.key === 'Enter') {
-      e.preventDefault();
-      switchMode(mode === 'agent' ? 'inline' : 'agent');
-    }
-  }, [handleSubmit, switchMode, showModeMenu]);
+  }, [handleSubmit, switchMode, showModeMenu, mode]);
 
   const handleInputChange = (e: React.ChangeEvent<HTMLTextAreaElement>) => {
     setQuery(e.target.value);
