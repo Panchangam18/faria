@@ -24,7 +24,10 @@ contextBridge.exposeInMainWorld('faria', {
   settings: {
     get: (key: string) => ipcRenderer.invoke('settings:get', key),
     set: (key: string, value: string) => ipcRenderer.invoke('settings:set', key, value),
-    getDefaultPrompt: (promptType: 'inline' | 'agent') => ipcRenderer.invoke('settings:getDefaultPrompt', promptType)
+    getDefaultPrompt: (promptType: 'inline' | 'agent') => ipcRenderer.invoke('settings:getDefaultPrompt', promptType),
+    onThemeChange: (callback: (themeData: { theme: string; customColors?: { background: string; text: string; accent: string }; font: string }) => void) => {
+      ipcRenderer.on('settings:theme-change', (_event, themeData) => callback(themeData));
+    }
   },
 
   // History
@@ -93,6 +96,7 @@ export interface FariaAPI {
     get: (key: string) => Promise<string | null>;
     set: (key: string, value: string) => Promise<{ success: boolean }>;
     getDefaultPrompt: (promptType: 'inline' | 'agent') => Promise<string>;
+    onThemeChange: (callback: (themeData: { theme: string; customColors?: { background: string; text: string; accent: string }; font: string }) => void) => void;
   };
   history: {
     get: () => Promise<Array<{

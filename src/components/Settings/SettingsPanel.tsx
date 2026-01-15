@@ -10,7 +10,6 @@ interface CustomPalette {
   background: string;
   text: string;
   accent: string;
-  font?: string;
 }
 
 // Helper function to derive accent-hover and accent-active conservatively
@@ -45,6 +44,15 @@ const deriveAccentColors = (accent: string): { hover: string; active: string } =
   };
 };
 
+// Helper to lighten a color
+const lightenColor = (hex: string, factor: number): string => {
+  const h = hex.replace('#', '');
+  const r = Math.min(255, Math.round(parseInt(h.substring(0, 2), 16) * factor));
+  const g = Math.min(255, Math.round(parseInt(h.substring(2, 4), 16) * factor));
+  const b = Math.min(255, Math.round(parseInt(h.substring(4, 6), 16) * factor));
+  return `#${r.toString(16).padStart(2, '0')}${g.toString(16).padStart(2, '0')}${b.toString(16).padStart(2, '0')}`;
+};
+
 const MODELS = [
   { id: 'claude-sonnet-4-20250514', name: 'Claude Sonnet 4', provider: 'anthropic' },
   { id: 'claude-3-5-sonnet-20241022', name: 'Claude 3.5 Sonnet', provider: 'anthropic' },
@@ -59,24 +67,48 @@ const PRESET_THEMES = [
     id: 'default', 
     name: 'Default', 
     colors: { background: '#272932', text: '#EAE0D5', accent: '#C6AC8F' },
-    font: "'SF Pro Display', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif"
   },
   { 
     id: 'midnight', 
     name: 'Midnight', 
     colors: { background: '#0D1117', text: '#C9D1D9', accent: '#58A6FF' },
-    font: "'SF Pro Display', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif"
   },
   { 
     id: 'forest', 
     name: 'Forest', 
     colors: { background: '#1A2F1A', text: '#E8F5E8', accent: '#7CB342' },
-    font: "'SF Pro Display', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif"
+  },
+  { 
+    id: 'aurora', 
+    name: 'Aurora', 
+    colors: { background: '#1a1a2e', text: '#eaeaea', accent: '#e94560' },
+  },
+  { 
+    id: 'obsidian', 
+    name: 'Obsidian', 
+    colors: { background: '#1e1e1e', text: '#d4d4d4', accent: '#daa520' },
+  },
+  { 
+    id: 'ocean', 
+    name: 'Ocean', 
+    colors: { background: '#0f2027', text: '#a8dadc', accent: '#00b4d8' },
   },
 ];
 
+// Accent color presets for quick selection
+const ACCENT_PRESETS = [
+  { color: '#C6AC8F', name: 'Khaki' },
+  { color: '#58A6FF', name: 'Blue' },
+  { color: '#7CB342', name: 'Green' },
+  { color: '#e94560', name: 'Rose' },
+  { color: '#daa520', name: 'Gold' },
+  { color: '#00b4d8', name: 'Cyan' },
+  { color: '#9d4edd', name: 'Purple' },
+  { color: '#ff6b6b', name: 'Coral' },
+];
+
 const AVAILABLE_FONTS = [
-  { value: "'SF Pro Display', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif", label: 'SF Pro Display (System)' },
+  { value: "'SF Pro Display', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif", label: 'SF Pro Display' },
   { value: "'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif", label: 'Inter' },
   { value: "'Roboto', sans-serif", label: 'Roboto' },
   { value: "'Open Sans', sans-serif", label: 'Open Sans' },
@@ -88,6 +120,121 @@ const AVAILABLE_FONTS = [
   { value: "'Source Sans Pro', sans-serif", label: 'Source Sans Pro' },
 ];
 
+// Mini app preview component for theme cards
+const ThemePreview = ({ colors, isSelected }: { colors: { background: string; text: string; accent: string }, isSelected: boolean }) => {
+  const surface = lightenColor(colors.background, 1.2);
+  
+  return (
+    <div style={{
+      width: '100%',
+      height: 120,
+      borderRadius: 8,
+      overflow: 'hidden',
+      background: colors.background,
+      position: 'relative',
+      boxShadow: isSelected ? `0 0 0 2px ${colors.accent}, 0 8px 24px rgba(0,0,0,0.4)` : '0 4px 12px rgba(0,0,0,0.3)',
+      transition: 'all 0.3s cubic-bezier(0.4, 0, 0.2, 1)',
+    }}>
+      {/* Mini sidebar */}
+      <div style={{
+        position: 'absolute',
+        left: 0,
+        top: 0,
+        bottom: 0,
+        width: 32,
+        background: surface,
+        borderRight: `1px solid ${colors.text}15`,
+        display: 'flex',
+        flexDirection: 'column',
+        alignItems: 'center',
+        paddingTop: 8,
+        gap: 6,
+      }}>
+        <div style={{ width: 12, height: 12, borderRadius: 4, background: colors.accent, opacity: 0.9 }} />
+        <div style={{ width: 12, height: 12, borderRadius: 4, background: colors.text, opacity: 0.2 }} />
+        <div style={{ width: 12, height: 12, borderRadius: 4, background: colors.text, opacity: 0.2 }} />
+      </div>
+      
+      {/* Mini content area */}
+      <div style={{ marginLeft: 32, padding: 10 }}>
+        {/* Mini header */}
+        <div style={{ 
+          display: 'flex', 
+          gap: 4, 
+          marginBottom: 8,
+          alignItems: 'center'
+        }}>
+          <div style={{ 
+            width: 40, 
+            height: 6, 
+            borderRadius: 3, 
+            background: colors.text,
+            opacity: 0.7
+          }} />
+          <div style={{ flex: 1 }} />
+          <div style={{ 
+            width: 20, 
+            height: 6, 
+            borderRadius: 3, 
+            background: colors.accent,
+          }} />
+        </div>
+        
+        {/* Mini content blocks */}
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+          <div style={{ 
+            height: 24, 
+            borderRadius: 4, 
+            background: surface,
+            display: 'flex',
+            alignItems: 'center',
+            padding: '0 6px',
+            gap: 4
+          }}>
+            <div style={{ width: 8, height: 8, borderRadius: 2, background: colors.accent }} />
+            <div style={{ width: 30, height: 4, borderRadius: 2, background: colors.text, opacity: 0.5 }} />
+          </div>
+          <div style={{ display: 'flex', gap: 4 }}>
+            <div style={{ 
+              flex: 1, 
+              height: 32, 
+              borderRadius: 4, 
+              background: surface,
+            }} />
+            <div style={{ 
+              flex: 1, 
+              height: 32, 
+              borderRadius: 4, 
+              background: surface,
+            }} />
+          </div>
+        </div>
+      </div>
+      
+      {/* Selection indicator */}
+      {isSelected && (
+        <div style={{
+          position: 'absolute',
+          top: 6,
+          right: 6,
+          width: 18,
+          height: 18,
+          borderRadius: '50%',
+          background: colors.accent,
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+          boxShadow: '0 2px 4px rgba(0,0,0,0.3)',
+        }}>
+          <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke={colors.background} strokeWidth="3" strokeLinecap="round" strokeLinejoin="round">
+            <polyline points="20 6 9 17 4 12" />
+          </svg>
+        </div>
+      )}
+    </div>
+  );
+};
+
 function SettingsPanel({ currentTheme, onThemeChange }: SettingsPanelProps) {
   const [anthropicKey, setAnthropicKey] = useState('');
   const [showAnthropicKey, setShowAnthropicKey] = useState(false);
@@ -97,15 +244,15 @@ function SettingsPanel({ currentTheme, onThemeChange }: SettingsPanelProps) {
   const [selectedInlineModel, setSelectedInlineModel] = useState(MODELS[0].id);
   const [customPalettes, setCustomPalettes] = useState<CustomPalette[]>([]);
   const [showCustomForm, setShowCustomForm] = useState(false);
-  const [showThemeSelector, setShowThemeSelector] = useState(false);
   const [saveStatus, setSaveStatus] = useState<string | null>(null);
+  const [hoveredTheme, setHoveredTheme] = useState<string | null>(null);
   const [newPalette, setNewPalette] = useState<CustomPalette>({
     name: '',
     background: '#272932',
     text: '#EAE0D5',
     accent: '#C6AC8F',
-    font: "'SF Pro Display', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif",
   });
+  const [selectedFont, setSelectedFont] = useState(AVAILABLE_FONTS[0].value);
 
   const [hasLoadedSettings, setHasLoadedSettings] = useState(false);
   const [hoverInlineModel, setHoverInlineModel] = useState(false);
@@ -199,20 +346,13 @@ function SettingsPanel({ currentTheme, onThemeChange }: SettingsPanelProps) {
     if (savedCustomPalettes) {
       const parsed = JSON.parse(savedCustomPalettes);
       // Migrate old format (primary/secondary/accent) to new format (background/text/accent)
+      // Also strip out font property as it's now global
       const migrated = parsed.map((palette: any) => {
-        if (palette.primary || palette.secondary) {
           return {
             name: palette.name,
             background: palette.primary || palette.background || '#272932',
             text: palette.secondary || palette.text || '#EAE0D5',
             accent: palette.accent || '#C6AC8F',
-            font: palette.font || "'SF Pro Display', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif",
-          };
-        }
-        // Ensure font exists
-        return {
-          ...palette,
-          font: palette.font || "'SF Pro Display', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif",
         };
       });
       setCustomPalettes(migrated);
@@ -233,13 +373,17 @@ function SettingsPanel({ currentTheme, onThemeChange }: SettingsPanelProps) {
           // If no active palette saved, apply the first one
           await applyCustomTheme(migrated[0]);
         }
-      } else {
-        // Apply preset theme font
-        const presetTheme = PRESET_THEMES.find(t => t.id === currentTheme);
-        if (presetTheme?.font) {
-          document.documentElement.style.setProperty('--font-family', presetTheme.font);
-        }
       }
+    }
+    
+    // Load font separately (independent of theme)
+    const savedFont = await window.faria.settings.get('selectedFont');
+    if (savedFont) {
+      setSelectedFont(savedFont);
+      document.documentElement.style.setProperty('--font-family', savedFont);
+    } else {
+      // Apply default font
+      document.documentElement.style.setProperty('--font-family', AVAILABLE_FONTS[0].value);
     }
   };
 
@@ -291,10 +435,8 @@ function SettingsPanel({ currentTheme, onThemeChange }: SettingsPanelProps) {
       background: currentValues.background,
       text: currentValues.text,
       accent: currentValues.accent,
-      font: currentValues.font,
     });
     setShowCustomForm(false);
-    setShowThemeSelector(false);
   };
 
   const handleDeleteCustomPalette = async (index: number, e: React.MouseEvent) => {
@@ -326,12 +468,13 @@ function SettingsPanel({ currentTheme, onThemeChange }: SettingsPanelProps) {
     const theme = PRESET_THEMES.find(t => t.id === themeId);
     if (!theme) return;
     
-    // Apply font
-    if (theme.font) {
-      document.documentElement.style.setProperty('--font-family', theme.font);
-    }
-    
     onThemeChange(themeId);
+  };
+  
+  const handleFontChange = async (fontValue: string) => {
+    setSelectedFont(fontValue);
+    document.documentElement.style.setProperty('--font-family', fontValue);
+    await saveSettings('selectedFont', fontValue);
   };
 
   const applyCustomTheme = async (palette: CustomPalette) => {
@@ -372,11 +515,6 @@ function SettingsPanel({ currentTheme, onThemeChange }: SettingsPanelProps) {
     document.documentElement.style.setProperty('--color-border', palette.text + '26'); // ~15% opacity
     document.documentElement.style.setProperty('--color-hover', palette.text + '14'); // ~8% opacity
     
-    // Apply font
-    if (palette.font) {
-      document.documentElement.style.setProperty('--font-family', palette.font);
-    }
-    
     document.documentElement.setAttribute('data-theme', 'custom');
     
     // Save which custom palette is active
@@ -385,7 +523,7 @@ function SettingsPanel({ currentTheme, onThemeChange }: SettingsPanelProps) {
     onThemeChange('custom');
   };
 
-  const getCurrentThemeValues = (): { background: string; text: string; accent: string; font: string } => {
+  const getCurrentThemeValues = (): { background: string; text: string; accent: string } => {
     if (currentTheme === 'custom') {
       // Get values from CSS variables
       const currentBg = document.documentElement.style.getPropertyValue('--color-primary')?.trim() || 
@@ -395,14 +533,11 @@ function SettingsPanel({ currentTheme, onThemeChange }: SettingsPanelProps) {
                          document.documentElement.style.getPropertyValue('--color-text')?.trim() ||
                          '#EAE0D5';
       const currentAccent = document.documentElement.style.getPropertyValue('--color-accent')?.trim() || '#C6AC8F';
-      const currentFont = document.documentElement.style.getPropertyValue('--font-family')?.trim() ||
-                         "'SF Pro Display', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif";
       
       return {
         background: currentBg,
         text: currentText,
         accent: currentAccent,
-        font: currentFont
       };
     }
     
@@ -413,7 +548,6 @@ function SettingsPanel({ currentTheme, onThemeChange }: SettingsPanelProps) {
         background: preset.colors.background,
         text: preset.colors.text,
         accent: preset.colors.accent,
-        font: preset.font || "'SF Pro Display', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif"
       };
     }
     
@@ -422,7 +556,6 @@ function SettingsPanel({ currentTheme, onThemeChange }: SettingsPanelProps) {
       background: PRESET_THEMES[0].colors.background,
       text: PRESET_THEMES[0].colors.text,
       accent: PRESET_THEMES[0].colors.accent,
-      font: PRESET_THEMES[0].font || "'SF Pro Display', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif"
     };
   };
 
@@ -432,348 +565,207 @@ function SettingsPanel({ currentTheme, onThemeChange }: SettingsPanelProps) {
       const currentBg = document.documentElement.style.getPropertyValue('--color-primary')?.trim();
       const currentText = document.documentElement.style.getPropertyValue('--color-secondary')?.trim();
       const currentAccent = document.documentElement.style.getPropertyValue('--color-accent')?.trim();
-      const currentFont = document.documentElement.style.getPropertyValue('--font-family')?.trim();
       
       const matchingPalette = customPalettes.find(p => 
         p.background === currentBg && p.text === currentText && p.accent === currentAccent
       );
       
       if (matchingPalette) {
-        return { name: matchingPalette.name, colors: matchingPalette, font: matchingPalette.font || currentFont, isCustom: true };
+        return { name: matchingPalette.name, colors: matchingPalette, isCustom: true };
       }
-      return { name: 'Custom', colors: { background: currentBg || '#272932', text: currentText || '#EAE0D5', accent: currentAccent || '#C6AC8F' }, font: currentFont, isCustom: true };
+      return { name: 'Custom', colors: { background: currentBg || '#272932', text: currentText || '#EAE0D5', accent: currentAccent || '#C6AC8F' }, isCustom: true };
     }
     
     const preset = PRESET_THEMES.find(t => t.id === currentTheme);
     return preset 
-      ? { name: preset.name, colors: preset.colors, font: preset.font, isCustom: false }
-      : { name: 'Default', colors: PRESET_THEMES[0].colors, font: PRESET_THEMES[0].font, isCustom: false };
+      ? { name: preset.name, colors: preset.colors, isCustom: false }
+      : { name: 'Default', colors: PRESET_THEMES[0].colors, isCustom: false };
+  };
+
+  // Get the active custom palette name
+  const getActiveCustomPaletteName = (): string | null => {
+    if (currentTheme !== 'custom') return null;
+    const currentBg = document.documentElement.style.getPropertyValue('--color-primary')?.trim();
+    const matching = customPalettes.find(p => p.background === currentBg);
+    return matching?.name || null;
   };
 
   return (
     <div className="settings-panel">
 
-      {/* Theme Section */}
+      {/* Theme Section - Redesigned */}
       <section style={{ marginBottom: 'var(--spacing-xl)' }}>
-        <h3 style={{ 
-          fontSize: 'var(--font-size-md)', 
-          marginBottom: 'var(--spacing-md)',
-          color: 'var(--color-text-muted)'
-        }}>
-          Theme
-        </h3>
-        
-        {/* Current Theme Display */}
-        <div className="card">
           <div style={{ 
             display: 'flex',
-            justifyContent: 'space-between',
             alignItems: 'center',
-            padding: 'var(--spacing-md)'
+          justifyContent: 'space-between',
+          marginBottom: 'var(--spacing-lg)'
           }}>
-            <div style={{ flex: 1 }}>
-              <div style={{ 
-                fontWeight: 600,
+          <h3 style={{ 
                 fontSize: 'var(--font-size-lg)',
-                marginBottom: 'var(--spacing-sm)'
-              }}>
-                {getCurrentThemeInfo().name}
-              </div>
-              <div style={{ 
-                display: 'flex', 
-                gap: 'var(--spacing-xs)',
-                alignItems: 'center'
-              }}>
-                <div
-                  style={{
-                    width: 32,
-                    height: 32,
-                    borderRadius: 'var(--radius-sm)',
-                    background: getCurrentThemeInfo().colors.background,
-                    border: '1px solid var(--color-border)'
-                  }}
-                  title="Background"
-                />
-                <div
-                  style={{
-                    width: 32,
-                    height: 32,
-                    borderRadius: 'var(--radius-sm)',
-                    background: getCurrentThemeInfo().colors.text,
-                    border: '1px solid var(--color-border)'
-                  }}
-                  title="Text"
-                />
-                <div
-                  style={{
-                    width: 32,
-                    height: 32,
-                    borderRadius: 'var(--radius-sm)',
-                    background: getCurrentThemeInfo().colors.accent,
-                    border: '1px solid var(--color-border)'
-                  }}
-                  title="Accent"
-                />
-              </div>
-            </div>
-            <button
-              className="btn btn-secondary"
-              onClick={() => setShowThemeSelector(true)}
-              style={{ marginLeft: 'var(--spacing-md)' }}
-            >
-              Edit
-            </button>
-          </div>
+            margin: 0,
+            fontWeight: 600,
+            letterSpacing: '-0.01em'
+          }}>
+            Appearance
+          </h3>
         </div>
 
-        {/* Theme Selector Modal */}
-        {showThemeSelector && (
+        {/* Preset Themes Grid */}
+        <div style={{ marginBottom: 'var(--spacing-lg)' }}>
           <div style={{
-            position: 'fixed',
-            top: 0,
-            left: 0,
-            right: 0,
-            bottom: 0,
-            backgroundColor: 'rgba(0, 0, 0, 0.7)',
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'center',
-            zIndex: 1000,
-            padding: 'var(--spacing-lg)'
-          }}
-          onClick={(e) => {
-            if (e.target === e.currentTarget) {
-              setShowThemeSelector(false);
-              setShowCustomForm(false);
-            }
-          }}
-          >
-            <div style={{
-              backgroundColor: 'var(--color-background)',
-              borderRadius: 'var(--radius-lg)',
-              border: '1px solid var(--color-border)',
-              maxWidth: 900,
-              width: '100%',
-              maxHeight: '90vh',
-              overflow: 'auto',
-              boxShadow: 'var(--shadow-lg)'
-            }}
-            onClick={(e) => e.stopPropagation()}
-            >
-              <div style={{
-                padding: 'var(--spacing-lg)',
-                borderBottom: '1px solid var(--color-border)',
-                display: 'flex',
-                justifyContent: 'flex-end',
-                alignItems: 'center'
-              }}>
-                <button
-                  onClick={() => {
-                    setShowThemeSelector(false);
-                    setShowCustomForm(false);
-                  }}
-                  style={{
-                    background: 'transparent',
-                    border: 'none',
+            fontSize: 'var(--font-size-sm)', 
                     color: 'var(--color-text-muted)',
-                    fontSize: 'var(--font-size-xl)',
-                    cursor: 'pointer',
-                    padding: 'var(--spacing-xs)',
-                    lineHeight: 1,
-                    width: 32,
-                    height: 32,
-                    display: 'flex',
-                    alignItems: 'center',
-                    justifyContent: 'center',
-                    borderRadius: 'var(--radius-sm)',
-                    transition: 'all var(--transition-fast)'
-                  }}
-                  onMouseEnter={(e) => {
-                    e.currentTarget.style.backgroundColor = 'var(--color-hover)';
-                    e.currentTarget.style.color = 'var(--color-text)';
-                  }}
-                  onMouseLeave={(e) => {
-                    e.currentTarget.style.backgroundColor = 'transparent';
-                    e.currentTarget.style.color = 'var(--color-text-muted)';
-                  }}
-                  title="Close"
-                >
-                  ×
-                </button>
+            marginBottom: 'var(--spacing-md)',
+            textTransform: 'uppercase',
+            letterSpacing: '0.05em',
+            fontWeight: 500
+          }}>
+            Themes
               </div>
               
-              <div style={{ padding: 'var(--spacing-lg)' }}>
-                {!showCustomForm ? (
                   <div style={{ 
                     display: 'grid', 
-                    gridTemplateColumns: 'repeat(auto-fill, minmax(200px, 1fr))', 
+            gridTemplateColumns: 'repeat(3, 1fr)', 
                     gap: 'var(--spacing-md)'
                   }}>
-                    {/* Preset Themes */}
-                    {PRESET_THEMES.map((theme) => (
+            {PRESET_THEMES.map((theme) => {
+              const isSelected = currentTheme === theme.id;
+              const isHovered = hoveredTheme === theme.id;
+              
+              return (
                       <div
                         key={theme.id}
-                        className="card"
-                        onClick={async () => {
-                          await applyPresetTheme(theme.id);
-                          setShowThemeSelector(false);
-                        }}
+                  onClick={() => applyPresetTheme(theme.id)}
+                  onMouseEnter={() => setHoveredTheme(theme.id)}
+                  onMouseLeave={() => setHoveredTheme(null)}
                         style={{ 
                           cursor: 'pointer',
-                          border: currentTheme === theme.id 
-                            ? '2px solid var(--color-accent)' 
-                            : '1px solid var(--color-border)',
-                          transition: 'border-color var(--transition-fast)'
-                        }}
-                      >
-                        <div style={{ padding: 'var(--spacing-md)' }}>
+                    transform: isHovered ? 'translateY(-2px)' : 'translateY(0)',
+                    transition: 'transform 0.2s cubic-bezier(0.4, 0, 0.2, 1)',
+                  }}
+                >
+                  <ThemePreview colors={theme.colors} isSelected={isSelected} />
+                  <div style={{ 
+                    marginTop: 'var(--spacing-sm)',
+                    display: 'flex',
+                    flexDirection: 'column',
+                    gap: 2
+                  }}>
                           <div style={{ 
                             fontWeight: 600, 
-                            marginBottom: 'var(--spacing-sm)' 
+                      fontSize: 'var(--font-size-sm)',
+                      color: isSelected ? 'var(--color-accent)' : 'var(--color-text)'
                           }}>
                             {theme.name}
                           </div>
-                          <div style={{ 
-                            display: 'flex', 
-                            gap: 'var(--spacing-xs)',
-                            marginBottom: 'var(--spacing-xs)'
-                          }}>
-                            <div
-                              style={{
-                                width: 24,
-                                height: 24,
-                                borderRadius: 'var(--radius-sm)',
-                                background: theme.colors.background,
-                                border: '1px solid var(--color-border)'
-                              }}
-                              title="Background"
-                            />
-                            <div
-                              style={{
-                                width: 24,
-                                height: 24,
-                                borderRadius: 'var(--radius-sm)',
-                                background: theme.colors.text,
-                                border: '1px solid var(--color-border)'
-                              }}
-                              title="Text"
-                            />
-                            <div
-                              style={{
-                                width: 24,
-                                height: 24,
-                                borderRadius: 'var(--radius-sm)',
-                                background: theme.colors.accent,
-                                border: '1px solid var(--color-border)'
-                              }}
-                              title="Accent"
-                            />
-                          </div>
-                          <div style={{
-                            fontSize: 'var(--font-size-xs)',
-                            color: 'var(--color-text-muted)',
-                            fontFamily: theme.font
-                          }}>
-                            {AVAILABLE_FONTS.find(f => f.value === theme.font)?.label || 'System'}
-                          </div>
-                        </div>
-                      </div>
-                    ))}
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        </div>
 
-                    {/* Custom Palettes */}
-                    {customPalettes.map((palette, index) => (
+        {/* Custom Themes Section */}
+        {(customPalettes.length > 0 || showCustomForm) && (
+          <div style={{ marginBottom: 'var(--spacing-lg)' }}>
+                          <div style={{
+              fontSize: 'var(--font-size-sm)', 
+                            color: 'var(--color-text-muted)',
+              marginBottom: 'var(--spacing-md)',
+              textTransform: 'uppercase',
+              letterSpacing: '0.05em',
+              fontWeight: 500
+                          }}>
+              Custom Themes
+                          </div>
+            
+            <div style={{ 
+              display: 'grid', 
+              gridTemplateColumns: 'repeat(3, 1fr)', 
+              gap: 'var(--spacing-md)'
+            }}>
+              {customPalettes.map((palette, index) => {
+                const isSelected = currentTheme === 'custom' && getActiveCustomPaletteName() === palette.name;
+                const isHovered = hoveredTheme === `custom-${index}`;
+                
+                return (
                       <div
                         key={index}
-                        className="card"
-                        onClick={async () => {
-                          await applyCustomTheme(palette);
-                          setShowThemeSelector(false);
-                        }}
+                    style={{ position: 'relative' }}
+                    onMouseEnter={() => setHoveredTheme(`custom-${index}`)}
+                    onMouseLeave={() => setHoveredTheme(null)}
+                  >
+                    <div
+                      onClick={() => applyCustomTheme(palette)}
                         style={{ 
                           cursor: 'pointer',
-                          border: currentTheme === 'custom' && 
-                            document.documentElement.style.getPropertyValue('--color-primary')?.trim() === palette.background
-                            ? '2px solid var(--color-accent)' 
-                            : '1px solid var(--color-border)',
-                          transition: 'border-color var(--transition-fast)',
-                          position: 'relative'
-                        }}
-                      >
-                        <div style={{ padding: 'var(--spacing-md)' }}>
+                        transform: isHovered ? 'translateY(-2px)' : 'translateY(0)',
+                        transition: 'transform 0.2s cubic-bezier(0.4, 0, 0.2, 1)',
+                      }}
+                    >
+                      <ThemePreview 
+                        colors={{ background: palette.background, text: palette.text, accent: palette.accent }} 
+                        isSelected={isSelected} 
+                      />
                           <div style={{ 
+                        marginTop: 'var(--spacing-sm)',
                             display: 'flex',
-                            justifyContent: 'space-between',
-                            alignItems: 'flex-start',
-                            marginBottom: 'var(--spacing-sm)'
+                        alignItems: 'center',
+                        justifyContent: 'space-between'
                           }}>
                             <div style={{ 
-                              fontWeight: 600
+                          fontWeight: 600, 
+                          fontSize: 'var(--font-size-sm)',
+                          color: isSelected ? 'var(--color-accent)' : 'var(--color-text)'
                             }}>
                               {palette.name}
                             </div>
+                      </div>
+                    </div>
+                    
+                    {/* Delete button */}
                             <button
-                              className="btn btn-secondary"
                               onClick={(e) => handleDeleteCustomPalette(index, e)}
                               style={{
-                                padding: 'var(--spacing-xs) var(--spacing-sm)',
-                                fontSize: 'var(--font-size-xs)',
-                                minWidth: 'auto',
-                                opacity: 0.7
+                        position: 'absolute',
+                        top: 6,
+                        left: 6,
+                        width: 22,
+                        height: 22,
+                        borderRadius: '50%',
+                        background: 'rgba(0,0,0,0.6)',
+                        border: 'none',
+                        color: '#fff',
+                        fontSize: 14,
+                        cursor: 'pointer',
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        opacity: isHovered ? 1 : 0,
+                        transition: 'opacity 0.2s ease',
+                        backdropFilter: 'blur(4px)',
                               }}
                               title="Delete theme"
                             >
                               ×
                             </button>
                           </div>
-                          <div style={{ 
-                            display: 'flex', 
-                            gap: 'var(--spacing-xs)',
-                            marginBottom: 'var(--spacing-xs)'
-                          }}>
-                            <div
-                              style={{
-                                width: 24,
-                                height: 24,
-                                borderRadius: 'var(--radius-sm)',
-                                background: palette.background,
-                                border: '1px solid var(--color-border)'
-                              }}
-                            />
-                            <div
-                              style={{
-                                width: 24,
-                                height: 24,
-                                borderRadius: 'var(--radius-sm)',
-                                background: palette.text,
-                                border: '1px solid var(--color-border)'
-                              }}
-                            />
-                            <div
-                              style={{
-                                width: 24,
-                                height: 24,
-                                borderRadius: 'var(--radius-sm)',
-                                background: palette.accent,
-                                border: '1px solid var(--color-border)'
-                              }}
-                            />
+                );
+              })}
                           </div>
-                          {palette.font && (
-                            <div style={{
-                              fontSize: 'var(--font-size-xs)',
-                              color: 'var(--color-text-muted)',
-                              fontFamily: palette.font
-                            }}>
-                              {AVAILABLE_FONTS.find(f => f.value === palette.font)?.label || 'Custom'}
                             </div>
                           )}
-                        </div>
-                      </div>
-                    ))}
 
-                    {/* Add Custom Button */}
-                    <div
-                      className="card"
+        {/* Create Custom Theme / Customization Section */}
+        <div style={{
+          background: 'var(--color-surface)',
+          borderRadius: 'var(--radius-lg)',
+          border: '1px solid var(--color-border)',
+          overflow: 'hidden',
+        }}>
+          {!showCustomForm ? (
+            <div
                       onClick={() => {
                         const currentValues = getCurrentThemeValues();
                         setNewPalette({
@@ -781,55 +773,90 @@ function SettingsPanel({ currentTheme, onThemeChange }: SettingsPanelProps) {
                           background: currentValues.background,
                           text: currentValues.text,
                           accent: currentValues.accent,
-                          font: currentValues.font,
                         });
                         setShowCustomForm(true);
                       }}
                       style={{ 
+                padding: 'var(--spacing-lg)',
                         cursor: 'pointer',
-                        border: '1px dashed var(--color-border)',
                         display: 'flex',
                         alignItems: 'center',
-                        justifyContent: 'center',
-                        minHeight: 80
-                      }}
-                    >
-                      <span style={{ color: 'var(--color-text-muted)' }}>+ Add Custom</span>
+                gap: 'var(--spacing-md)',
+                transition: 'background 0.2s ease',
+              }}
+              onMouseEnter={(e) => e.currentTarget.style.background = 'var(--color-hover)'}
+              onMouseLeave={(e) => e.currentTarget.style.background = 'transparent'}
+            >
+              <div style={{
+                width: 40,
+                height: 40,
+                borderRadius: 'var(--radius-md)',
+                background: 'linear-gradient(135deg, var(--color-accent) 0%, var(--color-primary) 100%)',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                fontSize: 20,
+              }}>
+                +
+              </div>
+              <div>
+                <div style={{ fontWeight: 600, marginBottom: 2 }}>Create Custom Theme</div>
+                <div style={{ fontSize: 'var(--font-size-xs)', color: 'var(--color-text-muted)' }}>
+                  Design your own color scheme
+                </div>
                     </div>
                   </div>
                 ) : (
-                  <div>
+            <div style={{ padding: 'var(--spacing-lg)' }}>
                     <div style={{ 
                       display: 'flex',
                       justifyContent: 'space-between',
                       alignItems: 'center',
-                      marginBottom: 'var(--spacing-md)'
+                marginBottom: 'var(--spacing-lg)'
                     }}>
-                      <h3 style={{ margin: 0 }}>New Custom Theme</h3>
+                <div style={{ fontWeight: 600, fontSize: 'var(--font-size-md)' }}>New Theme</div>
                       <button
-                        className="btn btn-secondary"
-                        onClick={() => {
-                          const currentValues = getCurrentThemeValues();
-                          setNewPalette({
-                            name: '',
-                            background: currentValues.background,
-                            text: currentValues.text,
-                            accent: currentValues.accent,
-                            font: currentValues.font,
-                          });
-                          setShowCustomForm(false);
-                        }}
-                      >
-                        Back
+                  onClick={() => setShowCustomForm(false)}
+                  style={{
+                    background: 'transparent',
+                    border: 'none',
+                    color: 'var(--color-text-muted)',
+                    fontSize: 20,
+                    cursor: 'pointer',
+                    padding: 4,
+                    lineHeight: 1,
+                  }}
+                >
+                  ×
                       </button>
                     </div>
                     
+              {/* Live Preview */}
+              <div style={{ marginBottom: 'var(--spacing-lg)' }}>
+                <div style={{ 
+                  fontSize: 'var(--font-size-xs)', 
+                  color: 'var(--color-text-muted)',
+                  marginBottom: 'var(--spacing-sm)',
+                  textTransform: 'uppercase',
+                  letterSpacing: '0.05em'
+                }}>
+                  Preview
+                </div>
+                <ThemePreview 
+                  colors={{ background: newPalette.background, text: newPalette.text, accent: newPalette.accent }} 
+                  isSelected={false} 
+                />
+              </div>
+
+              {/* Theme Name */}
                     <div style={{ marginBottom: 'var(--spacing-md)' }}>
                       <label style={{ 
                         display: 'block', 
-                        fontSize: 'var(--font-size-sm)', 
+                  fontSize: 'var(--font-size-xs)', 
                         marginBottom: 'var(--spacing-xs)',
-                        color: 'var(--color-text-muted)'
+                  color: 'var(--color-text-muted)',
+                  textTransform: 'uppercase',
+                  letterSpacing: '0.05em'
                       }}>
                         Name
                       </label>
@@ -837,10 +864,20 @@ function SettingsPanel({ currentTheme, onThemeChange }: SettingsPanelProps) {
                         type="text"
                         value={newPalette.name}
                         onChange={(e) => setNewPalette({ ...newPalette, name: e.target.value })}
-                        placeholder="My Theme"
+                  placeholder="My Custom Theme"
+                  style={{
+                    width: '100%',
+                    padding: 'var(--spacing-sm) var(--spacing-md)',
+                    fontSize: 'var(--font-size-sm)',
+                    borderRadius: 'var(--radius-md)',
+                    border: '1px solid var(--color-border)',
+                    backgroundColor: 'var(--color-background)',
+                    color: 'var(--color-text)',
+                  }}
                       />
                     </div>
 
+              {/* Color Pickers Row */}
                     <div style={{ 
                       display: 'grid', 
                       gridTemplateColumns: '1fr 1fr 1fr', 
@@ -850,25 +887,38 @@ function SettingsPanel({ currentTheme, onThemeChange }: SettingsPanelProps) {
                       <div>
                         <label style={{ 
                           display: 'block', 
-                          fontSize: 'var(--font-size-sm)', 
+                    fontSize: 'var(--font-size-xs)', 
                           marginBottom: 'var(--spacing-xs)',
-                          color: 'var(--color-text-muted)'
+                    color: 'var(--color-text-muted)',
+                    textTransform: 'uppercase',
+                    letterSpacing: '0.05em'
                         }}>
                           Background
                         </label>
+                  <div style={{ position: 'relative' }}>
                         <input
                           type="color"
                           value={newPalette.background}
                           onChange={(e) => setNewPalette({ ...newPalette, background: e.target.value })}
-                          style={{ width: '100%', height: 40, padding: 0, cursor: 'pointer' }}
-                        />
+                      style={{ 
+                        width: '100%', 
+                        height: 44, 
+                        padding: 0, 
+                        cursor: 'pointer',
+                        borderRadius: 'var(--radius-md)',
+                        border: '2px solid var(--color-border)',
+                      }}
+                    />
+                  </div>
                       </div>
                       <div>
                         <label style={{ 
                           display: 'block', 
-                          fontSize: 'var(--font-size-sm)', 
+                    fontSize: 'var(--font-size-xs)', 
                           marginBottom: 'var(--spacing-xs)',
-                          color: 'var(--color-text-muted)'
+                    color: 'var(--color-text-muted)',
+                    textTransform: 'uppercase',
+                    letterSpacing: '0.05em'
                         }}>
                           Text
                         </label>
@@ -876,15 +926,24 @@ function SettingsPanel({ currentTheme, onThemeChange }: SettingsPanelProps) {
                           type="color"
                           value={newPalette.text}
                           onChange={(e) => setNewPalette({ ...newPalette, text: e.target.value })}
-                          style={{ width: '100%', height: 40, padding: 0, cursor: 'pointer' }}
+                    style={{ 
+                      width: '100%', 
+                      height: 44, 
+                      padding: 0, 
+                      cursor: 'pointer',
+                      borderRadius: 'var(--radius-md)',
+                      border: '2px solid var(--color-border)',
+                    }}
                         />
                       </div>
                       <div>
                         <label style={{ 
                           display: 'block', 
-                          fontSize: 'var(--font-size-sm)', 
+                    fontSize: 'var(--font-size-xs)', 
                           marginBottom: 'var(--spacing-xs)',
-                          color: 'var(--color-text-muted)'
+                    color: 'var(--color-text-muted)',
+                    textTransform: 'uppercase',
+                    letterSpacing: '0.05em'
                         }}>
                           Accent
                         </label>
@@ -892,65 +951,233 @@ function SettingsPanel({ currentTheme, onThemeChange }: SettingsPanelProps) {
                           type="color"
                           value={newPalette.accent}
                           onChange={(e) => setNewPalette({ ...newPalette, accent: e.target.value })}
-                          style={{ width: '100%', height: 40, padding: 0, cursor: 'pointer' }}
+                    style={{ 
+                      width: '100%', 
+                      height: 44, 
+                      padding: 0, 
+                      cursor: 'pointer',
+                      borderRadius: 'var(--radius-md)',
+                      border: '2px solid var(--color-border)',
+                    }}
                         />
                       </div>
                     </div>
 
+              {/* Accent Presets */}
                     <div style={{ marginBottom: 'var(--spacing-md)' }}>
                       <label style={{ 
                         display: 'block', 
-                        fontSize: 'var(--font-size-sm)', 
-                        marginBottom: 'var(--spacing-xs)',
-                        color: 'var(--color-text-muted)'
-                      }}>
-                        Font
+                  fontSize: 'var(--font-size-xs)', 
+                  marginBottom: 'var(--spacing-sm)',
+                  color: 'var(--color-text-muted)',
+                  textTransform: 'uppercase',
+                  letterSpacing: '0.05em'
+                }}>
+                  Accent Presets
                       </label>
-                      <select
-                        value={newPalette.font || AVAILABLE_FONTS[0].value}
-                        onChange={(e) => setNewPalette({ ...newPalette, font: e.target.value })}
+                <div style={{ display: 'flex', gap: 'var(--spacing-xs)', flexWrap: 'wrap' }}>
+                  {ACCENT_PRESETS.map((preset) => (
+                    <button
+                      key={preset.color}
+                      onClick={() => setNewPalette({ ...newPalette, accent: preset.color })}
+                      title={preset.name}
                         style={{
-                          width: '100%',
-                          padding: 'var(--spacing-sm)',
-                          fontSize: 'var(--font-size-sm)',
-                          borderRadius: 'var(--radius-sm)',
-                          border: '1px solid var(--color-border)',
-                          backgroundColor: 'var(--color-primary)',
-                          color: 'var(--color-text)',
-                        }}
-                      >
-                        {AVAILABLE_FONTS.map((font) => (
-                          <option key={font.value} value={font.value}>
-                            {font.label}
-                          </option>
-                        ))}
-                      </select>
+                        width: 28,
+                        height: 28,
+                        borderRadius: '50%',
+                        background: preset.color,
+                        border: newPalette.accent === preset.color 
+                          ? '2px solid var(--color-text)' 
+                          : '2px solid transparent',
+                        cursor: 'pointer',
+                        transition: 'transform 0.15s ease, border-color 0.15s ease',
+                        boxShadow: '0 2px 4px rgba(0,0,0,0.2)',
+                      }}
+                      onMouseEnter={(e) => e.currentTarget.style.transform = 'scale(1.1)'}
+                      onMouseLeave={(e) => e.currentTarget.style.transform = 'scale(1)'}
+                    />
+                  ))}
+                </div>
                     </div>
 
+              {/* Action Buttons */}
                     <div style={{ display: 'flex', gap: 'var(--spacing-sm)', justifyContent: 'flex-end' }}>
-                      <button className="btn btn-secondary" onClick={() => {
+                <button 
+                  className="btn btn-secondary" 
+                  onClick={() => {
+                    setShowCustomForm(false);
                         const currentValues = getCurrentThemeValues();
                         setNewPalette({
                           name: '',
                           background: currentValues.background,
                           text: currentValues.text,
                           accent: currentValues.accent,
-                          font: currentValues.font,
-                        });
-                        setShowCustomForm(false);
-                      }}>
+                    });
+                  }}
+                  style={{
+                    padding: 'var(--spacing-sm) var(--spacing-lg)',
+                    borderRadius: 'var(--radius-md)',
+                  }}
+                >
                         Cancel
                       </button>
-                      <button className="btn" onClick={handleAddCustomPalette}>
+                <button 
+                  className="btn" 
+                  onClick={handleAddCustomPalette}
+                  disabled={!newPalette.name.trim()}
+                  style={{
+                    padding: 'var(--spacing-sm) var(--spacing-lg)',
+                    borderRadius: 'var(--radius-md)',
+                    opacity: !newPalette.name.trim() ? 0.5 : 1,
+                  }}
+                >
                         Create Theme
                       </button>
                     </div>
                   </div>
                 )}
               </div>
+      </section>
+
+      {/* Typography Section - Separate from colors */}
+      <section style={{ marginBottom: 'var(--spacing-xl)' }}>
+        <div style={{ 
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'space-between',
+          marginBottom: 'var(--spacing-lg)'
+        }}>
+          <h3 style={{ 
+            fontSize: 'var(--font-size-lg)', 
+            margin: 0,
+            fontWeight: 600,
+            letterSpacing: '-0.01em'
+          }}>
+            Typography
+          </h3>
+            </div>
+
+        <div style={{
+          background: 'var(--color-surface)',
+          borderRadius: 'var(--radius-lg)',
+          border: '1px solid var(--color-border)',
+          padding: 'var(--spacing-lg)',
+        }}>
+          <div style={{ 
+            fontSize: 'var(--font-size-xs)', 
+            color: 'var(--color-text-muted)',
+            marginBottom: 'var(--spacing-md)',
+            textTransform: 'uppercase',
+            letterSpacing: '0.05em',
+            fontWeight: 500
+          }}>
+            Font Family
+          </div>
+          
+          <div style={{ 
+            display: 'grid', 
+            gridTemplateColumns: 'repeat(2, 1fr)', 
+            gap: 'var(--spacing-sm)'
+          }}>
+            {AVAILABLE_FONTS.map((font) => {
+              const isSelected = selectedFont === font.value;
+              
+              return (
+                <div
+                  key={font.value}
+                  onClick={() => handleFontChange(font.value)}
+                  style={{
+                    padding: 'var(--spacing-md)',
+                    borderRadius: 'var(--radius-md)',
+                    border: isSelected 
+                      ? '2px solid var(--color-accent)' 
+                      : '1px solid var(--color-border)',
+                    cursor: 'pointer',
+                    background: isSelected ? 'var(--color-hover)' : 'transparent',
+                    transition: 'all 0.2s ease',
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: 'var(--spacing-sm)',
+                  }}
+                  onMouseEnter={(e) => {
+                    if (!isSelected) {
+                      e.currentTarget.style.background = 'var(--color-hover)';
+                      e.currentTarget.style.borderColor = 'var(--color-text-muted)';
+                    }
+                  }}
+                  onMouseLeave={(e) => {
+                    if (!isSelected) {
+                      e.currentTarget.style.background = 'transparent';
+                      e.currentTarget.style.borderColor = 'var(--color-border)';
+                    }
+                  }}
+                >
+                  {/* Selection indicator */}
+                  <div style={{
+                    width: 16,
+                    height: 16,
+                    borderRadius: '50%',
+                    border: isSelected ? 'none' : '2px solid var(--color-border)',
+                    background: isSelected ? 'var(--color-accent)' : 'transparent',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    flexShrink: 0,
+                  }}>
+                    {isSelected && (
+                      <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="var(--color-background)" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round">
+                        <polyline points="20 6 9 17 4 12" />
+                      </svg>
+                    )}
+                  </div>
+                  
+                  <div style={{ 
+                    fontFamily: font.value,
+                    fontSize: 'var(--font-size-sm)',
+                    fontWeight: isSelected ? 600 : 400,
+                    color: isSelected ? 'var(--color-text)' : 'var(--color-text-muted)',
+                  }}>
+                    {font.label}
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+
+          {/* Font Preview */}
+          <div style={{ 
+            marginTop: 'var(--spacing-lg)',
+            padding: 'var(--spacing-md)',
+            background: 'var(--color-background)',
+            borderRadius: 'var(--radius-md)',
+            border: '1px solid var(--color-border)',
+          }}>
+            <div style={{ 
+              fontSize: 'var(--font-size-xs)', 
+              color: 'var(--color-text-muted)',
+              marginBottom: 'var(--spacing-sm)',
+              textTransform: 'uppercase',
+              letterSpacing: '0.05em'
+            }}>
+              Preview
+            </div>
+            <div style={{ 
+              fontFamily: selectedFont,
+              fontSize: 'var(--font-size-lg)',
+              lineHeight: 1.4,
+            }}>
+              The quick brown fox jumps over the lazy dog.
+            </div>
+            <div style={{ 
+              fontFamily: selectedFont,
+              fontSize: 'var(--font-size-sm)',
+              color: 'var(--color-text-muted)',
+              marginTop: 'var(--spacing-xs)',
+            }}>
+              0123456789 • ABCDEFGHIJKLMNOPQRSTUVWXYZ
             </div>
           </div>
-        )}
+        </div>
       </section>
 
       {/* Model Section */}

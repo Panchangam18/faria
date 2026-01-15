@@ -93,6 +93,66 @@
   --color-hover: rgba(232, 245, 232, 0.05);
 }
 
+/* Aurora Theme - Cool and Dreamy */
+[data-theme="aurora"] {
+  --color-primary: #1a1a2e;
+  --color-secondary: #eaeaea;
+  --color-accent: #e94560;
+  
+  --color-primary-light: #252540;
+  --color-primary-dark: #0f0f1a;
+  --color-secondary-muted: rgba(234, 234, 234, 0.7);
+  --color-accent-hover: #f05a73;
+  --color-accent-active: #d63650;
+  
+  --color-background: var(--color-primary);
+  --color-surface: var(--color-primary-light);
+  --color-text: var(--color-secondary);
+  --color-text-muted: var(--color-secondary-muted);
+  --color-border: rgba(234, 234, 234, 0.1);
+  --color-hover: rgba(234, 234, 234, 0.05);
+}
+
+/* Obsidian Theme - Sleek and Minimal */
+[data-theme="obsidian"] {
+  --color-primary: #1e1e1e;
+  --color-secondary: #d4d4d4;
+  --color-accent: #daa520;
+  
+  --color-primary-light: #2d2d2d;
+  --color-primary-dark: #121212;
+  --color-secondary-muted: rgba(212, 212, 212, 0.7);
+  --color-accent-hover: #e6b333;
+  --color-accent-active: #c7941a;
+  
+  --color-background: var(--color-primary);
+  --color-surface: var(--color-primary-light);
+  --color-text: var(--color-secondary);
+  --color-text-muted: var(--color-secondary-muted);
+  --color-border: rgba(212, 212, 212, 0.1);
+  --color-hover: rgba(212, 212, 212, 0.05);
+}
+
+/* Ocean Theme - Serene Depths */
+[data-theme="ocean"] {
+  --color-primary: #0f2027;
+  --color-secondary: #a8dadc;
+  --color-accent: #00b4d8;
+  
+  --color-primary-light: #1a3540;
+  --color-primary-dark: #080f12;
+  --color-secondary-muted: rgba(168, 218, 220, 0.7);
+  --color-accent-hover: #1cc5e8;
+  --color-accent-active: #009fc0;
+  
+  --color-background: var(--color-primary);
+  --color-surface: var(--color-primary-light);
+  --color-text: var(--color-secondary);
+  --color-text-muted: var(--color-secondary-muted);
+  --color-border: rgba(168, 218, 220, 0.1);
+  --color-hover: rgba(168, 218, 220, 0.05);
+}
+
 /* Custom Theme - User can override via CSS variables */
 [data-theme="custom"] {
   /* These will be set dynamically via JavaScript */

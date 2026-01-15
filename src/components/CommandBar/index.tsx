@@ -16,6 +16,60 @@ const MAX_TEXTAREA_HEIGHT = LINE_HEIGHT * MAX_LINES; // 115px for 5 lines
 const BASE_HEIGHT = 46; // Footer + padding (8px top input + 2px bottom input + 4px top footer + 8px bottom footer + ~24px footer content)
 const MAX_RESPONSE_HEIGHT = 200; // Max height before scrolling kicks in
 
+// Preset themes colors (must match SettingsPanel)
+const PRESET_THEMES: Record<string, { background: string; text: string; accent: string }> = {
+  default: { background: '#272932', text: '#EAE0D5', accent: '#C6AC8F' },
+  midnight: { background: '#0D1117', text: '#C9D1D9', accent: '#58A6FF' },
+  forest: { background: '#1A2F1A', text: '#E8F5E8', accent: '#7CB342' },
+  aurora: { background: '#1a1a2e', text: '#eaeaea', accent: '#e94560' },
+  obsidian: { background: '#1e1e1e', text: '#d4d4d4', accent: '#daa520' },
+  ocean: { background: '#0f2027', text: '#a8dadc', accent: '#00b4d8' },
+};
+
+// Apply theme CSS variables to document
+function applyTheme(theme: string, customColors?: { background: string; text: string; accent: string }, font?: string) {
+  const colors = customColors || PRESET_THEMES[theme] || PRESET_THEMES.default;
+  
+  // Helper to lighten/darken colors
+  const adjustColor = (hex: string, factor: number): string => {
+    const h = hex.replace('#', '');
+    const r = Math.min(255, Math.max(0, Math.round(parseInt(h.substring(0, 2), 16) * factor)));
+    const g = Math.min(255, Math.max(0, Math.round(parseInt(h.substring(2, 4), 16) * factor)));
+    const b = Math.min(255, Math.max(0, Math.round(parseInt(h.substring(4, 6), 16) * factor)));
+    return `#${r.toString(16).padStart(2, '0')}${g.toString(16).padStart(2, '0')}${b.toString(16).padStart(2, '0')}`;
+  };
+
+  const doc = document.documentElement;
+  
+  // Set base colors
+  doc.style.setProperty('--color-primary', colors.background);
+  doc.style.setProperty('--color-secondary', colors.text);
+  doc.style.setProperty('--color-accent', colors.accent);
+  
+  // Derive additional colors
+  doc.style.setProperty('--color-primary-light', adjustColor(colors.background, 1.2));
+  doc.style.setProperty('--color-primary-dark', adjustColor(colors.background, 0.7));
+  doc.style.setProperty('--color-secondary-muted', colors.text + 'B3');
+  doc.style.setProperty('--color-accent-hover', adjustColor(colors.accent, 1.15));
+  doc.style.setProperty('--color-accent-active', adjustColor(colors.accent, 0.85));
+  
+  // UI colors
+  doc.style.setProperty('--color-background', colors.background);
+  doc.style.setProperty('--color-surface', adjustColor(colors.background, 1.2));
+  doc.style.setProperty('--color-text', colors.text);
+  doc.style.setProperty('--color-text-muted', colors.text + 'B3');
+  doc.style.setProperty('--color-border', colors.text + '26');
+  doc.style.setProperty('--color-hover', colors.text + '14');
+  
+  // Font
+  if (font) {
+    doc.style.setProperty('--font-family', font);
+  }
+  
+  // Set data-theme attribute
+  doc.setAttribute('data-theme', theme === 'custom' ? 'custom' : theme);
+}
+
 function CommandBar() {
   const [query, setQuery] = useState('');
   const [response, setResponse] = useState('');
@@ -70,6 +124,50 @@ function CommandBar() {
     const totalHeight = BASE_HEIGHT + contentHeight + responseHeight;
     window.faria.commandBar.resize(totalHeight);
   }, [query, response]);
+
+  // Load theme on mount
+  useEffect(() => {
+    const loadTheme = async () => {
+      try {
+        const theme = await window.faria.settings.get('theme') || 'default';
+        const font = await window.faria.settings.get('selectedFont') || "'SF Pro Display', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif";
+        
+        let customColors: { background: string; text: string; accent: string } | undefined;
+        
+        if (theme === 'custom') {
+          const customPalettes = await window.faria.settings.get('customPalettes');
+          const activeCustomPalette = await window.faria.settings.get('activeCustomPalette');
+          
+          if (customPalettes && activeCustomPalette) {
+            try {
+              const palettes = JSON.parse(customPalettes);
+              const activePalette = palettes.find((p: any) => p.name === activeCustomPalette);
+              if (activePalette) {
+                customColors = {
+                  background: activePalette.background,
+                  text: activePalette.text,
+                  accent: activePalette.accent
+                };
+              }
+            } catch (e) {
+              console.error('[CommandBar] Error parsing custom palettes:', e);
+            }
+          }
+        }
+        
+        applyTheme(theme, customColors, font);
+      } catch (e) {
+        console.error('[CommandBar] Error loading theme:', e);
+      }
+    };
+    
+    loadTheme();
+    
+    // Listen for theme changes
+    window.faria.settings.onThemeChange((themeData) => {
+      applyTheme(themeData.theme, themeData.customColors, themeData.font);
+    });
+  }, []);
 
   useEffect(() => {
     // Focus input when command bar becomes visible

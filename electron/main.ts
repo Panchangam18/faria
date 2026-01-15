@@ -108,6 +108,48 @@ function createCommandBarWindow() {
   });
 }
 
+// Broadcast theme changes to all windows
+async function broadcastThemeChange() {
+  const db = initDatabase();
+  
+  // Get current theme settings
+  const themeRow = db.prepare('SELECT value FROM settings WHERE key = ?').get('theme') as { value: string } | undefined;
+  const fontRow = db.prepare('SELECT value FROM settings WHERE key = ?').get('selectedFont') as { value: string } | undefined;
+  const customPalettesRow = db.prepare('SELECT value FROM settings WHERE key = ?').get('customPalettes') as { value: string } | undefined;
+  const activeCustomPaletteRow = db.prepare('SELECT value FROM settings WHERE key = ?').get('activeCustomPalette') as { value: string } | undefined;
+  
+  const theme = themeRow?.value || 'default';
+  const font = fontRow?.value || "'SF Pro Display', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif";
+  
+  let customColors: { background: string; text: string; accent: string } | undefined;
+  
+  if (theme === 'custom' && customPalettesRow?.value && activeCustomPaletteRow?.value) {
+    try {
+      const palettes = JSON.parse(customPalettesRow.value);
+      const activePalette = palettes.find((p: any) => p.name === activeCustomPaletteRow.value);
+      if (activePalette) {
+        customColors = {
+          background: activePalette.background,
+          text: activePalette.text,
+          accent: activePalette.accent
+        };
+      }
+    } catch (e) {
+      console.error('[Faria] Error parsing custom palettes:', e);
+    }
+  }
+  
+  const themeData = { theme, font, customColors };
+  
+  // Send to all windows
+  if (mainWindow) {
+    mainWindow.webContents.send('settings:theme-change', themeData);
+  }
+  if (commandBarWindow) {
+    commandBarWindow.webContents.send('settings:theme-change', themeData);
+  }
+}
+
 function getCommandBarSettings() {
   const db = initDatabase();
   const row = db.prepare('SELECT value FROM settings WHERE key = ?').get('commandBarPosition') as { value: string } | undefined;
@@ -309,6 +351,13 @@ function setupIPC() {
   ipcMain.handle('settings:set', async (_event, key: string, value: string) => {
     const db = initDatabase();
     db.prepare('INSERT OR REPLACE INTO settings (key, value) VALUES (?, ?)').run(key, value);
+    
+    // Broadcast theme changes to all windows (including command bar)
+    const themeKeys = ['theme', 'activeCustomPalette', 'customPalettes', 'selectedFont'];
+    if (themeKeys.includes(key)) {
+      broadcastThemeChange();
+    }
+    
     return { success: true };
   });
 
