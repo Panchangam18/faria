@@ -27,11 +27,11 @@ interface GroupedHistory {
  */
 function formatAction(action: ActionData): string {
   const input = action.input as Record<string, unknown>;
-  
+
   switch (action.tool) {
     case 'web_search':
       return `Searched web for "${input.query}"`;
-    
+
     case 'make_edit':
     case 'suggest_edits': {
       const edits = input.edits as Array<{ oldText?: string; newText?: string }>;
@@ -42,13 +42,13 @@ function formatAction(action: ActionData): string {
       }
       return 'Made edit';
     }
-    
+
     case 'insert_image':
       return `Inserted image: "${input.query}"`;
-    
+
     case 'answer':
       return `Answered: "${(input.text as string)?.substring(0, 80)}${(input.text as string)?.length > 80 ? '...' : ''}"`;
-    
+
     case 'chain_actions': {
       const actions = input.actions as Array<{ type: string; text?: string; key?: string; app?: string }>;
       if (actions && actions.length > 0) {
@@ -64,19 +64,19 @@ function formatAction(action: ActionData): string {
       }
       return 'Performed chain of actions';
     }
-    
+
     case 'run_applescript':
       return 'Ran AppleScript';
-    
+
     case 'focus_app':
       return `Focused app: ${input.name || input.app}`;
-    
+
     case 'get_state':
       return 'Retrieved app state';
-    
+
     case 'computer':
       return `Computer action: ${input.action}`;
-    
+
     default:
       return `${action.tool}`;
   }
@@ -250,7 +250,7 @@ function HistoryPanel() {
                           marginTop: 'var(--spacing-sm)'
                         }}>
                           {item.actions.map((action, idx) => (
-                            <div key={idx} style={{ 
+                            <div key={idx} style={{
                               fontSize: 'var(--font-size-xs)',
                               color: 'var(--color-accent)',
                               marginBottom: 'var(--spacing-xs)'
@@ -260,10 +260,10 @@ function HistoryPanel() {
                           ))}
                         </div>
                       )}
-                      
+
                       {/* Response (if no actions, or as final result) */}
                       {(!item.actions || item.actions.length === 0) && item.response && (
-                        <div style={{ 
+                        <div style={{
                           marginTop: 'var(--spacing-sm)',
                           color: 'var(--color-accent)',
                           fontSize: 'var(--font-size-xs)'

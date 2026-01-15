@@ -281,8 +281,7 @@ function CommandBar() {
         const result = await window.faria.agent.submit(query);
         if (result.success && result.result) {
           setResponse(result.result);
-          // Add to history
-          await window.faria.history.add(query, result.result);
+          // History is saved in the agent loop, no need to add here
         } else if (result.error) {
           setResponse(`Error: ${result.error}`);
         }
