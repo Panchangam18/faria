@@ -26,6 +26,9 @@ let toolExecutor: ToolExecutor;
 
 const isDev = process.env.NODE_ENV === 'development' || !app.isPackaged;
 
+// Track if main window is visible (for Dock icon management)
+let isMainWindowVisible = false;
+
 // Default command bar dimensions
 const DEFAULT_COMMAND_BAR_WIDTH = 400;
 const DEFAULT_COMMAND_BAR_HEIGHT = 67; // Single line: 46 (base) + 21 (one line)
@@ -54,7 +57,30 @@ function createMainWindow() {
 
   mainWindow.on('closed', () => {
     mainWindow = null;
+    isMainWindowVisible = false;
+    // Hide Dock icon when main window is closed (only command bar remains)
+    if (process.platform === 'darwin') {
+      app.dock.hide();
+    }
   });
+
+  mainWindow.on('show', () => {
+    isMainWindowVisible = true;
+    // Show Dock icon when main window is visible
+    if (process.platform === 'darwin') {
+      app.dock.show();
+    }
+  });
+
+  mainWindow.on('hide', () => {
+    isMainWindowVisible = false;
+    // Hide Dock icon when main window is hidden
+    if (process.platform === 'darwin') {
+      app.dock.hide();
+    }
+  });
+
+  isMainWindowVisible = true;
 }
 
 function createCommandBarWindow() {
@@ -223,7 +249,8 @@ async function toggleCommandBar() {
       createCommandBarWindow();
       positionCommandBar();
     }
-    commandBarWindow?.show();
+    commandBarWindow?.showInactive();
+    commandBarWindow?.webContents.focus();
     isCommandBarVisible = true;
     setImmediate(() => {
       if (commandBarWindow && isCommandBarVisible) {
@@ -289,10 +316,21 @@ function showCommandBar() {
     positionCommandBar();
   }
 
-  // Just show - position is already set
-  commandBarWindow?.show();
+  // Hide Dock icon before showing command bar to prevent visual app switching
+  // This makes Faria behave like an accessory app (similar to Maccy)
+  if (process.platform === 'darwin' && !isMainWindowVisible) {
+    app.dock.hide();
+  }
+
+  // Use showInactive() to avoid activating the app and causing window switching
+  // This is similar to NSPanel's nonactivatingPanel behavior in Maccy
+  commandBarWindow?.showInactive();
   isCommandBarVisible = true;
-  
+
+  // Focus the webContents to receive keyboard input without fully activating the app
+  // This allows typing in the command bar while Chrome stays visually "in front"
+  commandBarWindow?.webContents.focus();
+
   // Send focus event in next tick to not block
   setImmediate(() => {
     if (commandBarWindow && isCommandBarVisible) {

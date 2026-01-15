@@ -8,6 +8,22 @@ import * as cliclick from './cliclick';
 import { runAppleScript } from './applescript';
 
 /**
+ * Copy selected text using the Edit menu instead of Cmd+C
+ * This avoids issues with modifier keys still being held from global shortcuts
+ * (e.g., Cmd+C becoming Cmd+Shift+C and triggering inspect element)
+ */
+async function copyViaEditMenu(targetApp: string): Promise<void> {
+  const script = `
+    tell application "System Events"
+      tell process "${targetApp}"
+        click menu item "Copy" of menu "Edit" of menu bar 1
+      end tell
+    end tell
+  `;
+  await runAppleScript(script);
+}
+
+/**
  * Send a hotkey using AppleScript (more reliable for modifier combos)
  */
 async function sendHotkeyAS(modifiers: string[], key: string): Promise<void> {
@@ -69,16 +85,20 @@ export interface ExtractedText {
  */
 export async function getSelectedText(targetApp: string | null): Promise<string | null> {
   const savedClipboard = clipboard.readText();
-  
+
   try {
     clipboard.writeText('');
-    
+
     if (targetApp && targetApp !== 'Electron' && targetApp !== 'Faria') {
       await runAppleScript(`tell application "${targetApp}" to activate`);
       await cliclick.sleep(50);
+
+      // Use Edit menu to copy - not affected by modifier keys still being held
+      await copyViaEditMenu(targetApp);
+    } else {
+      // Fallback to keyboard shortcut if no target app
+      await sendHotkeyAS(['cmd'], 'c');
     }
-    
-    await sendHotkeyAS(['cmd'], 'c');
     await cliclick.sleep(100);
     
     const selectedText = clipboard.readText();
@@ -100,7 +120,7 @@ export async function getSelectedText(targetApp: string | null): Promise<string 
 export async function extractTextAroundCursor(targetApp: string | null): Promise<ExtractedText | null> {
   // Save current clipboard content
   const savedClipboard = clipboard.readText();
-  
+
   try {
     // First, ensure the target app is focused
     if (targetApp && targetApp !== 'Electron' && targetApp !== 'Faria') {
@@ -183,7 +203,7 @@ export async function extractTextAroundCursor(targetApp: string | null): Promise
  */
 export async function extractTextFast(targetApp: string | null): Promise<ExtractedText | null> {
   const savedClipboard = clipboard.readText();
-  
+
   try {
     if (targetApp && targetApp !== 'Electron' && targetApp !== 'Faria') {
       await runAppleScript(`tell application "${targetApp}" to activate`);
