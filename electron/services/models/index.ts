@@ -36,7 +36,12 @@ export function getProviderName(modelName: string): string {
 export function getSelectedModel(settingKey: string = 'selectedModel', defaultModel: string = 'claude-sonnet-4-20250514'): string {
   const db = initDatabase();
   const row = db.prepare('SELECT value FROM settings WHERE key = ?').get(settingKey) as { value: string } | undefined;
-  return row?.value || defaultModel;
+  const model = row?.value || defaultModel;
+  // Return "none" as-is, don't fallback to default
+  if (row?.value === 'none') {
+    return 'none';
+  }
+  return model;
 }
 
 /**
@@ -44,6 +49,12 @@ export function getSelectedModel(settingKey: string = 'selectedModel', defaultMo
  * This is the simple interface - just pass a model name and get a model back
  */
 export function createModel(modelName: string, maxTokens: number = 4096): BaseChatModel | null {
+  // Handle "none" model
+  if (modelName === 'none') {
+    console.log('[Models] Model is set to "none"');
+    return null;
+  }
+  
   const provider = getProvider(modelName);
   if (!provider) {
     console.error(`[Models] No provider found for model: ${modelName}`);
@@ -70,6 +81,12 @@ export function createModelWithTools(
   screenDimensions: ScreenDimensions,
   maxTokens: number = 4096
 ): BoundModel | null {
+  // Handle "none" model
+  if (modelName === 'none') {
+    console.log('[Models] Model is set to "none"');
+    return null;
+  }
+  
   const provider = getProvider(modelName);
   if (!provider) {
     console.error(`[Models] No provider found for model: ${modelName}`);
@@ -125,9 +142,12 @@ export function getToolDisplayName(toolName: string): string {
 }
 
 /**
- * Get the error message for a missing API key
+ * Get the error message for a missing API key or None model
  */
 export function getMissingKeyError(modelName: string): string {
+  if (modelName === 'none') {
+    return 'Model is set to None. Please choose a model in Settings.';
+  }
   const provider = getProvider(modelName);
   const providerName = provider?.name === 'google' ? 'Google' : 'Anthropic';
   return `${providerName} API key not configured. Please add it in Settings.`;
@@ -145,6 +165,12 @@ export type NativeClient =
  * This gives direct access to Anthropic SDK or Google GenAI SDK
  */
 export function createNativeClient(modelName: string): NativeClient | null {
+  // Handle "none" model
+  if (modelName === 'none') {
+    console.log('[Models] Model is set to "none"');
+    return null;
+  }
+  
   const db = initDatabase();
   const provider = getProvider(modelName);
   

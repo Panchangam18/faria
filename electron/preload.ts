@@ -59,6 +59,12 @@ contextBridge.exposeInMainWorld('faria', {
     onModeChange: (callback: (mode: 'agent' | 'inline', context?: string) => void) => {
       ipcRenderer.on('command-bar:mode-change', (_event, mode, context) => callback(mode, context));
     },
+    onModelAvailability: (callback: (availability: { agentAvailable: boolean; inlineAvailable: boolean }) => void) => {
+      ipcRenderer.on('command-bar:model-availability', (_event, availability) => callback(availability));
+    },
+    onError: (callback: (error: string) => void) => {
+      ipcRenderer.on('command-bar:error', (_event, error) => callback(error));
+    },
     onInlineStatus: (callback: (status: string) => void) => {
       ipcRenderer.on('command-bar:inline-status', (_event, status) => callback(status));
     },
@@ -131,6 +137,8 @@ export interface FariaAPI {
     submitInline: (query: string, contextText: string) => Promise<{ success: boolean; result?: string; error?: string }>;
     onFocus: (callback: () => void) => void;
     onModeChange: (callback: (mode: 'agent' | 'inline', context?: string) => void) => void;
+    onModelAvailability: (callback: (availability: { agentAvailable: boolean; inlineAvailable: boolean }) => void) => void;
+    onError: (callback: (error: string) => void) => void;
     onInlineStatus: (callback: (status: string) => void) => void;
     onInlineResponse: (callback: (response: string) => void) => void;
     onEditApplied: (callback: () => void) => void;

@@ -59,9 +59,33 @@ function SettingsPanel({ currentTheme, onThemeChange }: SettingsPanelProps) {
     accent: '#C6AC8F',
   });
 
+  const [hasLoadedSettings, setHasLoadedSettings] = useState(false);
+
   useEffect(() => {
-    loadSettings();
+    loadSettings().then(() => {
+      setHasLoadedSettings(true);
+    });
   }, []);
+
+  // Re-validate models when API keys change (but only after initial load)
+  useEffect(() => {
+    if (!hasLoadedSettings) return;
+    
+    const availableModels = getAvailableModels();
+    const availableModelIds = availableModels.map(m => m.id);
+    
+    // If selected model is not "none" and not available, reset to "none"
+    if (selectedModel !== 'none' && !availableModelIds.includes(selectedModel)) {
+      setSelectedModel('none');
+      saveSettings('selectedModel', 'none');
+    }
+    
+    // Same for inline model
+    if (selectedInlineModel !== 'none' && !availableModelIds.includes(selectedInlineModel)) {
+      setSelectedInlineModel('none');
+      saveSettings('selectedInlineModel', 'none');
+    }
+  }, [anthropicKey, googleKey, hasLoadedSettings, selectedModel, selectedInlineModel]);
 
   const loadSettings = async () => {
     const savedFirstName = await window.faria.settings.get('firstName');
@@ -76,9 +100,58 @@ function SettingsPanel({ currentTheme, onThemeChange }: SettingsPanelProps) {
     if (savedLastName) setLastName(savedLastName);
     if (savedAnthropicKey) setAnthropicKey(savedAnthropicKey);
     if (savedGoogleKey) setGoogleKey(savedGoogleKey);
-    if (savedModel) setSelectedModel(savedModel);
-    if (savedInlineModel) setSelectedInlineModel(savedInlineModel);
+    
+    // Check which models are available based on saved API keys
+    const hasAnthropicKey = savedAnthropicKey && savedAnthropicKey.trim().length > 0;
+    const hasGoogleKey = savedGoogleKey && savedGoogleKey.trim().length > 0;
+    const availableModelIds = MODELS
+      .filter(model => {
+        if (model.provider === 'anthropic' && hasAnthropicKey) return true;
+        if (model.provider === 'google' && hasGoogleKey) return true;
+        return false;
+      })
+      .map(m => m.id);
+    
+    // Set models, but validate they're still available (or are "none")
+    if (savedModel) {
+      if (savedModel === 'none' || availableModelIds.includes(savedModel)) {
+        setSelectedModel(savedModel);
+      } else {
+        // Model no longer available, default to "none"
+        setSelectedModel('none');
+        saveSettings('selectedModel', 'none');
+      }
+    }
+    if (savedInlineModel) {
+      if (savedInlineModel === 'none' || availableModelIds.includes(savedInlineModel)) {
+        setSelectedInlineModel(savedInlineModel);
+      } else {
+        // Model no longer available, default to "none"
+        setSelectedInlineModel('none');
+        saveSettings('selectedInlineModel', 'none');
+      }
+    }
     if (savedCustomPalettes) setCustomPalettes(JSON.parse(savedCustomPalettes));
+  };
+
+  // Get available models based on API keys
+  const getAvailableModels = () => {
+    const available: typeof MODELS = [];
+    
+    // Check if Anthropic key is available
+    const hasAnthropicKey = anthropicKey && anthropicKey.trim().length > 0;
+    // Check if Google key is available
+    const hasGoogleKey = googleKey && googleKey.trim().length > 0;
+    
+    MODELS.forEach(model => {
+      if (model.provider === 'anthropic' && hasAnthropicKey) {
+        available.push(model);
+      } else if (model.provider === 'google' && hasGoogleKey) {
+        available.push(model);
+      }
+    });
+    
+    return available;
   };
 
   const saveSettings = async (key: string, value: string) => {
@@ -229,7 +302,8 @@ function SettingsPanel({ currentTheme, onThemeChange }: SettingsPanelProps) {
                     color: 'var(--color-text)',
                   }}
                 >
-                  {MODELS.map((model) => (
+                  <option value="none">None</option>
+                  {getAvailableModels().map((model) => (
                     <option key={model.id} value={model.id}>
                       {model.name}
                     </option>
@@ -262,7 +336,8 @@ function SettingsPanel({ currentTheme, onThemeChange }: SettingsPanelProps) {
                     color: 'var(--color-text)',
                   }}
                 >
-                  {MODELS.map((model) => (
+                  <option value="none">None</option>
+                  {getAvailableModels().map((model) => (
                     <option key={model.id} value={model.id}>
                       {model.name}
                     </option>

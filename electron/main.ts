@@ -167,6 +167,37 @@ async function toggleCommandBar() {
     return;
   }
 
+  // Check model settings
+  const db = initDatabase();
+  const agentModelRow = db.prepare('SELECT value FROM settings WHERE key = ?').get('selectedModel') as { value: string } | undefined;
+  const inlineModelRow = db.prepare('SELECT value FROM settings WHERE key = ?').get('selectedInlineModel') as { value: string } | undefined;
+  const agentModel = agentModelRow?.value || 'claude-sonnet-4-20250514';
+  const inlineModel = inlineModelRow?.value || 'claude-sonnet-4-20250514';
+
+  // If both models are "none", show error and don't open command bar
+  if (agentModel === 'none' && inlineModel === 'none') {
+    // Show error message - we'll send it to the command bar window
+    if (!commandBarWindow) {
+      createCommandBarWindow();
+      positionCommandBar();
+    }
+    commandBarWindow?.show();
+    isCommandBarVisible = true;
+    setImmediate(() => {
+      if (commandBarWindow && isCommandBarVisible) {
+        commandBarWindow.webContents.send('command-bar:error', 'Please choose a model in Settings');
+        // Hide after showing error
+        setTimeout(() => {
+          if (commandBarWindow && isCommandBarVisible) {
+            commandBarWindow.hide();
+            isCommandBarVisible = false;
+          }
+        }, 3000);
+      }
+    });
+    return;
+  }
+
   // IMPORTANT: Capture frontmost app AND selected text BEFORE showing the command bar
   // Otherwise:
   // 1. getFrontmostApp would return "Faria" since the window is already showing
@@ -178,23 +209,34 @@ async function toggleCommandBar() {
   // Get selected text while the original app is still active
   const selectedText = await getSelectedText(capturedApp);
   
-  if (selectedText) {
+  // Determine initial mode based on selected text and available models
+  if (selectedText && inlineModel !== 'none') {
     console.log('[Faria] Text selected, will start in inline mode. Length:', selectedText.length);
     currentContextText = selectedText;
     currentMode = 'inline';
-  } else {
-    console.log('[Faria] No text selected, starting in agent mode');
+  } else if (agentModel !== 'none') {
+    console.log('[Faria] No text selected or inline model is None, starting in agent mode');
     currentContextText = null;
     currentMode = 'agent';
+  } else {
+    // Only inline model is available
+    console.log('[Faria] Only inline model available');
+    currentContextText = selectedText || null;
+    currentMode = 'inline';
   }
 
   // Now show window with the correct mode already set
   showCommandBar();
   
-  // Send mode to renderer immediately after showing
+  // Send mode and model availability to renderer immediately after showing
   setImmediate(() => {
     if (commandBarWindow && isCommandBarVisible) {
       commandBarWindow.webContents.send('command-bar:mode-change', currentMode, currentContextText || undefined);
+      // Send model availability info so UI can disable mode switching if needed
+      commandBarWindow.webContents.send('command-bar:model-availability', {
+        agentAvailable: agentModel !== 'none',
+        inlineAvailable: inlineModel !== 'none'
+      });
     }
   });
 }
@@ -380,6 +422,20 @@ function setupIPC() {
 
   // Mode switching IPC
   ipcMain.on('command-bar:set-mode', (_event, mode: 'agent' | 'inline') => {
+    // Check if the target mode's model is available
+    const db = initDatabase();
+    const modelKey = mode === 'agent' ? 'selectedModel' : 'selectedInlineModel';
+    const modelRow = db.prepare('SELECT value FROM settings WHERE key = ?').get(modelKey) as { value: string } | undefined;
+    const model = modelRow?.value || 'claude-sonnet-4-20250514';
+    
+    if (model === 'none') {
+      console.log('[Faria] Cannot switch to', mode, '- model is None');
+      if (commandBarWindow) {
+        commandBarWindow.webContents.send('command-bar:error', `Cannot switch to ${mode} mode - model is set to None in Settings`);
+      }
+      return;
+    }
+    
     currentMode = mode;
     console.log('[Faria] Mode switched to:', mode);
   });
