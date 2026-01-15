@@ -17,6 +17,28 @@ function App() {
       if (savedTheme) {
         setTheme(savedTheme);
         document.documentElement.setAttribute('data-theme', savedTheme);
+        
+        // Apply preset theme font if not custom
+        if (savedTheme !== 'custom') {
+          const PRESET_THEMES = [
+            { 
+              id: 'default', 
+              font: "'SF Pro Display', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif"
+            },
+            { 
+              id: 'midnight', 
+              font: "'SF Pro Display', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif"
+            },
+            { 
+              id: 'forest', 
+              font: "'SF Pro Display', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif"
+            },
+          ];
+          const presetTheme = PRESET_THEMES.find(t => t.id === savedTheme);
+          if (presetTheme?.font) {
+            document.documentElement.style.setProperty('--font-family', presetTheme.font);
+          }
+        }
       }
     };
     loadTheme();
@@ -25,6 +47,45 @@ function App() {
   const handleThemeChange = async (newTheme: string) => {
     setTheme(newTheme);
     document.documentElement.setAttribute('data-theme', newTheme);
+    
+    // Clear custom CSS variables if switching to a preset theme
+    if (newTheme !== 'custom') {
+      document.documentElement.style.removeProperty('--color-primary');
+      document.documentElement.style.removeProperty('--color-secondary');
+      document.documentElement.style.removeProperty('--color-accent');
+      document.documentElement.style.removeProperty('--color-primary-light');
+      document.documentElement.style.removeProperty('--color-primary-dark');
+      document.documentElement.style.removeProperty('--color-secondary-muted');
+      document.documentElement.style.removeProperty('--color-accent-hover');
+      document.documentElement.style.removeProperty('--color-accent-active');
+      document.documentElement.style.removeProperty('--color-background');
+      document.documentElement.style.removeProperty('--color-surface');
+      document.documentElement.style.removeProperty('--color-text');
+      document.documentElement.style.removeProperty('--color-text-muted');
+      document.documentElement.style.removeProperty('--color-border');
+      document.documentElement.style.removeProperty('--color-hover');
+      
+      // Apply preset theme font
+      const PRESET_THEMES = [
+        { 
+          id: 'default', 
+          font: "'SF Pro Display', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif"
+        },
+        { 
+          id: 'midnight', 
+          font: "'SF Pro Display', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif"
+        },
+        { 
+          id: 'forest', 
+          font: "'SF Pro Display', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif"
+        },
+      ];
+      const presetTheme = PRESET_THEMES.find(t => t.id === newTheme);
+      if (presetTheme?.font) {
+        document.documentElement.style.setProperty('--font-family', presetTheme.font);
+      }
+    }
+    
     await window.faria.settings.set('theme', newTheme);
   };
 

@@ -14,14 +14,17 @@ interface CustomTool {
 function ToolboxPanel() {
   const [tools, setTools] = useState<CustomTool[]>([]);
   const [expandedId, setExpandedId] = useState<string | null>(null);
+  const [loading, setLoading] = useState<boolean>(true);
 
   useEffect(() => {
     loadTools();
   }, []);
 
   const loadTools = async () => {
+    setLoading(true);
     const items = await window.faria.tools.list();
     setTools(items);
+    setLoading(false);
   };
 
   const handleDelete = async (id: string, e: React.MouseEvent) => {
@@ -31,6 +34,24 @@ function ToolboxPanel() {
       loadTools();
     }
   };
+
+  if (loading) {
+    return (
+      <div className="toolbox-panel">
+        <div className="empty-state">
+          <div className="loading-spinner" style={{
+            width: '24px',
+            height: '24px',
+            border: '3px solid var(--color-border)',
+            borderTopColor: 'var(--color-accent)',
+            borderRadius: '50%',
+            animation: 'spin 0.8s linear infinite',
+            marginBottom: 'var(--spacing-md)'
+          }} />
+        </div>
+      </div>
+    );
+  }
 
   if (tools.length === 0) {
     return (

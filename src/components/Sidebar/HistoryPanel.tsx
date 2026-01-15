@@ -97,14 +97,17 @@ function parseQuery(queryString: string): string {
 function HistoryPanel() {
   const [history, setHistory] = useState<HistoryItem[]>([]);
   const [expandedId, setExpandedId] = useState<number | null>(null);
+  const [loading, setLoading] = useState<boolean>(true);
 
   useEffect(() => {
     loadHistory();
   }, []);
 
   const loadHistory = async () => {
+    setLoading(true);
     const items = await window.faria.history.get();
     setHistory(items);
+    setLoading(false);
   };
 
   const groupByDate = (items: HistoryItem[]): GroupedHistory => {
@@ -138,6 +141,24 @@ function HistoryPanel() {
   };
 
   const grouped = groupByDate(history);
+
+  if (loading) {
+    return (
+      <div className="history-panel">
+        <div className="empty-state">
+          <div className="loading-spinner" style={{
+            width: '24px',
+            height: '24px',
+            border: '3px solid var(--color-border)',
+            borderTopColor: 'var(--color-accent)',
+            borderRadius: '50%',
+            animation: 'spin 0.8s linear infinite',
+            marginBottom: 'var(--spacing-md)'
+          }} />
+        </div>
+      </div>
+    );
+  }
 
   if (history.length === 0) {
     return (
