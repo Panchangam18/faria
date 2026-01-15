@@ -280,22 +280,28 @@ function setupIPC() {
         query,
         response,
         tools_used,
+        agent_type,
+        actions,
+        context_text,
         strftime('%s', created_at) * 1000 as created_at
       FROM history 
       ORDER BY created_at DESC 
       LIMIT 100
     `).all();
     
-    // Convert created_at from string to number
+    // Convert created_at from string to number and parse JSON fields
     return rows.map((row: any) => ({
       ...row,
-      created_at: parseInt(row.created_at, 10)
+      created_at: parseInt(row.created_at, 10),
+      tools_used: row.tools_used ? JSON.parse(row.tools_used) : null,
+      actions: row.actions ? JSON.parse(row.actions) : null,
+      agent_type: row.agent_type || 'regular'
     }));
   });
 
   ipcMain.handle('history:add', async (_event, query: string, response: string) => {
     const db = initDatabase();
-    db.prepare('INSERT INTO history (query, response) VALUES (?, ?)').run(query, response);
+    db.prepare('INSERT INTO history (query, response, agent_type) VALUES (?, ?, ?)').run(query, response, 'regular');
     return { success: true };
   });
 

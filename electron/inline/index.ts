@@ -21,6 +21,7 @@ import {
   createNativeClient,
   NativeClient
 } from '../services/models';
+import { initDatabase } from '../db/sqlite';
 
 // Load environment variables
 config();
@@ -63,6 +64,56 @@ export class InlineAgentLoop {
   }
   
   /**
+   * Save trace to database
+   */
+  private saveTrace(
+    query: string,
+    contextText: string | null,
+    result: InlineResult,
+    toolsUsed: string[],
+    actions: Array<{ tool: string; input: unknown; timestamp: number }>
+  ): void {
+    try {
+      const db = initDatabase();
+      let responseText: string;
+      
+      if (result.type === 'answer') {
+        responseText = result.content;
+      } else if (result.type === 'edits' && result.edits) {
+        responseText = `Applied ${result.edits.length} edit(s)`;
+      } else if (result.type === 'image' && result.imageUrl) {
+        responseText = `Inserted image: ${result.imageUrl}`;
+      } else {
+        responseText = result.content;
+      }
+      
+      // Format query to include context text in quotes if present (for collapsed view)
+      let formattedQuery = query;
+      if (contextText && contextText.trim()) {
+        // Truncate context text if too long (max 100 chars for collapsed display)
+        const truncatedContext = contextText.length > 100 
+          ? contextText.substring(0, 100) + '...' 
+          : contextText;
+        formattedQuery = `"${query}" "${truncatedContext}"`;
+      }
+      
+      db.prepare(`
+        INSERT INTO history (query, response, tools_used, agent_type, actions, context_text) 
+        VALUES (?, ?, ?, ?, ?, ?)
+      `).run(
+        formattedQuery,
+        responseText,
+        toolsUsed.length > 0 ? JSON.stringify(toolsUsed) : null,
+        'inline',
+        actions.length > 0 ? JSON.stringify(actions) : null,
+        contextText && contextText.trim() ? contextText : null
+      );
+    } catch (error) {
+      console.error('[InlineAgent] Failed to save trace:', error);
+    }
+  }
+  
+  /**
    * Run the inline agent
    */
   async run(
@@ -92,9 +143,9 @@ export class InlineAgentLoop {
     
     try {
       if (provider === 'google') {
-        return await this.runWithGoogle(nativeClient as Extract<NativeClient, { provider: 'google' }>, userMessage, targetApp, contextText);
+        return await this.runWithGoogle(nativeClient as Extract<NativeClient, { provider: 'google' }>, userMessage, targetApp, contextText, query);
       } else {
-        return await this.runWithAnthropic(nativeClient as Extract<NativeClient, { provider: 'anthropic' }>, userMessage, targetApp, contextText);
+        return await this.runWithAnthropic(nativeClient as Extract<NativeClient, { provider: 'anthropic' }>, userMessage, targetApp, contextText, query);
       }
     } catch (error) {
       console.error('[InlineAgent] Error:', error);
@@ -109,13 +160,17 @@ export class InlineAgentLoop {
     nativeClient: Extract<NativeClient, { provider: 'anthropic' }>,
     userMessage: string,
     targetApp: string | null,
-    contextText: string | null
+    contextText: string | null,
+    originalQuery: string
   ): Promise<InlineResult> {
     const { client, model: modelName } = nativeClient;
     
     const messages: Anthropic.MessageParam[] = [
       { role: 'user', content: userMessage }
     ];
+    
+    const toolsUsed: string[] = [];
+    const actions: Array<{ tool: string; input: unknown; timestamp: number }> = [];
     
     // Check for cancellation before API call
     if (this.shouldCancel) {
@@ -153,6 +208,14 @@ export class InlineAgentLoop {
           return { type: 'answer', content: '' };
         }
         
+        // Track tool usage
+        toolsUsed.push(toolUse.name);
+        actions.push({
+          tool: toolUse.name,
+          input: toolUse.input,
+          timestamp: Date.now()
+        });
+        
         const result = await executeTool(
           toolUse.name,
           toolUse.input,
@@ -161,8 +224,9 @@ export class InlineAgentLoop {
           (status: string) => this.sendStatus(status)
         );
         
-        // If this is a terminal action (edits, image, answer), return immediately
+        // If this is a terminal action (edits, image, answer), save trace and return immediately
         if (result.terminal) {
+          this.saveTrace(originalQuery, contextText, result.result, toolsUsed, actions);
           return result.result;
         }
         
@@ -203,10 +267,15 @@ export class InlineAgentLoop {
       (block): block is Anthropic.TextBlock => block.type === 'text'
     );
     
-    return {
-      type: 'answer',
+    const finalResponse = {
+      type: 'answer' as const,
       content: textBlock?.text || 'Done.'
     };
+    
+    // Save trace for non-terminal responses
+    this.saveTrace(originalQuery, contextText, finalResponse, toolsUsed, actions);
+    
+    return finalResponse;
   }
   
   /**
@@ -216,9 +285,13 @@ export class InlineAgentLoop {
     nativeClient: Extract<NativeClient, { provider: 'google' }>,
     userMessage: string,
     targetApp: string | null,
-    contextText: string | null
+    contextText: string | null,
+    originalQuery: string
   ): Promise<InlineResult> {
     const { model } = nativeClient;
+    
+    const toolsUsed: string[] = [];
+    const actions: Array<{ tool: string; input: unknown; timestamp: number }> = [];
     
     // Check for cancellation before API call
     if (this.shouldCancel) {
@@ -265,6 +338,14 @@ export class InlineAgentLoop {
           return { type: 'answer', content: '' };
         }
         
+        // Track tool usage
+        toolsUsed.push(functionCall.name);
+        actions.push({
+          tool: functionCall.name,
+          input: functionCall.args,
+          timestamp: Date.now()
+        });
+        
         const result = await executeTool(
           functionCall.name,
           functionCall.args,
@@ -273,8 +354,9 @@ export class InlineAgentLoop {
           (status: string) => this.sendStatus(status)
         );
         
-        // If this is a terminal action (edits, image, answer), return immediately
+        // If this is a terminal action (edits, image, answer), save trace and return immediately
         if (result.terminal) {
+          this.saveTrace(originalQuery, contextText, result.result, toolsUsed, actions);
           return result.result;
         }
         
@@ -307,10 +389,15 @@ export class InlineAgentLoop {
     // Extract final text response
     const text = response.response.text();
     
-    return {
-      type: 'answer',
+    const finalResponse = {
+      type: 'answer' as const,
       content: text || 'Done.'
     };
+    
+    // Save trace for non-terminal responses
+    this.saveTrace(originalQuery, contextText, finalResponse, toolsUsed, actions);
+    
+    return finalResponse;
   }
 }
 

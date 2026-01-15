@@ -141,6 +141,7 @@ export class AgentLoop {
       let iterations = 0;
       let finalResponse = '';
       const toolsUsed: string[] = [];
+      const actions: Array<{ tool: string; input: unknown; timestamp: number }> = [];
       
       
       while (iterations < this.config.maxIterations && !this.shouldCancel) {
@@ -201,6 +202,11 @@ export class AgentLoop {
             console.log(`[Faria] Tool call: ${toolCall.name}`, JSON.stringify(toolCall.args).slice(0, 500));
             this.sendStatus(`${getToolDisplayName(toolCall.name)}...`);
             toolsUsed.push(toolCall.name);
+            actions.push({
+              tool: toolCall.name,
+              input: toolCall.args,
+              timestamp: Date.now()
+            });
             
             // Handle computer tool specially (works for both providers)
             if (isComputerUseTool(toolCall.name)) {
@@ -288,10 +294,12 @@ export class AgentLoop {
       
       // Save to history
       const db = initDatabase();
-      db.prepare('INSERT INTO history (query, response, tools_used) VALUES (?, ?, ?)').run(
+      db.prepare('INSERT INTO history (query, response, tools_used, agent_type, actions) VALUES (?, ?, ?, ?, ?)').run(
         query, 
         finalResponse,
-        toolsUsed.length > 0 ? JSON.stringify(toolsUsed) : null
+        toolsUsed.length > 0 ? JSON.stringify(toolsUsed) : null,
+        'regular',
+        actions.length > 0 ? JSON.stringify(actions) : null
       );
       
       return finalResponse;

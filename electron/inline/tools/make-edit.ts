@@ -2,9 +2,9 @@ import { applyTextEdits, TextEdit } from '../../services/text-extraction';
 import { ToolExecutionResult } from './types';
 
 /**
- * Execute suggest edits tool
+ * Execute make edit tool
  */
-export async function executeSuggestEdits(
+export async function executeMakeEdit(
   edits: TextEdit[],
   targetApp: string | null,
   sendStatus: (status: string) => void

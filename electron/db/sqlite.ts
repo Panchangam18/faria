@@ -72,6 +72,24 @@ export function initDatabase(): Database.Database {
     console.log('[DB] Added tools_used column to history table');
   }
 
+  // Migration: Add agent_type column if it doesn't exist
+  if (!historyColumns.some(col => col.name === 'agent_type')) {
+    db.exec('ALTER TABLE history ADD COLUMN agent_type TEXT DEFAULT "regular"');
+    console.log('[DB] Added agent_type column to history table');
+  }
+
+  // Migration: Add actions column if it doesn't exist (for detailed action tracking)
+  if (!historyColumns.some(col => col.name === 'actions')) {
+    db.exec('ALTER TABLE history ADD COLUMN actions TEXT');
+    console.log('[DB] Added actions column to history table');
+  }
+
+  // Migration: Add context_text column if it doesn't exist (for inline agent context)
+  if (!historyColumns.some(col => col.name === 'context_text')) {
+    db.exec('ALTER TABLE history ADD COLUMN context_text TEXT');
+    console.log('[DB] Added context_text column to history table');
+  }
+
   return db;
 }
 

@@ -1,15 +1,97 @@
 import React, { useState, useEffect } from 'react';
 import { MdDescription } from 'react-icons/md';
 
+interface ActionData {
+  tool: string;
+  input: unknown;
+  timestamp: number;
+}
+
 interface HistoryItem {
   id: number;
   query: string;
   response: string;
-  created_at: number; // Unix timestamp in milliseconds
+  created_at: number;
+  tools_used?: string[] | null;
+  agent_type?: string;
+  actions?: ActionData[] | null;
+  context_text?: string | null;
 }
 
 interface GroupedHistory {
   [date: string]: HistoryItem[];
+}
+
+/**
+ * Format an action into human-readable text
+ */
+function formatAction(action: ActionData): string {
+  const input = action.input as Record<string, unknown>;
+  
+  switch (action.tool) {
+    case 'web_search':
+      return `Searched web for "${input.query}"`;
+    
+    case 'make_edit':
+    case 'suggest_edits': {
+      const edits = input.edits as Array<{ oldText?: string; newText?: string }>;
+      if (edits && edits.length > 0) {
+        const edit = edits[0];
+        const newText = edit.newText || '';
+        return `Made edit: "${newText}"`;
+      }
+      return 'Made edit';
+    }
+    
+    case 'insert_image':
+      return `Inserted image: "${input.query}"`;
+    
+    case 'answer':
+      return `Answered: "${(input.text as string)?.substring(0, 80)}${(input.text as string)?.length > 80 ? '...' : ''}"`;
+    
+    case 'chain_actions': {
+      const actions = input.actions as Array<{ type: string; text?: string; key?: string; app?: string }>;
+      if (actions && actions.length > 0) {
+        const summary = actions.map(a => {
+          if (a.type === 'type') return `typed "${a.text?.substring(0, 30)}${(a.text?.length || 0) > 30 ? '...' : ''}"`;
+          if (a.type === 'key') return `pressed ${a.key}`;
+          if (a.type === 'hotkey') return `pressed hotkey`;
+          if (a.type === 'activate') return `activated ${a.app}`;
+          if (a.type === 'click') return 'clicked';
+          return a.type;
+        }).join(', ');
+        return `Performed actions: ${summary}`;
+      }
+      return 'Performed chain of actions';
+    }
+    
+    case 'run_applescript':
+      return 'Ran AppleScript';
+    
+    case 'focus_app':
+      return `Focused app: ${input.name || input.app}`;
+    
+    case 'get_state':
+      return 'Retrieved app state';
+    
+    case 'computer':
+      return `Computer action: ${input.action}`;
+    
+    default:
+      return `${action.tool}`;
+  }
+}
+
+/**
+ * Parse query string to extract the actual query (removing context text format)
+ */
+function parseQuery(queryString: string): string {
+  // Match pattern: "query" "context" - return just the query
+  const match = queryString.match(/^"([^"]+)"(?:\s+"[^"]*")?$/);
+  if (match) {
+    return match[1];
+  }
+  return queryString;
 }
 
 function HistoryPanel() {
@@ -80,56 +162,99 @@ function HistoryPanel() {
 
   return (
     <div className="history-panel">
-      
       {Object.entries(grouped).map(([date, items]) => (
         <div key={date} className="date-group">
           <div className="date-group-title">{date}</div>
           <div className="card">
-            {items.map((item) => (
-              <div
-                key={item.id}
-                className="list-item"
-                onClick={() => setExpandedId(expandedId === item.id ? null : item.id)}
-              >
-                <div style={{ 
-                  display: 'flex', 
-                  alignItems: 'center', 
-                  justifyContent: 'space-between' 
-                }}>
-                  <span style={{ 
-                    overflow: 'hidden', 
-                    textOverflow: 'ellipsis', 
-                    whiteSpace: 'nowrap',
-                    flex: 1
-                  }}>
-                    {item.query}
-                  </span>
-                  <span style={{ 
-                    fontSize: 'var(--font-size-xs)', 
-                    color: 'var(--color-text-muted)',
-                    marginLeft: 'var(--spacing-md)'
-                  }}>
-                    {new Date(item.created_at).toLocaleTimeString('en-US', {
-                      hour: 'numeric',
-                      minute: '2-digit',
-                    })}
-                  </span>
-                </div>
-                
-                {expandedId === item.id && (
+            {items.map((item) => {
+              const userQuery = parseQuery(item.query);
+              const contextText = item.context_text;
+              
+              return (
+                <div
+                  key={item.id}
+                  className="list-item"
+                  onClick={() => setExpandedId(expandedId === item.id ? null : item.id)}
+                >
+                  {/* Collapsed header */}
                   <div style={{ 
-                    marginTop: 'var(--spacing-md)',
-                    paddingTop: 'var(--spacing-md)',
-                    borderTop: '1px solid var(--color-border)',
-                    fontSize: 'var(--font-size-sm)',
-                    color: 'var(--color-text-muted)',
-                    lineHeight: 1.6
+                    display: 'flex', 
+                    alignItems: 'center', 
+                    justifyContent: 'space-between' 
                   }}>
-                    {item.response}
+                    <span style={{ 
+                      overflow: 'hidden', 
+                      textOverflow: 'ellipsis', 
+                      whiteSpace: 'nowrap',
+                      flex: 1
+                    }}>
+                      {userQuery}
+                    </span>
+                    <span style={{ 
+                      fontSize: 'var(--font-size-xs)', 
+                      color: 'var(--color-text-muted)',
+                      marginLeft: 'var(--spacing-md)'
+                    }}>
+                      {new Date(item.created_at).toLocaleTimeString('en-US', {
+                        hour: 'numeric',
+                        minute: '2-digit',
+                      })}
+                    </span>
                   </div>
-                )}
-              </div>
-            ))}
+                  
+                  {/* Expanded content */}
+                  {expandedId === item.id && (
+                    <div style={{ 
+                      marginTop: 'var(--spacing-sm)',
+                      fontSize: 'var(--font-size-sm)',
+                      lineHeight: 1.6
+                    }}>
+                      {/* Selected text (if any) */}
+                      {contextText && (
+                        <div style={{ 
+                          fontSize: 'var(--font-size-xs)',
+                          fontStyle: 'italic',
+                          color: 'var(--color-text-muted)',
+                          marginBottom: 'var(--spacing-md)',
+                          wordBreak: 'break-word',
+                          whiteSpace: 'pre-wrap'
+                        }}>
+                          {contextText}
+                        </div>
+                      )}
+                      
+                      {/* Agent trace - human readable actions */}
+                      {item.actions && item.actions.length > 0 && (
+                        <div style={{
+                          marginTop: 'var(--spacing-sm)'
+                        }}>
+                          {item.actions.map((action, idx) => (
+                            <div key={idx} style={{ 
+                              fontSize: 'var(--font-size-xs)',
+                              color: 'var(--color-accent)',
+                              marginBottom: 'var(--spacing-xs)'
+                            }}>
+                              {formatAction(action)}
+                            </div>
+                          ))}
+                        </div>
+                      )}
+                      
+                      {/* Response (if no actions, or as final result) */}
+                      {(!item.actions || item.actions.length === 0) && item.response && (
+                        <div style={{ 
+                          marginTop: 'var(--spacing-sm)',
+                          color: 'var(--color-accent)',
+                          fontSize: 'var(--font-size-xs)'
+                        }}>
+                          {item.response}
+                        </div>
+                      )}
+                    </div>
+                  )}
+                </div>
+              );
+            })}
           </div>
         </div>
       ))}
@@ -138,4 +263,3 @@ function HistoryPanel() {
 }
 
 export default HistoryPanel;
-

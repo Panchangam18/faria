@@ -1,7 +1,7 @@
 import { TextEdit } from '../../services/text-extraction';
 import { ToolExecutionResult } from './types';
 import { executeWebSearch } from './web-search';
-import { executeSuggestEdits } from './suggest-edits';
+import { executeMakeEdit } from './make-edit';
 import { executeInsertImage } from './insert-image';
 import { executeAnswer } from './answer';
 
@@ -26,9 +26,9 @@ export async function executeTool(
       return await executeWebSearch(query, sendStatus);
     }
     
-    case 'suggest_edits': {
+    case 'make_edit': {
       const edits = params.edits as TextEdit[];
-      return await executeSuggestEdits(edits, targetApp, sendStatus);
+      return await executeMakeEdit(edits, targetApp, sendStatus);
     }
     
     case 'insert_image': {

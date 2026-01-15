@@ -33,8 +33,8 @@ export const INLINE_TOOLS_GENERIC: GenericTool[] = [
     }
   },
   {
-    name: 'suggest_edits',
-    description: 'Suggest text replacements. Each edit specifies exact text to find and what to replace it with. The oldText MUST match exactly what appears in the context.',
+    name: 'make_edit',
+    description: 'Make text replacements. Each edit specifies exact text to find and what to replace it with. The oldText MUST match exactly what appears in the context.',
     parameters: {
       type: 'object',
       properties: {
@@ -119,8 +119,8 @@ export const INLINE_TOOLS_GOOGLE: FunctionDeclaration[] = [
     }
   },
   {
-    name: 'suggest_edits',
-    description: 'Suggest text replacements. Each edit specifies exact text to find and what to replace it with. The oldText MUST match exactly what appears in the context.',
+    name: 'make_edit',
+    description: 'Make text replacements. Each edit specifies exact text to find and what to replace it with. The oldText MUST match exactly what appears in the context.',
     parameters: {
       type: SchemaType.OBJECT,
       properties: {
