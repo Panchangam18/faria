@@ -2,7 +2,7 @@
 
 > The copilot for work on a computer.
 
-Faria is an AI-powered desktop assistant that helps you accomplish tasks across any application on your Mac. Press `Cmd+Shift+Space` to invoke Faria and describe what you want to do.
+Faria is an AI-powered desktop assistant that helps you accomplish tasks across any application on your Mac. Press `Cmd+/` to invoke Faria and describe what you want to do.
 
 ## Features
 
@@ -45,14 +45,15 @@ Faria is an AI-powered desktop assistant that helps you accomplish tasks across 
 
 ## Usage
 
-1. Press `Cmd+Shift+Space` to open the command bar
+1. Press `Cmd+/` to open the command bar
 2. Type your request (e.g., "Replace all instances of 'foo' with 'bar'")
 3. Faria will take action and show the result
-4. Press `Cmd+Shift+Space` again to dismiss
+4. Press `Cmd+/` again to dismiss
 
 ## Keyboard Shortcuts
 
-- `Cmd+Shift+Space` - Toggle command bar
+- `Cmd+/` - Toggle command bar
+- `Cmd+Shift+/` - Switch between Agent and Inline mode
 - `Enter` - Submit query
 - `Escape` - Dismiss command bar
 

@@ -50,6 +50,11 @@ contextBridge.exposeInMainWorld('faria', {
     delete: (id: string) => ipcRenderer.invoke('tools:delete', id)
   },
 
+  // Shortcuts
+  shortcuts: {
+    reregister: () => ipcRenderer.invoke('shortcuts:reregister'),
+  },
+
   // Command Bar (unified for both agent and inline modes)
   commandBar: {
     hide: () => ipcRenderer.send('command-bar:hide'),
@@ -134,6 +139,9 @@ export interface FariaAPI {
       code: string;
     }) => Promise<{ success: boolean }>;
     delete: (id: string) => Promise<{ success: boolean }>;
+  };
+  shortcuts: {
+    reregister: () => Promise<{ success: boolean }>;
   };
   commandBar: {
     hide: () => void;

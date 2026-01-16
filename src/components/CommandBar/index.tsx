@@ -4,10 +4,25 @@ import { IoStopCircleSharp } from 'react-icons/io5';
 
 type Mode = 'agent' | 'inline' | 'detecting';
 
-const MODES = [
-  { id: 'agent' as Mode, name: 'Agent', shortcut: '⌘↵' },
-  { id: 'inline' as Mode, name: 'Inline', shortcut: '⌘↵' },
-];
+const DEFAULT_AGENT_SWITCH_SHORTCUT = 'CommandOrControl+Shift+/';
+
+// Convert Electron accelerator to display format
+const shortcutToDisplay = (accelerator: string): string => {
+  return accelerator
+    .replace('CommandOrControl', '⌘')
+    .replace('Command', '⌘')
+    .replace('Control', '⌃')
+    .replace('Shift', '⇧')
+    .replace('Alt', '⌥')
+    .replace('Option', '⌥')
+    .replace(/\+/g, '')
+    .replace('Space', '␣')
+    .toUpperCase()
+    .replace('⌘', '⌘')
+    .replace('⇧', '⇧')
+    .replace('⌃', '⌃')
+    .replace('⌥', '⌥');
+};
 
 // Line height is 14px (font-size-sm) * 1.5 = 21px
 const LINE_HEIGHT = 21;
@@ -79,6 +94,7 @@ function CommandBar() {
   const [contextText, setContextText] = useState('');
   const [modelAvailability, setModelAvailability] = useState<{ agentAvailable: boolean; inlineAvailable: boolean }>({ agentAvailable: true, inlineAvailable: true });
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
+  const [agentSwitchShortcut, setAgentSwitchShortcut] = useState(DEFAULT_AGENT_SWITCH_SHORTCUT);
   const inputRef = useRef<HTMLTextAreaElement>(null);
   const responseRef = useRef<HTMLDivElement>(null);
 
@@ -123,19 +139,19 @@ function CommandBar() {
     window.faria.commandBar.resize(totalHeight);
   }, [query, response]);
 
-  // Load theme on mount
+  // Load theme and shortcuts on mount
   useEffect(() => {
-    const loadTheme = async () => {
+    const loadSettings = async () => {
       try {
         const theme = await window.faria.settings.get('theme') || 'default';
         const font = await window.faria.settings.get('selectedFont') || "'SF Pro Display', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif";
-        
+
         let customColors: { background: string; text: string; accent: string } | undefined;
-        
+
         if (theme === 'custom') {
           const customPalettes = await window.faria.settings.get('customPalettes');
           const activeCustomPalette = await window.faria.settings.get('activeCustomPalette');
-          
+
           if (customPalettes && activeCustomPalette) {
             try {
               const palettes = JSON.parse(customPalettes);
@@ -152,15 +168,21 @@ function CommandBar() {
             }
           }
         }
-        
+
         applyTheme(theme, customColors, font);
+
+        // Load agent switch shortcut
+        const savedShortcut = await window.faria.settings.get('agentSwitchShortcut');
+        if (savedShortcut) {
+          setAgentSwitchShortcut(savedShortcut);
+        }
       } catch (e) {
-        console.error('[CommandBar] Error loading theme:', e);
+        console.error('[CommandBar] Error loading settings:', e);
       }
     };
-    
-    loadTheme();
-    
+
+    loadSettings();
+
     // Listen for theme changes
     window.faria.settings.onThemeChange((themeData) => {
       applyTheme(themeData.theme, themeData.customColors, themeData.font);
@@ -169,11 +191,17 @@ function CommandBar() {
 
   useEffect(() => {
     // Focus input when command bar becomes visible
-    window.faria.commandBar.onFocus(() => {
+    window.faria.commandBar.onFocus(async () => {
       // Reset to detecting state on each open
       setMode('detecting');
       setContextText('');
       inputRef.current?.focus();
+
+      // Reload shortcut in case it changed in settings
+      const savedShortcut = await window.faria.settings.get('agentSwitchShortcut');
+      if (savedShortcut) {
+        setAgentSwitchShortcut(savedShortcut);
+      }
     });
 
     // Listen for mode changes from main process
@@ -234,7 +262,7 @@ function CommandBar() {
   }, []);
 
   // Handle mode switching via keyboard shortcut
-  const switchMode = useCallback((newMode: Mode) => {
+  const switchMode = useCallback((newMode: 'agent' | 'inline') => {
     if (isProcessing) return;
     // Check if the target mode is available
     if (newMode === 'agent' && !modelAvailability.agentAvailable) return;
@@ -282,13 +310,7 @@ function CommandBar() {
   }, [query, isProcessing, mode, contextText]);
 
   const handleKeyDown = useCallback((e: React.KeyboardEvent) => {
-    // Mode switching shortcut: Cmd+Enter to toggle between modes
-    // Check this FIRST to prevent submitting when switching modes
-    if (e.metaKey && e.key === 'Enter') {
-      e.preventDefault();
-      switchMode(mode === 'agent' ? 'inline' : 'agent');
-      return;
-    }
+    // Mode switching is handled by global shortcut (Cmd+Shift+/)
     if (e.key === 'Enter' && !e.shiftKey) {
       e.preventDefault();
       handleSubmit();
@@ -296,7 +318,7 @@ function CommandBar() {
     if (e.key === 'Escape') {
       window.faria.commandBar.hide();
     }
-  }, [handleSubmit, switchMode, mode]);
+  }, [handleSubmit]);
 
   const handleInputChange = (e: React.ChangeEvent<HTMLTextAreaElement>) => {
     setQuery(e.target.value);
@@ -310,7 +332,7 @@ function CommandBar() {
     setStatus('');
   }, [isProcessing]);
 
-  const currentMode = MODES.find(m => m.id === mode) || MODES[0];
+  const modeName = mode === 'agent' ? 'Agent' : mode === 'inline' ? 'Inline' : 'Agent';
   const placeholder = mode === 'detecting' ? '...' : mode === 'agent' ? 'Take action...' : 'Edit or ask about selection...';
 
   return (
@@ -351,8 +373,8 @@ function CommandBar() {
               onClick={() => switchMode(mode === 'agent' ? 'inline' : 'agent')}
               disabled={isProcessing}
             >
-              <span className="mode-shortcut-hint">⌘↵</span>
-              <span>{currentMode.name}</span>
+              <span className="mode-shortcut-hint">{shortcutToDisplay(agentSwitchShortcut)}</span>
+              <span>{modeName}</span>
             </button>
           )}
 

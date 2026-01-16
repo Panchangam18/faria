@@ -33,6 +33,10 @@ let isMainWindowVisible = false;
 const DEFAULT_COMMAND_BAR_WIDTH = 400;
 const DEFAULT_COMMAND_BAR_HEIGHT = 67; // Single line: 46 (base) + 21 (one line)
 
+// Default keyboard shortcuts
+const DEFAULT_COMMAND_BAR_SHORTCUT = 'CommandOrControl+/';
+const DEFAULT_AGENT_SWITCH_SHORTCUT = 'CommandOrControl+Shift+/';
+
 function createMainWindow() {
   mainWindow = new BrowserWindow({
     width: 1200,
@@ -356,13 +360,55 @@ function showCommandBar() {
   });
 }
 
-function registerGlobalShortcut() {
-  const ret = globalShortcut.register('CommandOrControl+Shift+Space', () => {
+function registerGlobalShortcuts() {
+  // Unregister all existing shortcuts first
+  globalShortcut.unregisterAll();
+
+  // Load shortcuts from settings
+  const db = initDatabase();
+  const commandBarShortcutRow = db.prepare('SELECT value FROM settings WHERE key = ?').get('commandBarShortcut') as { value: string } | undefined;
+  const agentSwitchShortcutRow = db.prepare('SELECT value FROM settings WHERE key = ?').get('agentSwitchShortcut') as { value: string } | undefined;
+
+  const commandBarShortcut = commandBarShortcutRow?.value || DEFAULT_COMMAND_BAR_SHORTCUT;
+  const agentSwitchShortcut = agentSwitchShortcutRow?.value || DEFAULT_AGENT_SWITCH_SHORTCUT;
+
+  console.log('[Faria] Registering shortcuts:', { commandBarShortcut, agentSwitchShortcut });
+
+  // Register command bar toggle shortcut
+  const ret = globalShortcut.register(commandBarShortcut, () => {
     toggleCommandBar();
   });
 
   if (!ret) {
-    console.error('Failed to register global shortcut');
+    console.error('[Faria] Failed to register global shortcut for toggle:', commandBarShortcut);
+  }
+
+  // Register agent switch shortcut (only when command bar is visible)
+  const ret2 = globalShortcut.register(agentSwitchShortcut, () => {
+    if (isCommandBarVisible && commandBarWindow) {
+      // Toggle between agent and inline mode
+      const newMode = currentMode === 'agent' ? 'inline' : 'agent';
+
+      // Check if the target mode's model is available
+      const db = initDatabase();
+      const modelKey = newMode === 'agent' ? 'selectedModel' : 'selectedInlineModel';
+      const modelRow = db.prepare('SELECT value FROM settings WHERE key = ?').get(modelKey) as { value: string } | undefined;
+      const model = modelRow?.value || 'claude-sonnet-4-20250514';
+
+      if (model === 'none') {
+        console.log('[Faria] Cannot switch to', newMode, '- model is None');
+        commandBarWindow.webContents.send('command-bar:error', `Cannot switch to ${newMode} mode - model is set to None in Settings`);
+        return;
+      }
+
+      currentMode = newMode;
+      console.log('[Faria] Mode switched via hotkey to:', newMode);
+      commandBarWindow.webContents.send('command-bar:mode-change', newMode, currentContextText || undefined);
+    }
+  });
+
+  if (!ret2) {
+    console.error('[Faria] Failed to register global shortcut for agent switch:', agentSwitchShortcut);
   }
 }
 
@@ -423,6 +469,17 @@ function setupIPC() {
     } else {
       const { AGENT_SYSTEM_PROMPT } = await import('./static/prompts/agent');
       return AGENT_SYSTEM_PROMPT;
+    }
+  });
+
+  // Shortcuts IPC
+  ipcMain.handle('shortcuts:reregister', async () => {
+    try {
+      registerGlobalShortcuts();
+      return { success: true };
+    } catch (error) {
+      console.error('[Faria] Failed to re-register shortcuts:', error);
+      return { success: false, error: String(error) };
     }
   });
 
@@ -635,7 +692,7 @@ app.whenReady().then(async () => {
   cacheCommandBarPosition(); // Cache position before creating window
   createCommandBarWindow();
   positionCommandBar(); // Position once at startup
-  registerGlobalShortcut();
+  registerGlobalShortcuts();
   setupIPC();
 
   app.on('activate', () => {

@@ -1,9 +1,69 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 
 interface SettingsPanelProps {
   currentTheme: string;
   onThemeChange: (theme: string) => void;
 }
+
+// Default shortcuts
+const DEFAULT_COMMAND_BAR_SHORTCUT = 'CommandOrControl+/';
+const DEFAULT_AGENT_SWITCH_SHORTCUT = 'CommandOrControl+Shift+/';
+
+// Convert Electron accelerator to display format
+const shortcutToDisplay = (accelerator: string): string => {
+  return accelerator
+    .replace('CommandOrControl', '⌘')
+    .replace('Command', '⌘')
+    .replace('Control', '⌃')
+    .replace('Shift', '⇧')
+    .replace('Alt', '⌥')
+    .replace('Option', '⌥')
+    .replace(/\+/g, '')
+    .replace('Space', '␣')
+    .toUpperCase()
+    .replace('⌘', '⌘')
+    .replace('⇧', '⇧')
+    .replace('⌃', '⌃')
+    .replace('⌥', '⌥');
+};
+
+// Convert keyboard event to Electron accelerator format
+const eventToAccelerator = (e: KeyboardEvent): string | null => {
+  // Ignore modifier-only keypresses
+  if (['Meta', 'Control', 'Shift', 'Alt'].includes(e.key)) {
+    return null;
+  }
+
+  const parts: string[] = [];
+
+  if (e.metaKey || e.ctrlKey) {
+    parts.push('CommandOrControl');
+  }
+  if (e.shiftKey) {
+    parts.push('Shift');
+  }
+  if (e.altKey) {
+    parts.push('Alt');
+  }
+
+  // Need at least one modifier
+  if (parts.length === 0) {
+    return null;
+  }
+
+  // Map key to Electron format
+  let key = e.key;
+  if (key === ' ') key = 'Space';
+  else if (key.length === 1) key = key.toUpperCase();
+  else if (key === 'ArrowUp') key = 'Up';
+  else if (key === 'ArrowDown') key = 'Down';
+  else if (key === 'ArrowLeft') key = 'Left';
+  else if (key === 'ArrowRight') key = 'Right';
+
+  parts.push(key);
+
+  return parts.join('+');
+};
 
 interface CustomPalette {
   name: string;
@@ -260,6 +320,11 @@ function SettingsPanel({ currentTheme, onThemeChange }: SettingsPanelProps) {
   const [inlinePrompt, setInlinePrompt] = useState('');
   const [agentPrompt, setAgentPrompt] = useState('');
 
+  // Keyboard shortcuts
+  const [commandBarShortcut, setCommandBarShortcut] = useState(DEFAULT_COMMAND_BAR_SHORTCUT);
+  const [agentSwitchShortcut, setAgentSwitchShortcut] = useState(DEFAULT_AGENT_SWITCH_SHORTCUT);
+  const [recordingShortcut, setRecordingShortcut] = useState<'commandBar' | 'agentSwitch' | null>(null);
+
   useEffect(() => {
     loadSettings().then(() => {
       setHasLoadedSettings(true);
@@ -385,7 +450,56 @@ function SettingsPanel({ currentTheme, onThemeChange }: SettingsPanelProps) {
       // Apply default font
       document.documentElement.style.setProperty('--font-family', AVAILABLE_FONTS[0].value);
     }
+
+    // Load keyboard shortcuts
+    const savedCommandBarShortcut = await window.faria.settings.get('commandBarShortcut');
+    const savedAgentSwitchShortcut = await window.faria.settings.get('agentSwitchShortcut');
+    if (savedCommandBarShortcut) setCommandBarShortcut(savedCommandBarShortcut);
+    if (savedAgentSwitchShortcut) setAgentSwitchShortcut(savedAgentSwitchShortcut);
   };
+
+  // Keyboard shortcut recording
+  useEffect(() => {
+    if (!recordingShortcut) return;
+
+    const handleKeyDown = (e: KeyboardEvent) => {
+      e.preventDefault();
+      e.stopPropagation();
+
+      const accelerator = eventToAccelerator(e);
+      if (!accelerator) return; // Modifier-only press, keep recording
+
+      if (recordingShortcut === 'commandBar') {
+        setCommandBarShortcut(accelerator);
+        saveSettings('commandBarShortcut', accelerator);
+        window.faria.settings.set('commandBarShortcut', accelerator).then(() => {
+          window.faria.shortcuts?.reregister();
+        });
+      } else if (recordingShortcut === 'agentSwitch') {
+        setAgentSwitchShortcut(accelerator);
+        saveSettings('agentSwitchShortcut', accelerator);
+        window.faria.settings.set('agentSwitchShortcut', accelerator).then(() => {
+          window.faria.shortcuts?.reregister();
+        });
+      }
+
+      setRecordingShortcut(null);
+    };
+
+    const handleEscape = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') {
+        setRecordingShortcut(null);
+      }
+    };
+
+    window.addEventListener('keydown', handleKeyDown, true);
+    window.addEventListener('keyup', handleEscape, true);
+
+    return () => {
+      window.removeEventListener('keydown', handleKeyDown, true);
+      window.removeEventListener('keyup', handleEscape, true);
+    };
+  }, [recordingShortcut]);
 
   // Get available models based on API keys
   const getAvailableModels = () => {
@@ -592,6 +706,85 @@ function SettingsPanel({ currentTheme, onThemeChange }: SettingsPanelProps) {
 
   return (
     <div className="settings-panel">
+
+      {/* Keyboard Shortcuts Section */}
+      <section style={{ marginBottom: 'var(--spacing-xl)' }}>
+        <h3 style={{
+          fontSize: 'var(--font-size-lg)',
+          margin: 0,
+          marginBottom: 'var(--spacing-lg)',
+          fontWeight: 600,
+          letterSpacing: '-0.01em'
+        }}>
+          Shortcuts
+        </h3>
+
+        <div style={{
+          display: 'flex',
+          flexDirection: 'column',
+          gap: 'var(--spacing-sm)',
+        }}>
+          {/* Command Bar Toggle */}
+          <div style={{
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'space-between',
+            padding: 'var(--spacing-md)',
+            background: 'var(--color-surface)',
+            borderRadius: 'var(--radius-md)',
+            border: '1px solid var(--color-border)',
+          }}>
+            <span style={{ fontSize: 'var(--font-size-sm)' }}>Open Faria</span>
+            <button
+              onClick={() => setRecordingShortcut('commandBar')}
+              style={{
+                padding: 'var(--spacing-xs) var(--spacing-md)',
+                fontSize: 'var(--font-size-sm)',
+                fontFamily: 'system-ui',
+                background: recordingShortcut === 'commandBar' ? 'var(--color-accent)' : 'var(--color-background)',
+                color: recordingShortcut === 'commandBar' ? 'var(--color-background)' : 'var(--color-text)',
+                border: '1px solid var(--color-border)',
+                borderRadius: 'var(--radius-sm)',
+                cursor: 'pointer',
+                minWidth: 80,
+                transition: 'all 0.15s ease',
+              }}
+            >
+              {recordingShortcut === 'commandBar' ? 'Press keys...' : shortcutToDisplay(commandBarShortcut)}
+            </button>
+          </div>
+
+          {/* Agent Switch */}
+          <div style={{
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'space-between',
+            padding: 'var(--spacing-md)',
+            background: 'var(--color-surface)',
+            borderRadius: 'var(--radius-md)',
+            border: '1px solid var(--color-border)',
+          }}>
+            <span style={{ fontSize: 'var(--font-size-sm)' }}>Switch Mode</span>
+            <button
+              onClick={() => setRecordingShortcut('agentSwitch')}
+              style={{
+                padding: 'var(--spacing-xs) var(--spacing-md)',
+                fontSize: 'var(--font-size-sm)',
+                fontFamily: 'system-ui',
+                background: recordingShortcut === 'agentSwitch' ? 'var(--color-accent)' : 'var(--color-background)',
+                color: recordingShortcut === 'agentSwitch' ? 'var(--color-background)' : 'var(--color-text)',
+                border: '1px solid var(--color-border)',
+                borderRadius: 'var(--radius-sm)',
+                cursor: 'pointer',
+                minWidth: 80,
+                transition: 'all 0.15s ease',
+              }}
+            >
+              {recordingShortcut === 'agentSwitch' ? 'Press keys...' : shortcutToDisplay(agentSwitchShortcut)}
+            </button>
+          </div>
+        </div>
+      </section>
 
       {/* Theme Section - Redesigned */}
       <section style={{ marginBottom: 'var(--spacing-xl)' }}>
