@@ -2,7 +2,7 @@ import React, { useState, useEffect, useRef, useCallback, useLayoutEffect } from
 import { IoMdSend } from 'react-icons/io';
 import { IoStopCircleSharp } from 'react-icons/io5';
 
-type Mode = 'agent' | 'inline';
+type Mode = 'agent' | 'inline' | 'detecting';
 
 const MODES = [
   { id: 'agent' as Mode, name: 'Agent', shortcut: '⌘↵' },
@@ -75,7 +75,7 @@ function CommandBar() {
   const [response, setResponse] = useState('');
   const [status, setStatus] = useState('');
   const [isProcessing, setIsProcessing] = useState(false);
-  const [mode, setMode] = useState<Mode>('agent');
+  const [mode, setMode] = useState<Mode>('detecting');
   const [contextText, setContextText] = useState('');
   const [modelAvailability, setModelAvailability] = useState<{ agentAvailable: boolean; inlineAvailable: boolean }>({ agentAvailable: true, inlineAvailable: true });
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
@@ -170,6 +170,9 @@ function CommandBar() {
   useEffect(() => {
     // Focus input when command bar becomes visible
     window.faria.commandBar.onFocus(() => {
+      // Reset to detecting state on each open
+      setMode('detecting');
+      setContextText('');
       inputRef.current?.focus();
     });
 
@@ -245,7 +248,7 @@ function CommandBar() {
 
 
   const handleSubmit = useCallback(async () => {
-    if (!query.trim() || isProcessing) return;
+    if (!query.trim() || isProcessing || mode === 'detecting') return;
 
     setIsProcessing(true);
     setResponse('');
@@ -308,7 +311,7 @@ function CommandBar() {
   }, [isProcessing]);
 
   const currentMode = MODES.find(m => m.id === mode) || MODES[0];
-  const placeholder = mode === 'agent' ? 'Take action...' : 'Edit or ask about selection...';
+  const placeholder = mode === 'detecting' ? '...' : mode === 'agent' ? 'Take action...' : 'Edit or ask about selection...';
 
   return (
     <div className="command-bar">
@@ -341,8 +344,8 @@ function CommandBar() {
           )}
         </div>
         <div className="footer-right">
-          {/* Mode selector - only show if both models are available */}
-          {canSwitchModes && (
+          {/* Mode selector - only show if both models are available and not detecting */}
+          {canSwitchModes && mode !== 'detecting' && (
             <button
               className="mode-selector-trigger"
               onClick={() => switchMode(mode === 'agent' ? 'inline' : 'agent')}
@@ -365,7 +368,7 @@ function CommandBar() {
             <button
               className="send-button"
               onClick={handleSubmit}
-              disabled={!query.trim()}
+              disabled={!query.trim() || mode === 'detecting'}
               title="Send message"
             >
               <IoMdSend />

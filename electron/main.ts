@@ -235,7 +235,7 @@ async function toggleCommandBar() {
     return;
   }
 
-  // Check model settings
+  // Check model settings (synchronous DB read is fast)
   const db = initDatabase();
   const agentModelRow = db.prepare('SELECT value FROM settings WHERE key = ?').get('selectedModel') as { value: string } | undefined;
   const inlineModelRow = db.prepare('SELECT value FROM settings WHERE key = ?').get('selectedInlineModel') as { value: string } | undefined;
@@ -267,46 +267,62 @@ async function toggleCommandBar() {
     return;
   }
 
-  // IMPORTANT: Capture frontmost app AND selected text BEFORE showing the command bar
-  // Otherwise:
-  // 1. getFrontmostApp would return "Faria" since the window is already showing
-  // 2. getSelectedText would fail because the alwaysOnTop command bar interferes
-  const capturedApp = await getFrontmostApp();
-  targetAppName = capturedApp;
-  console.log('[Faria] Target app captured BEFORE showing:', targetAppName);
-  
-  // Get selected text while the original app is still active
-  const selectedText = await getSelectedText(capturedApp);
-  
-  // Determine initial mode based on selected text and available models
-  if (selectedText && inlineModel !== 'none') {
-    console.log('[Faria] Text selected, will start in inline mode. Length:', selectedText.length);
-    currentContextText = selectedText;
-    currentMode = 'inline';
-  } else if (agentModel !== 'none') {
-    console.log('[Faria] No text selected or inline model is None, starting in agent mode');
-    currentContextText = null;
-    currentMode = 'agent';
-  } else {
-    // Only inline model is available
-    console.log('[Faria] Only inline model available');
-    currentContextText = selectedText || null;
-    currentMode = 'inline';
-  }
-
-  // Now show window with the correct mode already set
+  // Show command bar IMMEDIATELY - no waiting for async operations
+  // Start in 'detecting' state, will resolve to agent/inline once text detection completes
+  currentContextText = null;
   showCommandBar();
-  
-  // Send mode and model availability to renderer immediately after showing
+
+  // Send model availability right away, mode will be sent after detection
   setImmediate(() => {
     if (commandBarWindow && isCommandBarVisible) {
-      commandBarWindow.webContents.send('command-bar:mode-change', currentMode, currentContextText || undefined);
-      // Send model availability info so UI can disable mode switching if needed
       commandBarWindow.webContents.send('command-bar:model-availability', {
         agentAvailable: agentModel !== 'none',
         inlineAvailable: inlineModel !== 'none'
       });
     }
+  });
+
+  // Capture frontmost app and selected text in the background
+  // This runs AFTER the command bar is visible, so we need to be careful
+  // The frontmost app will be captured correctly because we use showInactive()
+  getFrontmostApp().then(capturedApp => {
+    if (!isCommandBarVisible) return; // User closed command bar already
+
+    targetAppName = capturedApp;
+    console.log('[Faria] Target app captured:', targetAppName);
+
+    // Only try to get selected text if inline mode is available
+    if (inlineModel === 'none') {
+      console.log('[Faria] Inline model is None, defaulting to agent mode');
+      currentMode = 'agent';
+      commandBarWindow?.webContents.send('command-bar:mode-change', currentMode, undefined);
+      return;
+    }
+
+    getSelectedText(capturedApp).then(selectedText => {
+      if (!isCommandBarVisible) return; // User closed command bar already
+
+      if (selectedText) {
+        console.log('[Faria] Text detected, using inline mode. Length:', selectedText.length);
+        currentContextText = selectedText;
+        currentMode = 'inline';
+      } else {
+        console.log('[Faria] No text selected, using agent mode');
+        currentMode = agentModel !== 'none' ? 'agent' : 'inline';
+      }
+      // Send the resolved mode to the renderer
+      commandBarWindow?.webContents.send('command-bar:mode-change', currentMode, currentContextText || undefined);
+    }).catch(e => {
+      console.error('[Faria] Failed to get selected text:', e);
+      // Default to agent mode on error
+      currentMode = agentModel !== 'none' ? 'agent' : 'inline';
+      commandBarWindow?.webContents.send('command-bar:mode-change', currentMode, undefined);
+    });
+  }).catch(e => {
+    console.error('[Faria] Failed to get frontmost app:', e);
+    // Default to agent mode on error
+    currentMode = agentModel !== 'none' ? 'agent' : 'inline';
+    commandBarWindow?.webContents.send('command-bar:mode-change', currentMode, undefined);
   });
 }
 
@@ -335,7 +351,7 @@ function showCommandBar() {
   setImmediate(() => {
     if (commandBarWindow && isCommandBarVisible) {
       commandBarWindow.webContents.send('command-bar:focus');
-      commandBarWindow.webContents.send('command-bar:mode-change', currentMode, currentContextText || undefined);
+      // Mode is sent after detection completes in toggleCommandBar()
     }
   });
 }
