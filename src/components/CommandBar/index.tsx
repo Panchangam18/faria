@@ -192,9 +192,8 @@ function CommandBar() {
   useEffect(() => {
     // Reset mode state when command bar is about to hide
     // This ensures clean state for next open - no flash of old mode
-    // Note: query persists intentionally so user can continue typing
+    // Note: query and response persist intentionally
     window.faria.commandBar.onWillHide(() => {
-      setResponse('');
       setStatus('');
       setIsProcessing(false);
       setMode('detecting');
