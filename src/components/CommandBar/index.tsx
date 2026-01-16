@@ -76,13 +76,11 @@ function CommandBar() {
   const [status, setStatus] = useState('');
   const [isProcessing, setIsProcessing] = useState(false);
   const [mode, setMode] = useState<Mode>('agent');
-  const [showModeMenu, setShowModeMenu] = useState(false);
   const [contextText, setContextText] = useState('');
   const [modelAvailability, setModelAvailability] = useState<{ agentAvailable: boolean; inlineAvailable: boolean }>({ agentAvailable: true, inlineAvailable: true });
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const inputRef = useRef<HTMLTextAreaElement>(null);
   const responseRef = useRef<HTMLDivElement>(null);
-  const modeSelectorRef = useRef<HTMLDivElement>(null);
 
   // Resize window based on textarea content - runs synchronously after DOM updates
   useLayoutEffect(() => {
@@ -245,29 +243,6 @@ function CommandBar() {
   // Determine if mode switching is allowed
   const canSwitchModes = modelAvailability.agentAvailable && modelAvailability.inlineAvailable;
 
-  // Close dropdown when clicking outside
-  useEffect(() => {
-    const handleClickOutside = (e: MouseEvent) => {
-      if (showModeMenu && modeSelectorRef.current && !modeSelectorRef.current.contains(e.target as Node)) {
-        setShowModeMenu(false);
-        window.faria.commandBar.setDropdownVisible(false);
-      }
-    };
-    document.addEventListener('mousedown', handleClickOutside);
-    return () => document.removeEventListener('mousedown', handleClickOutside);
-  }, [showModeMenu]);
-
-  // Add/remove dropdown-open class on root element
-  useEffect(() => {
-    const root = document.getElementById('root');
-    if (root) {
-      if (showModeMenu) {
-        root.classList.add('dropdown-open');
-      } else {
-        root.classList.remove('dropdown-open');
-      }
-    }
-  }, [showModeMenu]);
 
   const handleSubmit = useCallback(async () => {
     if (!query.trim() || isProcessing) return;
@@ -316,15 +291,9 @@ function CommandBar() {
       handleSubmit();
     }
     if (e.key === 'Escape') {
-      // Close dropdown first if open, otherwise hide command bar
-      if (showModeMenu) {
-        setShowModeMenu(false);
-        window.faria.commandBar.setDropdownVisible(false);
-      } else {
-        window.faria.commandBar.hide();
-      }
+      window.faria.commandBar.hide();
     }
-  }, [handleSubmit, switchMode, showModeMenu, mode]);
+  }, [handleSubmit, switchMode, mode]);
 
   const handleInputChange = (e: React.ChangeEvent<HTMLTextAreaElement>) => {
     setQuery(e.target.value);
@@ -374,50 +343,14 @@ function CommandBar() {
         <div className="footer-right">
           {/* Mode selector - only show if both models are available */}
           {canSwitchModes && (
-            <>
+            <button
+              className="mode-selector-trigger"
+              onClick={() => switchMode(mode === 'agent' ? 'inline' : 'agent')}
+              disabled={isProcessing}
+            >
               <span className="mode-shortcut-hint">⌘↵</span>
-              <div className="mode-selector" ref={modeSelectorRef}>
-                <button
-                  className="mode-selector-trigger"
-                  onClick={() => {
-                    const newState = !showModeMenu;
-                    setShowModeMenu(newState);
-                    window.faria.commandBar.setDropdownVisible(newState);
-                  }}
-                  disabled={isProcessing}
-                >
-                  <span>{currentMode.name}</span>
-                  <svg className={`chevron ${showModeMenu ? 'open' : ''}`} viewBox="0 0 10 6" fill="none">
-                    <path d="M1 1L5 5L9 1" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
-                  </svg>
-                </button>
-                
-                {showModeMenu && (
-                  <div className="mode-selector-menu">
-                    {MODES.map((m) => {
-                      const isAvailable = m.id === 'agent' ? modelAvailability.agentAvailable : modelAvailability.inlineAvailable;
-                      return (
-                        <div
-                          key={m.id}
-                          className={`mode-option ${m.id === mode ? 'active' : ''} ${!isAvailable ? 'disabled' : ''}`}
-                          onClick={() => {
-                            if (isAvailable) {
-                              switchMode(m.id);
-                              setShowModeMenu(false);
-                              window.faria.commandBar.setDropdownVisible(false);
-                            }
-                          }}
-                          style={{ opacity: isAvailable ? 1 : 0.5, cursor: isAvailable ? 'pointer' : 'not-allowed' }}
-                        >
-                          <span className="mode-name">{m.name}</span>
-                          <span className="mode-shortcut">{m.shortcut}</span>
-                        </div>
-                      );
-                    })}
-                  </div>
-                )}
-              </div>
-            </>
+              <span>{currentMode.name}</span>
+            </button>
           )}
 
           {isProcessing ? (

@@ -194,9 +194,10 @@ html, body, #root {
 /* Mode Selector */
 .mode-shortcut-hint {
   font-size: var(--font-size-xs);
-  color: var(--color-accent);
+  color: inherit;
   font-family: system-ui, -apple-system, sans-serif;
   margin-right: 0;
+  transition: color var(--transition-fast);
 }
 
 .mode-selector {
@@ -323,11 +324,10 @@ html, body, #root {
 
 .send-button:hover:not(:disabled) {
   color: var(--color-accent-hover);
-  transform: scale(1.1);
 }
 
 .send-button:active:not(:disabled) {
-  transform: scale(0.95);
+  color: var(--color-accent-active);
 }
 
 .send-button:disabled {
