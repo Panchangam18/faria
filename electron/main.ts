@@ -18,6 +18,7 @@ let targetAppName: string | null = null; // The app that was focused when comman
 let currentContextText: string | null = null; // Text around cursor for inline mode
 let currentMode: 'agent' | 'inline' = 'agent';
 let cachedCommandBarPosition: { x: number; y: number } | null = null; // Cached position for instant toggle
+let commandBarSessionId = 0; // Incremented on each open to cancel stale async operations
 
 // Services
 let stateExtractor: StateExtractor;
@@ -231,6 +232,8 @@ async function getFrontmostApp(): Promise<string | null> {
 async function toggleCommandBar() {
   // If command bar is visible, hide it immediately (synchronous)
   if (isCommandBarVisible) {
+    // Increment session ID to cancel any pending async operations
+    commandBarSessionId++;
     // Send hide event BEFORE hiding so renderer can reset state synchronously
     commandBarWindow?.webContents.send('command-bar:will-hide');
     commandBarWindow?.hide();
@@ -276,10 +279,15 @@ async function toggleCommandBar() {
   // Show command bar IMMEDIATELY - no waiting for async operations
   // Start in 'detecting' state, will resolve to agent/inline once text detection completes
   currentContextText = null;
+
+  // Increment session ID to cancel any stale async operations from previous open/close cycles
+  const thisSessionId = ++commandBarSessionId;
+
   showCommandBar();
 
   // Send model availability right away, mode will be sent after detection
   setImmediate(() => {
+    if (thisSessionId !== commandBarSessionId) return; // Session cancelled
     if (commandBarWindow && isCommandBarVisible) {
       commandBarWindow.webContents.send('command-bar:model-availability', {
         agentAvailable: agentModel !== 'none',
@@ -292,7 +300,7 @@ async function toggleCommandBar() {
   // This runs AFTER the command bar is visible, so we need to be careful
   // The frontmost app will be captured correctly because we use showInactive()
   getFrontmostApp().then(capturedApp => {
-    if (!isCommandBarVisible) return; // User closed command bar already
+    if (thisSessionId !== commandBarSessionId) return; // Session cancelled
 
     targetAppName = capturedApp;
     console.log('[Faria] Target app captured:', targetAppName);
@@ -306,7 +314,7 @@ async function toggleCommandBar() {
     }
 
     getSelectedText(capturedApp).then(selectedText => {
-      if (!isCommandBarVisible) return; // User closed command bar already
+      if (thisSessionId !== commandBarSessionId) return; // Session cancelled
 
       if (selectedText) {
         console.log('[Faria] Text detected, using inline mode. Length:', selectedText.length);
@@ -319,12 +327,14 @@ async function toggleCommandBar() {
       // Send the resolved mode to the renderer
       commandBarWindow?.webContents.send('command-bar:mode-change', currentMode, currentContextText || undefined);
     }).catch(e => {
+      if (thisSessionId !== commandBarSessionId) return; // Session cancelled
       console.error('[Faria] Failed to get selected text:', e);
       // Default to agent mode on error
       currentMode = agentModel !== 'none' ? 'agent' : 'inline';
       commandBarWindow?.webContents.send('command-bar:mode-change', currentMode, undefined);
     });
   }).catch(e => {
+    if (thisSessionId !== commandBarSessionId) return; // Session cancelled
     console.error('[Faria] Failed to get frontmost app:', e);
     // Default to agent mode on error
     currentMode = agentModel !== 'none' ? 'agent' : 'inline';
