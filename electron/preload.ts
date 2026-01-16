@@ -82,6 +82,9 @@ contextBridge.exposeInMainWorld('faria', {
     },
     onEditApplied: (callback: () => void) => {
       ipcRenderer.on('command-bar:edit-applied', () => callback());
+    },
+    onWillHide: (callback: () => void) => {
+      ipcRenderer.on('command-bar:will-hide', () => callback());
     }
   }
 });
@@ -156,6 +159,7 @@ export interface FariaAPI {
     onInlineStatus: (callback: (status: string) => void) => void;
     onInlineResponse: (callback: (response: string) => void) => void;
     onEditApplied: (callback: () => void) => void;
+    onWillHide: (callback: () => void) => void;
   };
 }
 

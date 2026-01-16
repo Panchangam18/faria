@@ -190,11 +190,21 @@ function CommandBar() {
   }, []);
 
   useEffect(() => {
-    // Focus input when command bar becomes visible
-    window.faria.commandBar.onFocus(async () => {
-      // Reset to detecting state on each open
+    // Reset mode state when command bar is about to hide
+    // This ensures clean state for next open - no flash of old mode
+    // Note: query persists intentionally so user can continue typing
+    window.faria.commandBar.onWillHide(() => {
+      setResponse('');
+      setStatus('');
+      setIsProcessing(false);
       setMode('detecting');
       setContextText('');
+      setErrorMessage(null);
+    });
+
+    // Focus input when command bar becomes visible
+    window.faria.commandBar.onFocus(async () => {
+      // State is already reset from onWillHide, just focus
       inputRef.current?.focus();
 
       // Reload shortcut in case it changed in settings

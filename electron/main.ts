@@ -231,6 +231,8 @@ async function getFrontmostApp(): Promise<string | null> {
 async function toggleCommandBar() {
   // If command bar is visible, hide it immediately (synchronous)
   if (isCommandBarVisible) {
+    // Send hide event BEFORE hiding so renderer can reset state synchronously
+    commandBarWindow?.webContents.send('command-bar:will-hide');
     commandBarWindow?.hide();
     isCommandBarVisible = false;
     targetAppName = null;
@@ -553,6 +555,8 @@ function setupIPC() {
   // Window control IPC
   ipcMain.on('command-bar:hide', () => {
     if (commandBarWindow && isCommandBarVisible) {
+      // Send hide event BEFORE hiding so renderer can reset state synchronously
+      commandBarWindow.webContents.send('command-bar:will-hide');
       commandBarWindow.hide();
       isCommandBarVisible = false;
       currentMode = 'agent';
