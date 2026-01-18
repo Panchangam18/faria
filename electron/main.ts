@@ -28,6 +28,19 @@ let toolExecutor: ToolExecutor;
 
 const isDev = process.env.NODE_ENV === 'development' || !app.isPackaged;
 
+// Native window helper for reliable window visibility on macOS
+// Falls back gracefully if addon fails to load
+let windowHelper: { forceShow: (handle: Buffer) => boolean; isVisible: (handle: Buffer) => boolean } | null = null;
+try {
+  const addonPath = isDev
+    ? join(process.cwd(), 'native/build/Release/window_helper.node')
+    : join(process.resourcesPath!, 'native/window_helper.node');
+  windowHelper = require(addonPath);
+  console.log('[Faria] Native window helper loaded');
+} catch (e) {
+  console.warn('[Faria] Native window helper not available, using fallback:', e);
+}
+
 // Track if main window is visible (for Dock icon management)
 let isMainWindowVisible = false;
 
@@ -366,20 +379,31 @@ function showCommandBar() {
   // This is similar to NSPanel's nonactivatingPanel behavior in Maccy
   commandBarWindow?.showInactive();
 
-  // Verify the window is actually visible - showInactive() can fail silently on macOS
-  // especially with panel-type windows after extended periods
-  if (commandBarWindow && !commandBarWindow.isVisible()) {
-    console.log('[Faria] showInactive() failed, trying show() as fallback');
-    commandBarWindow.show();
+  // Verify visibility and use native forceShow if needed
+  // showInactive() can fail silently on macOS with panel-type windows after extended use
+  if (commandBarWindow) {
+    const handle = commandBarWindow.getNativeWindowHandle();
 
-    // If still not visible, recreate the window
-    if (!commandBarWindow.isVisible()) {
-      console.log('[Faria] Window still not visible, recreating');
-      commandBarWindow.destroy();
-      commandBarWindow = null;
-      createCommandBarWindow();
-      positionCommandBar();
-      commandBarWindow!.show();
+    // Use native helper if available (more reliable than Electron's isVisible)
+    if (windowHelper && handle) {
+      if (!windowHelper.isVisible(handle)) {
+        console.log('[Faria] showInactive() failed, using native forceShow');
+        windowHelper.forceShow(handle);
+      }
+    } else if (!commandBarWindow.isVisible()) {
+      // Fallback for when native addon isn't available
+      console.log('[Faria] showInactive() failed, trying show() as fallback');
+      commandBarWindow.show();
+
+      // If still not visible, recreate the window
+      if (!commandBarWindow.isVisible()) {
+        console.log('[Faria] Window still not visible, recreating');
+        commandBarWindow.destroy();
+        commandBarWindow = null;
+        createCommandBarWindow();
+        positionCommandBar();
+        commandBarWindow!.show();
+      }
     }
   }
 
