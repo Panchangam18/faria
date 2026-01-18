@@ -14,14 +14,16 @@ import { config } from 'dotenv';
 import { INLINE_TOOLS, INLINE_TOOLS_GOOGLE, executeTool } from './tools';
 import type { InlineResult } from './tools/types';
 import { getInlineSystemPrompt } from '../static/prompts/loader';
-import { 
-  getSelectedModel, 
-  getProviderName, 
+import {
+  getSelectedModel,
+  getProviderName,
   getMissingKeyError,
   createNativeClient,
   NativeClient
 } from '../services/models';
 import { initDatabase } from '../db/sqlite';
+import { searchMemories, getAllMemories } from '../services/memory';
+import { triggerMemoryAgent } from '../agent/memory-agent';
 
 // Load environment variables
 config();
@@ -64,7 +66,7 @@ export class InlineAgentLoop {
   }
   
   /**
-   * Save trace to database
+   * Save trace to database and trigger memory agent
    */
   private saveTrace(
     query: string,
@@ -73,32 +75,41 @@ export class InlineAgentLoop {
     toolsUsed: string[],
     actions: Array<{ tool: string; input: unknown; timestamp: number }>
   ): void {
+    let responseText: string;
+
+    if (result.type === 'answer') {
+      responseText = result.content;
+    } else if (result.type === 'edits' && result.edits) {
+      responseText = `Applied ${result.edits.length} edit(s)`;
+    } else if (result.type === 'image' && result.imageUrl) {
+      responseText = `Inserted image: ${result.imageUrl}`;
+    } else {
+      responseText = result.content;
+    }
+
+    // Trigger background memory agent
+    triggerMemoryAgent({
+      query,
+      response: responseText,
+      memories: getAllMemories(),
+      toolsUsed
+    });
+
     try {
       const db = initDatabase();
-      let responseText: string;
-      
-      if (result.type === 'answer') {
-        responseText = result.content;
-      } else if (result.type === 'edits' && result.edits) {
-        responseText = `Applied ${result.edits.length} edit(s)`;
-      } else if (result.type === 'image' && result.imageUrl) {
-        responseText = `Inserted image: ${result.imageUrl}`;
-      } else {
-        responseText = result.content;
-      }
-      
+
       // Format query to include context text in quotes if present (for collapsed view)
       let formattedQuery = query;
       if (contextText && contextText.trim()) {
         // Truncate context text if too long (max 100 chars for collapsed display)
-        const truncatedContext = contextText.length > 100 
-          ? contextText.substring(0, 100) + '...' 
+        const truncatedContext = contextText.length > 100
+          ? contextText.substring(0, 100) + '...'
           : contextText;
         formattedQuery = `"${query}" "${truncatedContext}"`;
       }
-      
+
       db.prepare(`
-        INSERT INTO history (query, response, tools_used, agent_type, actions, context_text) 
+        INSERT INTO history (query, response, tools_used, agent_type, actions, context_text)
         VALUES (?, ?, ?, ?, ?, ?)
       `).run(
         formattedQuery,
@@ -132,13 +143,19 @@ export class InlineAgentLoop {
     if (!nativeClient) {
       return { type: 'error', content: getMissingKeyError(modelName) };
     }
-    
-    // Build the user message with context
-    let userMessage = query;
+
+    // Search for relevant memories
+    const relevantMemories = await searchMemories(query, 5);
+    const memoryContext = relevantMemories.length > 0
+      ? `Relevant context:\n${relevantMemories.map(m => `- ${m.content}`).join('\n')}\n\n`
+      : '';
+
+    // Build the user message with context and memories
+    let userMessage = memoryContext + query;
     if (contextText) {
-      userMessage = `Context text around cursor (${contextText.split(/\s+/).length} words):\n\`\`\`\n${contextText}\n\`\`\`\n\nUser request: ${query}`;
+      userMessage = `${memoryContext}Context text around cursor (${contextText.split(/\s+/).length} words):\n\`\`\`\n${contextText}\n\`\`\`\n\nUser request: ${query}`;
     }
-    
+
     this.sendStatus('Thinking...');
     
     try {

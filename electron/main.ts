@@ -8,6 +8,7 @@ import { getInlineAgent } from './inline';
 import { getSelectedText } from './services/text-extraction';
 import { exec } from 'child_process';
 import { promisify } from 'util';
+import { initEmbeddings, migrateFromSQLite } from './services/memory';
 
 const execAsync = promisify(exec);
 
@@ -693,6 +694,16 @@ function setupIPC() {
 async function initializeServices() {
   // Initialize database
   initDatabase();
+
+  // Initialize embedding model in background (don't block startup)
+  initEmbeddings().catch(err => {
+    console.error('[Memory] Failed to init embeddings:', err);
+  });
+
+  // Migrate from SQLite in background (don't block startup)
+  migrateFromSQLite().catch(err => {
+    console.error('[Memory] Failed to migrate:', err);
+  });
 
   // Initialize services
   stateExtractor = new StateExtractor();
