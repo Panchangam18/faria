@@ -344,6 +344,13 @@ async function toggleCommandBar() {
 }
 
 function showCommandBar() {
+  // Check if window exists and webContents is still valid
+  // After extended use, the window can get into a bad state where showInactive() silently fails
+  if (commandBarWindow && commandBarWindow.webContents.isDestroyed()) {
+    console.log('[Faria] Command bar webContents destroyed, recreating window');
+    commandBarWindow = null;
+  }
+
   if (!commandBarWindow) {
     createCommandBarWindow();
     positionCommandBar();
@@ -358,6 +365,24 @@ function showCommandBar() {
   // Use showInactive() to avoid activating the app and causing window switching
   // This is similar to NSPanel's nonactivatingPanel behavior in Maccy
   commandBarWindow?.showInactive();
+
+  // Verify the window is actually visible - showInactive() can fail silently on macOS
+  // especially with panel-type windows after extended periods
+  if (commandBarWindow && !commandBarWindow.isVisible()) {
+    console.log('[Faria] showInactive() failed, trying show() as fallback');
+    commandBarWindow.show();
+
+    // If still not visible, recreate the window
+    if (!commandBarWindow.isVisible()) {
+      console.log('[Faria] Window still not visible, recreating');
+      commandBarWindow.destroy();
+      commandBarWindow = null;
+      createCommandBarWindow();
+      positionCommandBar();
+      commandBarWindow!.show();
+    }
+  }
+
   isCommandBarVisible = true;
 
   // Focus the webContents to receive keyboard input without fully activating the app
