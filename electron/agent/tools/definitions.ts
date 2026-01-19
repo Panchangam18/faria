@@ -33,36 +33,6 @@ export const toolDefinitions: ToolDefinition[] = [
     },
   },
   {
-    name: 'search_tools',
-    description: 'Search for custom tools by query',
-    parameters: {
-      type: 'object',
-      properties: {
-        query: { type: 'string', description: 'Search query' },
-        type: { 
-          type: 'string',
-          enum: ['bm25', 'grep'],
-          description: 'Search type (default: bm25)'
-        },
-      },
-      required: ['query'],
-    },
-  },
-  {
-    name: 'create_tool',
-    description: 'Create a new custom tool for future use',
-    parameters: {
-      type: 'object',
-      properties: {
-        name: { type: 'string', description: 'Tool name (snake_case)' },
-        description: { type: 'string', description: 'What the tool does' },
-        parameters: { type: 'string', description: 'JSON schema for parameters' },
-        code: { type: 'string', description: 'JavaScript code implementing the tool' },
-      },
-      required: ['name', 'description', 'parameters', 'code'],
-    },
-  },
-  {
     name: 'chain_actions',
     description: 'Execute a sequence of actions with automatic timing. PREFERRED for multi-step UI tasks. Actions: activate (switch app), hotkey (keyboard shortcut), type (text), key (single key like return/tab), click, scroll, wait, insert_image (search and insert image at cursor).',
     parameters: {

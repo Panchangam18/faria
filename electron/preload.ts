@@ -36,20 +36,6 @@ contextBridge.exposeInMainWorld('faria', {
     add: (query: string, response: string) => ipcRenderer.invoke('history:add', query, response)
   },
 
-  // Custom Tools
-  tools: {
-    list: () => ipcRenderer.invoke('tools:list'),
-    get: (id: string) => ipcRenderer.invoke('tools:get', id),
-    create: (tool: {
-      id: string;
-      name: string;
-      description: string;
-      parameters: string;
-      code: string;
-    }) => ipcRenderer.invoke('tools:create', tool),
-    delete: (id: string) => ipcRenderer.invoke('tools:delete', id)
-  },
-
   // Shortcuts
   shortcuts: {
     reregister: () => ipcRenderer.invoke('shortcuts:reregister'),
@@ -103,34 +89,6 @@ export interface FariaAPI {
       created_at: number; // Unix timestamp in milliseconds
     }>>;
     add: (query: string, response: string) => Promise<{ success: boolean }>;
-  };
-  tools: {
-    list: () => Promise<Array<{
-      id: string;
-      name: string;
-      description: string;
-      parameters: string;
-      code: string;
-      created_at: string;
-      usage_count: number;
-    }>>;
-    get: (id: string) => Promise<{
-      id: string;
-      name: string;
-      description: string;
-      parameters: string;
-      code: string;
-      created_at: string;
-      usage_count: number;
-    } | null>;
-    create: (tool: {
-      id: string;
-      name: string;
-      description: string;
-      parameters: string;
-      code: string;
-    }) => Promise<{ success: boolean }>;
-    delete: (id: string) => Promise<{ success: boolean }>;
   };
   shortcuts: {
     reregister: () => Promise<{ success: boolean }>;

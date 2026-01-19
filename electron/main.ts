@@ -521,38 +521,6 @@ function setupIPC() {
     return { success: true };
   });
 
-  // Custom tools IPC
-  ipcMain.handle('tools:list', async () => {
-    const db = initDatabase();
-    return db.prepare('SELECT * FROM custom_tools ORDER BY usage_count DESC').all();
-  });
-
-  ipcMain.handle('tools:get', async (_event, id: string) => {
-    const db = initDatabase();
-    return db.prepare('SELECT * FROM custom_tools WHERE id = ?').get(id);
-  });
-
-  ipcMain.handle('tools:create', async (_event, tool: {
-    id: string;
-    name: string;
-    description: string;
-    parameters: string;
-    code: string;
-  }) => {
-    const db = initDatabase();
-    db.prepare(`
-      INSERT INTO custom_tools (id, name, description, parameters, code, created_at)
-      VALUES (?, ?, ?, ?, ?, datetime('now'))
-    `).run(tool.id, tool.name, tool.description, tool.parameters, tool.code);
-    return { success: true };
-  });
-
-  ipcMain.handle('tools:delete', async (_event, id: string) => {
-    const db = initDatabase();
-    db.prepare('DELETE FROM custom_tools WHERE id = ?').run(id);
-    return { success: true };
-  });
-
   // Window control IPC
   ipcMain.on('command-bar:hide', () => {
     if (commandBarWindow && isCommandBarVisible) {

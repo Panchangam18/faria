@@ -1,10 +1,9 @@
 import React, { useState, useEffect } from 'react';
 import Sidebar from './components/Sidebar';
 import HistoryPanel from './components/Sidebar/HistoryPanel';
-import ToolboxPanel from './components/Sidebar/ToolboxPanel';
 import SettingsPanel from './components/Settings/SettingsPanel';
 
-type Tab = 'history' | 'toolbox' | 'settings';
+type Tab = 'history' | 'settings';
 
 function App() {
   const [activeTab, setActiveTab] = useState<Tab>('history');
@@ -98,7 +97,6 @@ function App() {
         
         <main className="main-panel">
           {activeTab === 'history' && <HistoryPanel />}
-          {activeTab === 'toolbox' && <ToolboxPanel />}
           {activeTab === 'settings' && (
             <SettingsPanel 
               currentTheme={theme} 

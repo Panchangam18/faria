@@ -11,9 +11,6 @@ import { toolDefinitions } from './definitions';
 import { focusApp } from './focus-app';
 import { getState } from './get-state';
 import { runAppleScriptTool } from './run-applescript';
-import { searchTools } from './search-tools';
-import { createTool } from './create-tool';
-import { executeCustomTool } from './execute-custom-tool';
 import { chainActions } from './chain-actions';
 import { webSearch } from './web-search';
 import { insertImage } from './insert-image';
@@ -97,10 +94,6 @@ export class ToolExecutor {
           return await getState(context);
         case 'run_applescript':
           return await runAppleScriptTool(params as { script: string });
-        case 'search_tools':
-          return await searchTools(params as { query: string; type?: 'bm25' | 'grep' });
-        case 'create_tool':
-          return await createTool(params as { name: string; description: string; parameters: string; code: string });
         case 'chain_actions':
           // eslint-disable-next-line @typescript-eslint/no-explicit-any
           return await chainActions(params as any, context);
@@ -111,8 +104,7 @@ export class ToolExecutor {
         case 'replace_selected_text':
           return await replaceSelectedText(params as { text: string }, context);
         default:
-          // Try custom tool
-          return await executeCustomTool(toolName, params, context);
+          return { success: false, error: `Unknown tool: ${toolName}` };
       }
     } catch (error) {
       return { success: false, error: String(error) };
