@@ -80,5 +80,19 @@ export const toolDefinitions: ToolDefinition[] = [
       required: ['text'],
     },
   },
+  {
+    name: 'execute_python',
+    description: 'Execute Python code. Use for calculations, data processing, or any programmatic task. Returns stdout and stderr. Packages are cached in a persistent venv.',
+    parameters: {
+      type: 'object',
+      properties: {
+        code: { type: 'string', description: 'Python code to execute' },
+        packages: { type: 'array', description: 'List of pip packages to install before running (e.g. ["pandas", "requests"]). Cached between runs.', items: { type: 'string' } },
+        sandboxed: { type: 'boolean', description: 'If true, runs in isolated temp directory with restricted environment. Default: true' },
+        timeout: { type: 'number', description: 'Timeout in milliseconds. Default: 30000' },
+      },
+      required: ['code'],
+    },
+  },
 ];
 

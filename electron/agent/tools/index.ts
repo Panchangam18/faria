@@ -15,6 +15,7 @@ import { chainActions } from './chain-actions';
 import { webSearch } from './web-search';
 import { insertImage } from './insert-image';
 import { replaceSelectedText } from './replace-text';
+import { executePython, ExecutePythonParams } from './execute-python';
 
 import type { ToolResult, ToolContext } from './types';
 
@@ -103,6 +104,8 @@ export class ToolExecutor {
           return await insertImage(params as { query: string }, context);
         case 'replace_selected_text':
           return await replaceSelectedText(params as { text: string }, context);
+        case 'execute_python':
+          return await executePython(params as unknown as ExecutePythonParams);
         default:
           return { success: false, error: `Unknown tool: ${toolName}` };
       }
