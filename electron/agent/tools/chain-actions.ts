@@ -1,5 +1,6 @@
 import { ToolResult, ToolContext } from './types';
 import { runAppleScript, focusApp } from '../../services/applescript';
+import { insertImageFromUrl } from '../../services/text-extraction';
 import * as cliclick from '../../services/cliclick';
 import { screen } from 'electron';
 
@@ -44,7 +45,7 @@ const MIN_DELAYS = {
 };
 
 interface Action {
-  type: 'activate' | 'hotkey' | 'type' | 'key' | 'click' | 'scroll' | 'wait';
+  type: 'activate' | 'hotkey' | 'type' | 'key' | 'click' | 'scroll' | 'wait' | 'insert_image';
   app?: string;           // For activate
   modifiers?: string[];   // For hotkey (cmd, ctrl, alt, shift)
   key?: string;           // For hotkey, key
@@ -53,6 +54,7 @@ interface Action {
   y?: number;             // For click
   direction?: 'up' | 'down' | 'left' | 'right';  // For scroll
   amount?: number;        // For scroll, wait (ms)
+  query?: string;         // For insert_image (search query)
 }
 
 export interface ChainActionsParams {
@@ -230,7 +232,47 @@ async function executeAction(action: Action, context: ToolContext): Promise<stri
       await sleep(ms);
       return `Waited ${ms}ms`;
     }
-    
+
+    case 'insert_image': {
+      if (!action.query) throw new Error('Query required for insert_image');
+
+      const serperKey = process.env.SERPER_API_KEY;
+      if (!serperKey) {
+        throw new Error('Serper API key not configured in .env (SERPER_API_KEY)');
+      }
+
+      // Search for image using Serper API
+      const response = await fetch('https://google.serper.dev/images', {
+        method: 'POST',
+        headers: {
+          'X-API-KEY': serperKey,
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({ q: action.query, num: 5 })
+      });
+
+      if (!response.ok) {
+        throw new Error(`Serper API error: ${response.status}`);
+      }
+
+      const data = await response.json();
+
+      if (!data.images || data.images.length === 0) {
+        throw new Error(`No images found for "${action.query}"`);
+      }
+
+      const imageUrl = data.images[0].imageUrl;
+
+      // Insert the image at cursor position
+      const result = await insertImageFromUrl(context.targetApp, imageUrl);
+
+      if (!result.success) {
+        throw new Error(result.error || 'Failed to insert image');
+      }
+
+      return `Inserted image for "${action.query}"`;
+    }
+
     default:
       throw new Error(`Unknown action type: ${(action as Action).type}`);
   }
@@ -301,6 +343,12 @@ async function waitForActionComplete(
     
     case 'scroll': {
       await sleep(MIN_DELAYS.afterScroll);
+      break;
+    }
+
+    case 'insert_image': {
+      // Image insertion involves clipboard and paste - wait for UI to settle
+      await waitForUISettle(TIMEOUTS.uiSettle);
       break;
     }
   }

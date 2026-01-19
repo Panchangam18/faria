@@ -64,13 +64,13 @@ export const toolDefinitions: ToolDefinition[] = [
   },
   {
     name: 'chain_actions',
-    description: 'Execute a sequence of actions with automatic timing. PREFERRED for multi-step UI tasks. Actions: activate (switch app), hotkey (keyboard shortcut), type (text), key (single key like return/tab), click, scroll, wait.',
+    description: 'Execute a sequence of actions with automatic timing. PREFERRED for multi-step UI tasks. Actions: activate (switch app), hotkey (keyboard shortcut), type (text), key (single key like return/tab), click, scroll, wait, insert_image (search and insert image at cursor).',
     parameters: {
       type: 'object',
       properties: {
         actions: {
           type: 'array',
-          description: 'List of actions to execute in sequence. Each action has: type (activate/hotkey/type/key/click/scroll/wait), app (for activate), modifiers+key (for hotkey), text (for type), key (for key), x+y (for click), direction (for scroll), amount (for wait ms)',
+          description: 'List of actions to execute in sequence. Each action has: type (activate/hotkey/type/key/click/scroll/wait/insert_image), app (for activate), modifiers+key (for hotkey), text (for type), key (for key), x+y (for click), direction (for scroll), amount (for wait ms), query (for insert_image)',
           items: { type: 'object' },
         },
       },
