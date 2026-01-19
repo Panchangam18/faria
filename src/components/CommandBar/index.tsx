@@ -70,6 +70,7 @@ function CommandBar() {
   const [isProcessing, setIsProcessing] = useState(false);
   const [selectedTextLength, setSelectedTextLength] = useState<number>(0); // Character count of selected text
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
+  const [pendingAuth, setPendingAuth] = useState<{ toolkit: string; redirectUrl: string } | null>(null);
   const inputRef = useRef<HTMLTextAreaElement>(null);
   const responseRef = useRef<HTMLDivElement>(null);
 
@@ -159,12 +160,11 @@ function CommandBar() {
   }, []);
 
   useEffect(() => {
-    // Reset state when command bar is about to hide
+    // Reset state when command bar is about to hide (but keep processing state for persistence)
     window.faria.commandBar.onWillHide(() => {
-      setStatus('');
-      setIsProcessing(false);
       setSelectedTextLength(0);
       setErrorMessage(null);
+      // Don't clear isProcessing, status, or pendingAuth - keep them when command bar reopens
     });
 
     // Focus input when command bar becomes visible
@@ -187,6 +187,14 @@ function CommandBar() {
       setResponse(newResponse);
       setIsProcessing(false);
       setStatus('');
+      setPendingAuth(null);
+    });
+
+    // Listen for auth-required from agent (Composio OAuth flow)
+    window.faria.agent.onAuthRequired((data) => {
+      console.log('[CommandBar] Auth required:', data);
+      setPendingAuth(data);
+      setStatus(`Waiting for ${data.toolkit} authentication...`);
     });
 
     // Listen for error messages
@@ -195,6 +203,7 @@ function CommandBar() {
       setResponse(`Error: ${error}`);
       setIsProcessing(false);
       setStatus('');
+      setPendingAuth(null);
       // Clear error after 3 seconds
       setTimeout(() => {
         setErrorMessage(null);
@@ -244,7 +253,22 @@ function CommandBar() {
     await window.faria.agent.cancel();
     setIsProcessing(false);
     setStatus('');
+    setPendingAuth(null);
   }, [isProcessing]);
+
+  const handleOpenAuthUrl = useCallback(() => {
+    if (!pendingAuth) return;
+    // Open the auth URL in the default browser
+    window.open(pendingAuth.redirectUrl, '_blank');
+  }, [pendingAuth]);
+
+  const handleAuthComplete = useCallback(() => {
+    if (!pendingAuth) return;
+    console.log('[CommandBar] Auth completed, notifying agent');
+    setPendingAuth(null);
+    setStatus('Resuming...');
+    window.faria.agent.authCompleted();
+  }, [pendingAuth]);
 
   return (
     <div className="command-bar">
@@ -269,12 +293,24 @@ function CommandBar() {
 
       <div className="command-bar-footer">
         <div className="footer-left">
-          {status && (
+          {pendingAuth ? (
+            <div className="command-bar-auth-inline">
+              <span className="auth-status-text">
+                Faria wants to use {pendingAuth.toolkit.charAt(0).toUpperCase() + pendingAuth.toolkit.slice(1)}...
+              </span>
+              <button className="auth-inline-button auth-inline-connect" onClick={handleOpenAuthUrl}>
+                Connect
+              </button>
+              <button className="auth-inline-button auth-inline-done" onClick={handleAuthComplete}>
+                Done
+              </button>
+            </div>
+          ) : status ? (
             <div className="command-bar-status">
               <div className="status-spinner" />
               <span>{status}</span>
             </div>
-          )}
+          ) : null}
         </div>
         <div className="footer-right">
           {/* Selection indicator - shows character count when text is selected */}

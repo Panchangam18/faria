@@ -1,5 +1,5 @@
 import { HumanMessage, SystemMessage, AIMessage, ToolMessage } from '@langchain/core/messages';
-import { BrowserWindow, screen } from 'electron';
+import { BrowserWindow, screen, shell, ipcMain } from 'electron';
 import { StateExtractor, AppState } from '../services/state-extractor';
 import { ToolExecutor, ToolDefinition, executeComputerAction, ComputerAction } from './tools';
 import { initDatabase } from '../db/sqlite';
@@ -17,9 +17,39 @@ import {
 } from '../services/models';
 import { searchMemories, getAllMemories, ContextManager, estimateTokens } from '../services/memory';
 import { triggerMemoryAgent } from './memory-agent';
+import { ComposioService } from '../services/composio';
 
 // Load environment variables for LangSmith tracing
 import 'dotenv/config';
+
+/**
+ * Parse Composio tool result to check if authentication is required
+ */
+interface ComposioAuthRequired {
+  toolkit: string;
+  redirectUrl: string;
+}
+
+function parseComposioAuthRequired(result: string): ComposioAuthRequired | null {
+  try {
+    const parsed = JSON.parse(result);
+    // Check for COMPOSIO_MANAGE_CONNECTIONS response with initiated status
+    if (parsed?.data?.results) {
+      for (const [toolkit, info] of Object.entries(parsed.data.results)) {
+        const toolkitInfo = info as any;
+        if (toolkitInfo?.status === 'initiated' && toolkitInfo?.redirect_url) {
+          return {
+            toolkit: toolkit,
+            redirectUrl: toolkitInfo.redirect_url
+          };
+        }
+      }
+    }
+  } catch {
+    // Not JSON or parsing failed
+  }
+  return null;
+}
 
 interface AgentConfig {
   maxIterations: number;
@@ -39,14 +69,26 @@ const DEFAULT_CONFIG: AgentConfig = {
 export class AgentLoop {
   private stateExtractor: StateExtractor;
   private toolExecutor: ToolExecutor;
+  private composioService: ComposioService;
   private config: AgentConfig;
   private isRunning = false;
   private shouldCancel = false;
+  private pendingAuthResolve: (() => void) | null = null;
 
-  constructor(stateExtractor: StateExtractor, toolExecutor: ToolExecutor) {
+  constructor(stateExtractor: StateExtractor, toolExecutor: ToolExecutor, composioService: ComposioService) {
     this.stateExtractor = stateExtractor;
     this.toolExecutor = toolExecutor;
+    this.composioService = composioService;
     this.config = DEFAULT_CONFIG;
+
+    // Listen for auth completion from UI
+    ipcMain.on('agent:auth-completed', () => {
+      console.log('[Faria] Auth completed, resuming agent');
+      if (this.pendingAuthResolve) {
+        this.pendingAuthResolve();
+        this.pendingAuthResolve = null;
+      }
+    });
 
     // Log LangSmith status
     if (process.env.LANGCHAIN_API_KEY && process.env.LANGCHAIN_TRACING_V2 === 'true') {
@@ -116,7 +158,20 @@ export class AgentLoop {
       
       // Get tool definitions
       const regularTools = this.toolExecutor.getToolDefinitions().map(this.convertToLangChainTool);
-      
+
+      // Get Composio tools (already in LangChain DynamicStructuredTool format)
+      const composioTools = await this.composioService.getTools();
+      console.log(`[Faria] Loaded ${composioTools.length} Composio tools`);
+
+      // Create a map of Composio tools by name for quick lookup during execution
+      const composioToolMap = new Map<string, any>();
+      for (const tool of composioTools) {
+        composioToolMap.set(tool.name, tool);
+      }
+
+      // Merge all tools - Composio tools are DynamicStructuredTools that handle their own execution
+      const allTools = [...regularTools, ...composioTools];
+
       // Get screen dimensions for computer use tool
       const primaryDisplay = screen.getPrimaryDisplay();
       const { width: displayWidth, height: displayHeight } = primaryDisplay.size;
@@ -152,7 +207,7 @@ export class AgentLoop {
 
       const boundModel = createModelWithTools(
         modelName,
-        regularTools,
+        allTools,
         { width: displayWidth, height: displayHeight },
         this.config.maxTokens
       );
@@ -251,8 +306,53 @@ export class AgentLoop {
                   name: toolCall.name,
                 }));
               }
+            } else if (composioToolMap.has(toolCall.name)) {
+              // Execute Composio tools through their invoke() method
+              try {
+                const composioTool = composioToolMap.get(toolCall.name);
+                let composioResult = await composioTool.invoke(toolCall.args);
+                const resultStr = typeof composioResult === 'string' ? composioResult : JSON.stringify(composioResult);
+                console.log(`[Faria] Composio tool result: SUCCESS`, resultStr.slice(0, 200));
+
+                // Check if authentication is required
+                const authRequired = parseComposioAuthRequired(resultStr);
+                if (authRequired && !this.shouldCancel) {
+                  console.log(`[Faria] Auth required for ${authRequired.toolkit}`);
+
+                  // Request auth from user and wait
+                  await this.requestAuth(authRequired.toolkit, authRequired.redirectUrl);
+
+                  if (this.shouldCancel) {
+                    addMessage(new ToolMessage({
+                      content: 'Authentication cancelled',
+                      tool_call_id: toolCall.id || toolCall.name,
+                      name: toolCall.name,
+                    }));
+                  } else {
+                    // User authenticated - tell the agent to retry
+                    addMessage(new ToolMessage({
+                      content: `User has authenticated with ${authRequired.toolkit}. Please retry the action.`,
+                      tool_call_id: toolCall.id || toolCall.name,
+                      name: toolCall.name,
+                    }));
+                  }
+                } else {
+                  addMessage(new ToolMessage({
+                    content: resultStr,
+                    tool_call_id: toolCall.id || toolCall.name,
+                    name: toolCall.name,
+                  }));
+                }
+              } catch (error) {
+                console.log(`[Faria] Composio tool result: FAILED`, error);
+                addMessage(new ToolMessage({
+                  content: `Error: ${error}`,
+                  tool_call_id: toolCall.id || toolCall.name,
+                  name: toolCall.name,
+                }));
+              }
             } else {
-              // Use our tool executor for other tools
+              // Use our tool executor for built-in tools
               const result = await this.toolExecutor.execute(
                 toolCall.name,
                 toolCall.args as Record<string, unknown>
@@ -334,6 +434,29 @@ export class AgentLoop {
   cancel(): void {
     console.log('[Faria] Cancel requested');
     this.shouldCancel = true;
+    // Also resolve any pending auth to unblock
+    if (this.pendingAuthResolve) {
+      this.pendingAuthResolve();
+      this.pendingAuthResolve = null;
+    }
+  }
+
+  /**
+   * Request authentication from the user and wait for completion
+   */
+  private async requestAuth(toolkit: string, redirectUrl: string): Promise<void> {
+    console.log(`[Faria] Requesting auth for ${toolkit}: ${redirectUrl}`);
+
+    // Send auth request to UI
+    const windows = BrowserWindow.getAllWindows();
+    windows.forEach(win => {
+      win.webContents.send('agent:auth-required', { toolkit, redirectUrl });
+    });
+
+    // Wait for auth completion
+    return new Promise((resolve) => {
+      this.pendingAuthResolve = resolve;
+    });
   }
   
   /**

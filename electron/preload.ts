@@ -7,11 +7,15 @@ contextBridge.exposeInMainWorld('faria', {
   agent: {
     submit: (query: string) => ipcRenderer.invoke('agent:submit', query),
     cancel: () => ipcRenderer.invoke('agent:cancel'),
+    authCompleted: () => ipcRenderer.send('agent:auth-completed'),
     onStatus: (callback: (status: string) => void) => {
       ipcRenderer.on('agent:status', (_event, status) => callback(status));
     },
     onResponse: (callback: (response: string) => void) => {
       ipcRenderer.on('agent:response', (_event, response) => callback(response));
+    },
+    onAuthRequired: (callback: (data: { toolkit: string; redirectUrl: string }) => void) => {
+      ipcRenderer.on('agent:auth-required', (_event, data) => callback(data));
     }
   },
 
@@ -69,8 +73,10 @@ export interface FariaAPI {
   agent: {
     submit: (query: string) => Promise<{ success: boolean; result?: string; error?: string }>;
     cancel: () => Promise<{ success: boolean }>;
+    authCompleted: () => void;
     onStatus: (callback: (status: string) => void) => void;
     onResponse: (callback: (response: string) => void) => void;
+    onAuthRequired: (callback: (data: { toolkit: string; redirectUrl: string }) => void) => void;
   };
   state: {
     extract: () => Promise<{ success: boolean; state?: unknown; error?: string }>;

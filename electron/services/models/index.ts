@@ -128,6 +128,7 @@ export function supportsComputerUse(modelName: string): boolean {
  * Get a human-readable display name for a tool
  */
 export function getToolDisplayName(toolName: string): string {
+  // Built-in tools
   const names: Record<string, string> = {
     focus_app: 'Switching app',
     get_state: 'Checking state',
@@ -137,7 +138,91 @@ export function getToolDisplayName(toolName: string): string {
     search_tools: 'Searching tools',
     create_tool: 'Creating tool',
     chain_actions: 'Executing actions',
+    web_search: 'Searching the web',
+    insert_image: 'Inserting image',
+    replace_selected_text: 'Replacing text',
+    // Composio meta-tools (hidden from user as "Composio")
+    COMPOSIO_SEARCH_TOOLS: 'Searching integrations',
+    COMPOSIO_MANAGE_CONNECTIONS: 'Checking connections',
   };
+
+  if (names[toolName]) {
+    return names[toolName];
+  }
+
+  // Handle any COMPOSIO_ prefixed tools we haven't explicitly named
+  if (toolName.startsWith('COMPOSIO_')) {
+    const actionParts = toolName.replace('COMPOSIO_', '').split('_');
+    const actionVerb = actionParts[0]?.toLowerCase() || '';
+    const actionRest = actionParts.slice(1).join(' ').toLowerCase();
+
+    // Convert verb to present participle
+    let verb = actionVerb;
+    if (actionVerb === 'multi') {
+      return 'Executing actions';
+    } else if (actionVerb === 'execute') {
+      return 'Executing ' + actionRest;
+    } else if (actionVerb.endsWith('e')) {
+      verb = actionVerb.slice(0, -1) + 'ing';
+    } else if (actionVerb === 'get') {
+      verb = 'Getting';
+    } else if (actionVerb === 'search') {
+      verb = 'Searching';
+    } else if (actionVerb === 'list') {
+      verb = 'Listing';
+    } else {
+      verb = actionVerb + 'ing';
+    }
+
+    verb = verb.charAt(0).toUpperCase() + verb.slice(1);
+    return `${verb}${actionRest ? ' ' + actionRest : ''}`;
+  }
+
+  // Handle Composio toolkit tools (e.g., GMAIL_SEND_EMAIL, GITHUB_STAR_REPO)
+  if (toolName.includes('_') && toolName === toolName.toUpperCase()) {
+    const parts = toolName.split('_');
+    const toolkit = parts[0];
+    const actionParts = parts.slice(1);
+
+    // Format toolkit name (GMAIL → Gmail, GITHUB → GitHub)
+    const formattedToolkit = toolkit.charAt(0) + toolkit.slice(1).toLowerCase();
+
+    // Format action (SEND_EMAIL → Sending email, STAR_REPO → Starring repo)
+    const actionVerb = actionParts[0]?.toLowerCase() || '';
+    const actionRest = actionParts.slice(1).join(' ').toLowerCase();
+
+    // Convert verb to present participle (-ing form)
+    let verb = actionVerb;
+    if (actionVerb.endsWith('e')) {
+      verb = actionVerb.slice(0, -1) + 'ing'; // create → creating
+    } else if (actionVerb === 'get' || actionVerb === 'set') {
+      verb = actionVerb + 'ting'; // get → getting
+    } else if (actionVerb === 'star') {
+      verb = 'starring';
+    } else if (actionVerb === 'list') {
+      verb = 'listing';
+    } else if (actionVerb === 'fetch') {
+      verb = 'fetching';
+    } else if (actionVerb === 'search') {
+      verb = 'searching';
+    } else if (actionVerb === 'add') {
+      verb = 'adding';
+    } else if (actionVerb === 'update') {
+      verb = 'updating';
+    } else if (actionVerb === 'delete') {
+      verb = 'deleting';
+    } else if (actionVerb === 'remove') {
+      verb = 'removing';
+    } else {
+      verb = actionVerb + 'ing';
+    }
+
+    // Capitalize first letter of verb
+    verb = verb.charAt(0).toUpperCase() + verb.slice(1);
+
+    return `${formattedToolkit}: ${verb}${actionRest ? ' ' + actionRest : ''}`;
+  }
+
   return names[toolName] || 'Taking action';
 }
 

@@ -4,6 +4,7 @@ import { initDatabase } from './db/sqlite';
 import { StateExtractor } from './services/state-extractor';
 import { AgentLoop } from './agent/loop';
 import { ToolExecutor } from './agent/tools';
+import { ComposioService } from './services/composio';
 import { getSelectedText } from './services/text-extraction';
 import { exec } from 'child_process';
 import { promisify } from 'util';
@@ -23,6 +24,7 @@ let commandBarSessionId = 0; // Incremented on each open to cancel stale async o
 let stateExtractor: StateExtractor;
 let agentLoop: AgentLoop;
 let toolExecutor: ToolExecutor;
+let composioService: ComposioService;
 
 const isDev = process.env.NODE_ENV === 'development' || !app.isPackaged;
 
@@ -615,10 +617,14 @@ async function initializeServices() {
     console.error('[Memory] Failed to migrate:', err);
   });
 
+  // Initialize Composio for external integrations (Gmail, GitHub, Slack, etc.)
+  composioService = new ComposioService();
+  await composioService.initialize();
+
   // Initialize services
   stateExtractor = new StateExtractor();
   toolExecutor = new ToolExecutor(stateExtractor);
-  agentLoop = new AgentLoop(stateExtractor, toolExecutor);
+  agentLoop = new AgentLoop(stateExtractor, toolExecutor, composioService);
 }
 
 app.whenReady().then(async () => {
