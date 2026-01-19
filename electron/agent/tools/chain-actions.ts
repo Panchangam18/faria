@@ -1,7 +1,7 @@
 import { ToolResult, ToolContext } from './types';
-import { runAppleScript, focusApp, escapeForAppleScript } from '../../services/applescript';
+import { runAppleScript, focusApp } from '../../services/applescript';
 import * as cliclick from '../../services/cliclick';
-import { screen, clipboard } from 'electron';
+import { screen } from 'electron';
 
 /**
  * Convert coordinates from Google's 0-999 normalized grid to actual pixels
@@ -67,35 +67,35 @@ export async function chainActions(
   context: ToolContext
 ): Promise<ToolResult> {
   const results: string[] = [];
-
+  
   try {
     for (let i = 0; i < params.actions.length; i++) {
       const action = params.actions[i];
       const nextAction = i < params.actions.length - 1 ? params.actions[i + 1] : null;
-
-      // Execute the action, passing target app for clipboard-based operations
-      const result = await executeAction(action, context.targetApp, context);
+      
+      // Execute the action
+      const result = await executeAction(action, context);
       results.push(result);
-
+      
       // Wait for the appropriate condition before proceeding
       if (nextAction) {
         await waitForActionComplete(action, nextAction, context);
       }
     }
-
-    return {
-      success: true,
-      result: `Completed ${params.actions.length} actions: ${results.join(' → ')}`
+    
+    return { 
+      success: true, 
+      result: `Completed ${params.actions.length} actions: ${results.join(' → ')}` 
     };
   } catch (error) {
-    return {
-      success: false,
-      error: `Failed at action ${results.length + 1}: ${error}`
+    return { 
+      success: false, 
+      error: `Failed at action ${results.length + 1}: ${error}` 
     };
   }
 }
 
-async function executeAction(action: Action, targetApp: string | null, context: ToolContext): Promise<string> {
+async function executeAction(action: Action, context: ToolContext): Promise<string> {
   switch (action.type) {
     case 'activate': {
       if (!action.app) throw new Error('App name required for activate');
@@ -104,11 +104,11 @@ async function executeAction(action: Action, targetApp: string | null, context: 
       context.setTargetApp(action.app);
       return `Activated ${action.app}`;
     }
-
+    
     case 'hotkey': {
       const modifiers = action.modifiers || [];
       const key = action.key || '';
-
+      
       const modMap: Record<string, string> = {
         'cmd': 'command down',
         'command': 'command down',
@@ -118,7 +118,7 @@ async function executeAction(action: Action, targetApp: string | null, context: 
         'option': 'option down',
         'shift': 'shift down',
       };
-
+      
       // Key code map for special keys
       const keyCodeMap: Record<string, number> = {
         'return': 36, 'enter': 36,
@@ -128,83 +128,61 @@ async function executeAction(action: Action, targetApp: string | null, context: 
         'escape': 53, 'esc': 53,
         'up': 126, 'down': 125, 'left': 123, 'right': 124,
       };
-
+      
       const asModifiers = modifiers
         .map(m => modMap[m.toLowerCase()])
         .filter(Boolean)
         .join(', ');
-
+      
       // Check if this is a special key that needs key code
       const keyCode = keyCodeMap[key.toLowerCase()];
-      let keystrokeCmd: string;
-
+      let script: string;
+      
       if (keyCode !== undefined) {
         // Use key code for special keys
-        keystrokeCmd = asModifiers
-          ? `key code ${keyCode} using {${asModifiers}}`
-          : `key code ${keyCode}`;
+        script = asModifiers 
+          ? `tell application "System Events" to key code ${keyCode} using {${asModifiers}}`
+          : `tell application "System Events" to key code ${keyCode}`;
       } else {
         // Use keystroke for regular character keys
-        keystrokeCmd = asModifiers
-          ? `keystroke "${key}" using {${asModifiers}}`
-          : `keystroke "${key}"`;
+        script = asModifiers 
+          ? `tell application "System Events" to keystroke "${key}" using {${asModifiers}}`
+          : `tell application "System Events" to keystroke "${key}"`;
       }
-
-      // Build script that activates target app first, then sends keystroke
-      let script: string;
-      if (targetApp) {
-        script = `
-          tell application "${escapeForAppleScript(targetApp)}"
-            activate
-          end tell
-          delay 0.05
-          tell application "System Events"
-            ${keystrokeCmd}
-          end tell
-        `;
-      } else {
-        script = `tell application "System Events" to ${keystrokeCmd}`;
-      }
-
-      console.log(`[Faria] Executing hotkey: ${modifiers.join('+')}+${key}`);
+      
+      console.log(`[Faria] Executing hotkey script: ${script}`);
       await runAppleScript(script);
       return `Pressed ${modifiers.length ? modifiers.join('+') + '+' : ''}${key}`;
     }
-
+    
     case 'type': {
       if (!action.text) throw new Error('Text required for type');
-
-      // Use clipboard + paste with menu click (reliable across all apps)
-      const originalClipboard = clipboard.readText();
-      clipboard.writeText(action.text);
-
-      if (targetApp) {
-        const pasteScript = `
-          tell application "${escapeForAppleScript(targetApp)}"
-            activate
-          end tell
-          delay 0.1
-          tell application "System Events"
-            tell process "${escapeForAppleScript(targetApp)}"
-              click menu item "Paste" of menu "Edit" of menu bar 1
-            end tell
-          end tell
-        `;
-        console.log(`[Faria] Pasting text to ${targetApp}`);
-        await runAppleScript(pasteScript);
-      } else {
-        await runAppleScript(`tell application "System Events" to keystroke "v" using command down`);
+      
+      // Split by newlines and type each line, pressing Return between them
+      const lines = action.text.split('\n');
+      
+      for (let i = 0; i < lines.length; i++) {
+        const line = lines[i];
+        if (line.length > 0) {
+          const escapedLine = line.replace(/\\/g, '\\\\').replace(/"/g, '\\"');
+          const script = `tell application "System Events" to keystroke "${escapedLine}"`;
+          console.log(`[Faria] Executing type script: ${script.slice(0, 100)}...`);
+          await runAppleScript(script);
+        }
+        
+        // Press Return for newlines (except after the last line)
+        if (i < lines.length - 1) {
+          await runAppleScript(`tell application "System Events" to key code 36`);
+          await sleep(MIN_DELAYS.afterKey);
+        }
       }
-
-      await sleep(100);
-      clipboard.writeText(originalClipboard);
-
+      
       return `Typed "${action.text.slice(0, 30)}${action.text.length > 30 ? '...' : ''}"`;
     }
-
+    
     case 'key': {
       if (!action.key) throw new Error('Key required');
-
+      
       const keyCodeMap: Record<string, number> = {
         'return': 36, 'enter': 36,
         'tab': 48,
@@ -215,33 +193,17 @@ async function executeAction(action: Action, targetApp: string | null, context: 
         'home': 115, 'end': 119,
         'pageup': 116, 'pagedown': 121,
       };
-
+      
       const keyCode = keyCodeMap[action.key.toLowerCase()];
-      let keystrokeCmd: string;
-
-      if (keyCode !== undefined) {
-        keystrokeCmd = `key code ${keyCode}`;
-      } else {
-        keystrokeCmd = `keystroke "${action.key}"`;
-      }
-
-      // Build script that activates target app first, then sends key
       let script: string;
-      if (targetApp) {
-        script = `
-          tell application "${escapeForAppleScript(targetApp)}"
-            activate
-          end tell
-          delay 0.05
-          tell application "System Events"
-            ${keystrokeCmd}
-          end tell
-        `;
+      
+      if (keyCode !== undefined) {
+        script = `tell application "System Events" to key code ${keyCode}`;
       } else {
-        script = `tell application "System Events" to ${keystrokeCmd}`;
+        script = `tell application "System Events" to keystroke "${action.key}"`;
       }
-
-      console.log(`[Faria] Executing key: ${action.key}`);
+      
+      console.log(`[Faria] Executing key script: ${script}`);
       await runAppleScript(script);
       return `Pressed ${action.key}`;
     }
