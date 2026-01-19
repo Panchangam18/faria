@@ -15,6 +15,9 @@ import { searchTools } from './search-tools';
 import { createTool } from './create-tool';
 import { executeCustomTool } from './execute-custom-tool';
 import { chainActions } from './chain-actions';
+import { webSearch } from './web-search';
+import { insertImage } from './insert-image';
+import { replaceSelectedText } from './replace-text';
 
 import type { ToolResult, ToolContext } from './types';
 
@@ -101,6 +104,12 @@ export class ToolExecutor {
         case 'chain_actions':
           // eslint-disable-next-line @typescript-eslint/no-explicit-any
           return await chainActions(params as any, context);
+        case 'web_search':
+          return await webSearch(params as { query: string });
+        case 'insert_image':
+          return await insertImage(params as { query: string }, context);
+        case 'replace_selected_text':
+          return await replaceSelectedText(params as { text: string }, context);
         default:
           // Try custom tool
           return await executeCustomTool(toolName, params, context);

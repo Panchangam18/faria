@@ -7,7 +7,6 @@ interface SettingsPanelProps {
 
 // Default shortcuts
 const DEFAULT_COMMAND_BAR_SHORTCUT = 'CommandOrControl+/';
-const DEFAULT_AGENT_SWITCH_SHORTCUT = 'CommandOrControl+Shift+/';
 
 // Convert Electron accelerator to display format
 const shortcutToDisplay = (accelerator: string): string => {
@@ -301,7 +300,6 @@ function SettingsPanel({ currentTheme, onThemeChange }: SettingsPanelProps) {
   const [googleKey, setGoogleKey] = useState('');
   const [showGoogleKey, setShowGoogleKey] = useState(false);
   const [selectedModel, setSelectedModel] = useState(MODELS[0].id);
-  const [selectedInlineModel, setSelectedInlineModel] = useState(MODELS[0].id);
   const [customPalettes, setCustomPalettes] = useState<CustomPalette[]>([]);
   const [showCustomForm, setShowCustomForm] = useState(false);
   const [saveStatus, setSaveStatus] = useState<string | null>(null);
@@ -315,15 +313,12 @@ function SettingsPanel({ currentTheme, onThemeChange }: SettingsPanelProps) {
   const [selectedFont, setSelectedFont] = useState(AVAILABLE_FONTS[0].value);
 
   const [hasLoadedSettings, setHasLoadedSettings] = useState(false);
-  const [hoverInlineModel, setHoverInlineModel] = useState(false);
   const [hoverAgentModel, setHoverAgentModel] = useState(false);
-  const [inlinePrompt, setInlinePrompt] = useState('');
   const [agentPrompt, setAgentPrompt] = useState('');
 
   // Keyboard shortcuts
   const [commandBarShortcut, setCommandBarShortcut] = useState(DEFAULT_COMMAND_BAR_SHORTCUT);
-  const [agentSwitchShortcut, setAgentSwitchShortcut] = useState(DEFAULT_AGENT_SWITCH_SHORTCUT);
-  const [recordingShortcut, setRecordingShortcut] = useState<'commandBar' | 'agentSwitch' | null>(null);
+  const [recordingShortcut, setRecordingShortcut] = useState<'commandBar' | null>(null);
 
   useEffect(() => {
     loadSettings().then(() => {
@@ -334,47 +329,32 @@ function SettingsPanel({ currentTheme, onThemeChange }: SettingsPanelProps) {
   // Re-validate models when API keys change (but only after initial load)
   useEffect(() => {
     if (!hasLoadedSettings) return;
-    
+
     const availableModels = getAvailableModels();
     const availableModelIds = availableModels.map(m => m.id);
-    
+
     // If selected model is not "none" and not available, reset to "none"
     if (selectedModel !== 'none' && !availableModelIds.includes(selectedModel)) {
       setSelectedModel('none');
       saveSettings('selectedModel', 'none');
     }
-    
-    // Same for inline model
-    if (selectedInlineModel !== 'none' && !availableModelIds.includes(selectedInlineModel)) {
-      setSelectedInlineModel('none');
-      saveSettings('selectedInlineModel', 'none');
-    }
-  }, [anthropicKey, googleKey, hasLoadedSettings, selectedModel, selectedInlineModel]);
+  }, [anthropicKey, googleKey, hasLoadedSettings, selectedModel]);
 
   const loadSettings = async () => {
     const savedAnthropicKey = await window.faria.settings.get('anthropicKey');
     const savedGoogleKey = await window.faria.settings.get('googleKey');
     const savedModel = await window.faria.settings.get('selectedModel');
-    const savedInlineModel = await window.faria.settings.get('selectedInlineModel');
     const savedCustomPalettes = await window.faria.settings.get('customPalettes');
-    const savedInlinePrompt = await window.faria.settings.get('inlineSystemPrompt');
     const savedAgentPrompt = await window.faria.settings.get('agentSystemPrompt');
 
     if (savedAnthropicKey) setAnthropicKey(savedAnthropicKey);
     if (savedGoogleKey) setGoogleKey(savedGoogleKey);
-    
-    // Load prompts: use saved if available, otherwise load defaults
-    if (savedInlinePrompt) {
-      setInlinePrompt(savedInlinePrompt);
-    } else {
-      const defaultInlinePrompt = await window.faria.settings.getDefaultPrompt('inline');
-      setInlinePrompt(defaultInlinePrompt);
-    }
-    
+
+    // Load prompt: use saved if available, otherwise load default
     if (savedAgentPrompt) {
       setAgentPrompt(savedAgentPrompt);
     } else {
-      const defaultAgentPrompt = await window.faria.settings.getDefaultPrompt('agent');
+      const defaultAgentPrompt = await window.faria.settings.getDefaultPrompt();
       setAgentPrompt(defaultAgentPrompt);
     }
     
@@ -389,7 +369,7 @@ function SettingsPanel({ currentTheme, onThemeChange }: SettingsPanelProps) {
       })
       .map(m => m.id);
     
-    // Set models, but validate they're still available (or are "none")
+    // Set model, but validate it's still available (or is "none")
     if (savedModel) {
       if (savedModel === 'none' || availableModelIds.includes(savedModel)) {
         setSelectedModel(savedModel);
@@ -397,15 +377,6 @@ function SettingsPanel({ currentTheme, onThemeChange }: SettingsPanelProps) {
         // Model no longer available, default to "none"
         setSelectedModel('none');
         saveSettings('selectedModel', 'none');
-      }
-    }
-    if (savedInlineModel) {
-      if (savedInlineModel === 'none' || availableModelIds.includes(savedInlineModel)) {
-        setSelectedInlineModel(savedInlineModel);
-      } else {
-        // Model no longer available, default to "none"
-        setSelectedInlineModel('none');
-        saveSettings('selectedInlineModel', 'none');
       }
     }
     if (savedCustomPalettes) {
@@ -451,11 +422,9 @@ function SettingsPanel({ currentTheme, onThemeChange }: SettingsPanelProps) {
       document.documentElement.style.setProperty('--font-family', AVAILABLE_FONTS[0].value);
     }
 
-    // Load keyboard shortcuts
+    // Load keyboard shortcut
     const savedCommandBarShortcut = await window.faria.settings.get('commandBarShortcut');
-    const savedAgentSwitchShortcut = await window.faria.settings.get('agentSwitchShortcut');
     if (savedCommandBarShortcut) setCommandBarShortcut(savedCommandBarShortcut);
-    if (savedAgentSwitchShortcut) setAgentSwitchShortcut(savedAgentSwitchShortcut);
   };
 
   // Keyboard shortcut recording
@@ -473,12 +442,6 @@ function SettingsPanel({ currentTheme, onThemeChange }: SettingsPanelProps) {
         setCommandBarShortcut(accelerator);
         saveSettings('commandBarShortcut', accelerator);
         window.faria.settings.set('commandBarShortcut', accelerator).then(() => {
-          window.faria.shortcuts?.reregister();
-        });
-      } else if (recordingShortcut === 'agentSwitch') {
-        setAgentSwitchShortcut(accelerator);
-        saveSettings('agentSwitchShortcut', accelerator);
-        window.faria.settings.set('agentSwitchShortcut', accelerator).then(() => {
           window.faria.shortcuts?.reregister();
         });
       }
@@ -751,36 +714,6 @@ function SettingsPanel({ currentTheme, onThemeChange }: SettingsPanelProps) {
               }}
             >
               {recordingShortcut === 'commandBar' ? 'Press keys...' : shortcutToDisplay(commandBarShortcut)}
-            </button>
-          </div>
-
-          {/* Agent Switch */}
-          <div style={{
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'space-between',
-            padding: 'var(--spacing-md)',
-            background: 'var(--color-surface)',
-            borderRadius: 'var(--radius-md)',
-            border: '1px solid var(--color-border)',
-          }}>
-            <span style={{ fontSize: 'var(--font-size-sm)' }}>Switch Mode</span>
-            <button
-              onClick={() => setRecordingShortcut('agentSwitch')}
-              style={{
-                padding: 'var(--spacing-xs) var(--spacing-md)',
-                fontSize: 'var(--font-size-sm)',
-                fontFamily: 'system-ui',
-                background: recordingShortcut === 'agentSwitch' ? 'var(--color-accent)' : 'var(--color-background)',
-                color: recordingShortcut === 'agentSwitch' ? 'var(--color-background)' : 'var(--color-text)',
-                border: '1px solid var(--color-border)',
-                borderRadius: 'var(--radius-sm)',
-                cursor: 'pointer',
-                minWidth: 80,
-                transition: 'all 0.15s ease',
-              }}
-            >
-              {recordingShortcut === 'agentSwitch' ? 'Press keys...' : shortcutToDisplay(agentSwitchShortcut)}
             </button>
           </div>
         </div>
@@ -1375,102 +1308,55 @@ function SettingsPanel({ currentTheme, onThemeChange }: SettingsPanelProps) {
 
       {/* Model Section */}
       <section style={{ marginBottom: 'var(--spacing-xl)' }}>
-        <h3 style={{ 
-          fontSize: 'var(--font-size-md)', 
+        <h3 style={{
+          fontSize: 'var(--font-size-md)',
           marginBottom: 'var(--spacing-md)',
           color: 'var(--color-text-muted)'
         }}>
-          Models
+          Model
         </h3>
-        
+
         <div className="card">
           <div style={{ padding: 'var(--spacing-md)' }}>
-            <div style={{ 
-              display: 'grid', 
-              gridTemplateColumns: '1fr 1fr', 
-              gap: 'var(--spacing-md)' 
-            }}>
-              <div>
-                <label style={{ 
-                  display: 'block', 
-                  fontSize: 'var(--font-size-sm)', 
-                  marginBottom: 'var(--spacing-xs)',
-                  color: 'var(--color-text-muted)'
-                }}>
-                  Inline
-                </label>
-                <select
-                  value={selectedInlineModel}
-                  onChange={(e) => {
-                    setSelectedInlineModel(e.target.value);
-                    saveSettings('selectedInlineModel', e.target.value);
-                  }}
-                  onMouseEnter={() => setHoverInlineModel(true)}
-                  onMouseLeave={() => setHoverInlineModel(false)}
-                  style={{
-                    width: '100%',
-                    padding: 'var(--spacing-sm)',
-                    fontSize: 'var(--font-size-sm)',
-                    borderRadius: 'var(--radius-sm)',
-                    border: `1px solid ${hoverInlineModel ? 'var(--color-accent)' : 'var(--color-border)'}`,
-                    backgroundColor: hoverInlineModel ? 'var(--color-hover)' : 'var(--color-primary)',
-                    color: 'var(--color-text)',
-                    appearance: 'none',
-                    WebkitAppearance: 'none',
-                    MozAppearance: 'none',
-                    cursor: 'pointer',
-                    transition: 'all var(--transition-fast)',
-                  }}
-                >
-                  <option value="none">None</option>
-                  {getAvailableModels().map((model) => (
-                    <option key={model.id} value={model.id}>
-                      {model.name}
-                    </option>
-                  ))}
-                </select>
-              </div>
-              
-              <div>
-                <label style={{ 
-                  display: 'block', 
-                  fontSize: 'var(--font-size-sm)', 
-                  marginBottom: 'var(--spacing-xs)',
-                  color: 'var(--color-text-muted)'
-                }}>
-                  Agent (beta)
-                </label>
-                <select
-                  value={selectedModel}
-                  onChange={(e) => {
-                    setSelectedModel(e.target.value);
-                    saveSettings('selectedModel', e.target.value);
-                  }}
-                  onMouseEnter={() => setHoverAgentModel(true)}
-                  onMouseLeave={() => setHoverAgentModel(false)}
-                  style={{
-                    width: '100%',
-                    padding: 'var(--spacing-sm)',
-                    fontSize: 'var(--font-size-sm)',
-                    borderRadius: 'var(--radius-sm)',
-                    border: `1px solid ${hoverAgentModel ? 'var(--color-accent)' : 'var(--color-border)'}`,
-                    backgroundColor: hoverAgentModel ? 'var(--color-hover)' : 'var(--color-primary)',
-                    color: 'var(--color-text)',
-                    appearance: 'none',
-                    WebkitAppearance: 'none',
-                    MozAppearance: 'none',
-                    cursor: 'pointer',
-                    transition: 'all var(--transition-fast)',
-                  }}
-                >
-                  <option value="none">None</option>
-                  {getAvailableModels().map((model) => (
-                    <option key={model.id} value={model.id}>
-                      {model.name}
-                    </option>
-                  ))}
-                </select>
-              </div>
+            <div>
+              <label style={{
+                display: 'block',
+                fontSize: 'var(--font-size-sm)',
+                marginBottom: 'var(--spacing-xs)',
+                color: 'var(--color-text-muted)'
+              }}>
+                Agent Model
+              </label>
+              <select
+                value={selectedModel}
+                onChange={(e) => {
+                  setSelectedModel(e.target.value);
+                  saveSettings('selectedModel', e.target.value);
+                }}
+                onMouseEnter={() => setHoverAgentModel(true)}
+                onMouseLeave={() => setHoverAgentModel(false)}
+                style={{
+                  width: '100%',
+                  padding: 'var(--spacing-sm)',
+                  fontSize: 'var(--font-size-sm)',
+                  borderRadius: 'var(--radius-sm)',
+                  border: `1px solid ${hoverAgentModel ? 'var(--color-accent)' : 'var(--color-border)'}`,
+                  backgroundColor: hoverAgentModel ? 'var(--color-hover)' : 'var(--color-primary)',
+                  color: 'var(--color-text)',
+                  appearance: 'none',
+                  WebkitAppearance: 'none',
+                  MozAppearance: 'none',
+                  cursor: 'pointer',
+                  transition: 'all var(--transition-fast)',
+                }}
+              >
+                <option value="none">None</option>
+                {getAvailableModels().map((model) => (
+                  <option key={model.id} value={model.id}>
+                    {model.name}
+                  </option>
+                ))}
+              </select>
             </div>
           </div>
         </div>
@@ -1551,51 +1437,20 @@ function SettingsPanel({ currentTheme, onThemeChange }: SettingsPanelProps) {
 
       {/* System Prompt Section */}
       <section style={{ marginBottom: 'var(--spacing-xl)' }}>
-        <h3 style={{ 
-          fontSize: 'var(--font-size-md)', 
+        <h3 style={{
+          fontSize: 'var(--font-size-md)',
           marginBottom: 'var(--spacing-md)',
           color: 'var(--color-text-muted)'
         }}>
           System Prompt
         </h3>
-        
+
         <div className="card">
           <div style={{ padding: 'var(--spacing-md)' }}>
-            <div style={{ marginBottom: 'var(--spacing-md)' }}>
-              <label style={{ 
-                display: 'block', 
-                fontSize: 'var(--font-size-sm)', 
-                marginBottom: 'var(--spacing-xs)',
-                color: 'var(--color-text-muted)'
-              }}>
-                Inline Prompt
-              </label>
-              <textarea
-                value={inlinePrompt}
-                onChange={(e) => {
-                  setInlinePrompt(e.target.value);
-                  saveSettings('inlineSystemPrompt', e.target.value);
-                }}
-                placeholder="Enter custom inline system prompt..."
-                style={{
-                  width: '100%',
-                  minHeight: '150px',
-                  padding: 'var(--spacing-sm)',
-                  fontSize: 'var(--font-size-sm)',
-                  fontFamily: 'monospace',
-                  borderRadius: 'var(--radius-sm)',
-                  border: '1px solid var(--color-border)',
-                  backgroundColor: 'var(--color-primary)',
-                  color: 'var(--color-text)',
-                  resize: 'vertical',
-                }}
-              />
-            </div>
-            
             <div>
-              <label style={{ 
-                display: 'block', 
-                fontSize: 'var(--font-size-sm)', 
+              <label style={{
+                display: 'block',
+                fontSize: 'var(--font-size-sm)',
                 marginBottom: 'var(--spacing-xs)',
                 color: 'var(--color-text-muted)'
               }}>

@@ -384,3 +384,10 @@ html, body, #root {
   background: var(--color-border);
   border-radius: 2px;
 }
+
+/* Selection Indicator */
+.selection-indicator {
+  font-size: var(--font-size-xs);
+  color: var(--color-accent);
+  -webkit-app-region: no-drag;
+}

@@ -52,7 +52,7 @@ export function saveMemories(): void {
 /**
  * Add a new memory with auto-generated embedding
  */
-export async function addMemory(content: string, source?: 'agent' | 'inline'): Promise<Memory> {
+export async function addMemory(content: string): Promise<Memory> {
   loadMemories();
 
   const embedding = await getEmbedding(content);
@@ -62,8 +62,7 @@ export async function addMemory(content: string, source?: 'agent' | 'inline'): P
     id: uuidv4(),
     content,
     embedding,
-    createdAt: now,
-    source
+    createdAt: now
   };
 
   store!.memories.push(memory);

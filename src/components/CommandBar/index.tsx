@@ -2,28 +2,6 @@ import React, { useState, useEffect, useRef, useCallback, useLayoutEffect } from
 import { IoMdSend } from 'react-icons/io';
 import { IoStopCircleSharp } from 'react-icons/io5';
 
-type Mode = 'agent' | 'inline' | 'detecting';
-
-const DEFAULT_AGENT_SWITCH_SHORTCUT = 'CommandOrControl+Shift+/';
-
-// Convert Electron accelerator to display format
-const shortcutToDisplay = (accelerator: string): string => {
-  return accelerator
-    .replace('CommandOrControl', '⌘')
-    .replace('Command', '⌘')
-    .replace('Control', '⌃')
-    .replace('Shift', '⇧')
-    .replace('Alt', '⌥')
-    .replace('Option', '⌥')
-    .replace(/\+/g, '')
-    .replace('Space', '␣')
-    .toUpperCase()
-    .replace('⌘', '⌘')
-    .replace('⇧', '⇧')
-    .replace('⌃', '⌃')
-    .replace('⌥', '⌥');
-};
-
 // Line height is 14px (font-size-sm) * 1.5 = 21px
 const LINE_HEIGHT = 21;
 const MAX_LINES = 5;
@@ -44,7 +22,7 @@ const PRESET_THEMES: Record<string, { background: string; text: string; accent: 
 // Apply theme CSS variables to document
 function applyTheme(theme: string, customColors?: { background: string; text: string; accent: string }, font?: string) {
   const colors = customColors || PRESET_THEMES[theme] || PRESET_THEMES.default;
-  
+
   // Helper to lighten/darken colors
   const adjustColor = (hex: string, factor: number): string => {
     const h = hex.replace('#', '');
@@ -55,19 +33,19 @@ function applyTheme(theme: string, customColors?: { background: string; text: st
   };
 
   const doc = document.documentElement;
-  
+
   // Set base colors
   doc.style.setProperty('--color-primary', colors.background);
   doc.style.setProperty('--color-secondary', colors.text);
   doc.style.setProperty('--color-accent', colors.accent);
-  
+
   // Derive additional colors
   doc.style.setProperty('--color-primary-light', adjustColor(colors.background, 1.2));
   doc.style.setProperty('--color-primary-dark', adjustColor(colors.background, 0.7));
   doc.style.setProperty('--color-secondary-muted', colors.text + 'B3');
   doc.style.setProperty('--color-accent-hover', adjustColor(colors.accent, 1.15));
   doc.style.setProperty('--color-accent-active', adjustColor(colors.accent, 0.85));
-  
+
   // UI colors
   doc.style.setProperty('--color-background', colors.background);
   doc.style.setProperty('--color-surface', adjustColor(colors.background, 1.2));
@@ -75,12 +53,12 @@ function applyTheme(theme: string, customColors?: { background: string; text: st
   doc.style.setProperty('--color-text-muted', colors.text + 'B3');
   doc.style.setProperty('--color-border', colors.text + '26');
   doc.style.setProperty('--color-hover', colors.text + '14');
-  
+
   // Font
   if (font) {
     doc.style.setProperty('--font-family', font);
   }
-  
+
   // Set data-theme attribute
   doc.setAttribute('data-theme', theme === 'custom' ? 'custom' : theme);
 }
@@ -90,11 +68,8 @@ function CommandBar() {
   const [response, setResponse] = useState('');
   const [status, setStatus] = useState('');
   const [isProcessing, setIsProcessing] = useState(false);
-  const [mode, setMode] = useState<Mode>('detecting');
-  const [contextText, setContextText] = useState('');
-  const [modelAvailability, setModelAvailability] = useState<{ agentAvailable: boolean; inlineAvailable: boolean }>({ agentAvailable: true, inlineAvailable: true });
+  const [selectedTextLength, setSelectedTextLength] = useState<number>(0); // Character count of selected text
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
-  const [agentSwitchShortcut, setAgentSwitchShortcut] = useState(DEFAULT_AGENT_SWITCH_SHORTCUT);
   const inputRef = useRef<HTMLTextAreaElement>(null);
   const responseRef = useRef<HTMLDivElement>(null);
 
@@ -102,26 +77,26 @@ function CommandBar() {
   useLayoutEffect(() => {
     const textarea = inputRef.current;
     if (!textarea) return;
-    
+
     // Collapse to 0 to get true content height (no flexbox interference now)
     textarea.style.height = '0px';
     textarea.style.overflow = 'hidden';
-    
+
     // Read the true content height
     const scrollHeight = textarea.scrollHeight;
     const contentHeight = Math.max(LINE_HEIGHT, Math.min(scrollHeight, MAX_TEXTAREA_HEIGHT));
     textarea.style.height = `${contentHeight}px`;
-    
+
     // Clear inline overflow style so CSS class can control it
     textarea.style.overflow = '';
-    
+
     // Only enable scrolling when content exceeds max height
     if (scrollHeight > MAX_TEXTAREA_HEIGHT) {
       textarea.classList.add('scrollable');
     } else {
       textarea.classList.remove('scrollable');
     }
-    
+
     // Calculate response height (actual content height, capped at max)
     let responseHeight = 0;
     if (response && responseRef.current) {
@@ -133,13 +108,13 @@ function CommandBar() {
       el.style.maxHeight = originalMaxHeight;
       responseHeight = Math.min(actualHeight, MAX_RESPONSE_HEIGHT) + 16; // +16 for margin
     }
-    
+
     // Calculate and set window height
     const totalHeight = BASE_HEIGHT + contentHeight + responseHeight;
     window.faria.commandBar.resize(totalHeight);
   }, [query, response]);
 
-  // Load theme and shortcuts on mount
+  // Load theme on mount
   useEffect(() => {
     const loadSettings = async () => {
       try {
@@ -170,12 +145,6 @@ function CommandBar() {
         }
 
         applyTheme(theme, customColors, font);
-
-        // Load agent switch shortcut
-        const savedShortcut = await window.faria.settings.get('agentSwitchShortcut');
-        if (savedShortcut) {
-          setAgentSwitchShortcut(savedShortcut);
-        }
       } catch (e) {
         console.error('[CommandBar] Error loading settings:', e);
       }
@@ -190,35 +159,22 @@ function CommandBar() {
   }, []);
 
   useEffect(() => {
-    // Reset mode state when command bar is about to hide
-    // This ensures clean state for next open - no flash of old mode
-    // Note: query and response persist intentionally
+    // Reset state when command bar is about to hide
     window.faria.commandBar.onWillHide(() => {
       setStatus('');
       setIsProcessing(false);
-      setMode('detecting');
-      setContextText('');
+      setSelectedTextLength(0);
       setErrorMessage(null);
     });
 
     // Focus input when command bar becomes visible
-    window.faria.commandBar.onFocus(async () => {
-      // State is already reset from onWillHide, just focus
+    window.faria.commandBar.onFocus(() => {
       inputRef.current?.focus();
-
-      // Reload shortcut in case it changed in settings
-      const savedShortcut = await window.faria.settings.get('agentSwitchShortcut');
-      if (savedShortcut) {
-        setAgentSwitchShortcut(savedShortcut);
-      }
     });
 
-    // Listen for mode changes from main process
-    window.faria.commandBar.onModeChange((newMode: Mode, context?: string) => {
-      setMode(newMode);
-      if (context) {
-        setContextText(context);
-      }
+    // Listen for ready state (detection complete) - just update selected text length
+    window.faria.commandBar.onReady((data) => {
+      setSelectedTextLength(data.selectedTextLength);
     });
 
     // Listen for status updates from agent
@@ -231,29 +187,6 @@ function CommandBar() {
       setResponse(newResponse);
       setIsProcessing(false);
       setStatus('');
-    });
-
-    // Listen for inline status updates
-    window.faria.commandBar.onInlineStatus((newStatus: string) => {
-      setStatus(newStatus);
-    });
-
-    // Listen for inline response
-    window.faria.commandBar.onInlineResponse((newResponse: string) => {
-      setResponse(newResponse);
-      setIsProcessing(false);
-      setStatus('');
-    });
-
-    // Listen for edit applied - silently complete, the edit speaks for itself
-    window.faria.commandBar.onEditApplied(() => {
-      setIsProcessing(false);
-      setStatus('');
-    });
-
-    // Listen for model availability updates
-    window.faria.commandBar.onModelAvailability((availability) => {
-      setModelAvailability(availability);
     });
 
     // Listen for error messages
@@ -270,45 +203,19 @@ function CommandBar() {
     });
   }, []);
 
-  // Handle mode switching via keyboard shortcut
-  const switchMode = useCallback((newMode: 'agent' | 'inline') => {
-    if (isProcessing) return;
-    // Check if the target mode is available
-    if (newMode === 'agent' && !modelAvailability.agentAvailable) return;
-    if (newMode === 'inline' && !modelAvailability.inlineAvailable) return;
-    setMode(newMode);
-    window.faria.commandBar.setMode(newMode);
-  }, [isProcessing, modelAvailability]);
-
-  // Determine if mode switching is allowed
-  const canSwitchModes = modelAvailability.agentAvailable && modelAvailability.inlineAvailable;
-
-
   const handleSubmit = useCallback(async () => {
-    if (!query.trim() || isProcessing || mode === 'detecting') return;
+    if (!query.trim() || isProcessing) return;
 
     setIsProcessing(true);
     setResponse('');
 
     try {
-      if (mode === 'agent') {
-        setStatus('Extracting state...');
-        const result = await window.faria.agent.submit(query);
-        if (result.success && result.result) {
-          setResponse(result.result);
-          // History is saved in the agent loop, no need to add here
-        } else if (result.error) {
-          setResponse(`Error: ${result.error}`);
-        }
-      } else {
-        // Inline mode
-        setStatus('Thinking...');
-        const result = await window.faria.commandBar.submitInline(query, contextText);
-        if (result.success && result.result) {
-          setResponse(result.result);
-        } else if (result.error) {
-          setResponse(`Error: ${result.error}`);
-        }
+      setStatus('Extracting state...');
+      const result = await window.faria.agent.submit(query);
+      if (result.success && result.result) {
+        setResponse(result.result);
+      } else if (result.error) {
+        setResponse(`Error: ${result.error}`);
       }
     } catch (error) {
       setResponse(`Error: ${String(error)}`);
@@ -316,10 +223,9 @@ function CommandBar() {
       setIsProcessing(false);
       setStatus('');
     }
-  }, [query, isProcessing, mode, contextText]);
+  }, [query, isProcessing]);
 
   const handleKeyDown = useCallback((e: React.KeyboardEvent) => {
-    // Mode switching is handled by global shortcut (Cmd+Shift+/)
     if (e.key === 'Enter' && !e.shiftKey) {
       e.preventDefault();
       handleSubmit();
@@ -331,7 +237,6 @@ function CommandBar() {
 
   const handleInputChange = (e: React.ChangeEvent<HTMLTextAreaElement>) => {
     setQuery(e.target.value);
-    // Resizing is handled by useLayoutEffect when query changes
   };
 
   const handleStop = useCallback(async () => {
@@ -341,16 +246,13 @@ function CommandBar() {
     setStatus('');
   }, [isProcessing]);
 
-  const modeName = mode === 'agent' ? 'Agent' : mode === 'inline' ? 'Inline' : 'Agent';
-  const placeholder = mode === 'detecting' ? '...' : mode === 'agent' ? 'Take action...' : 'Edit or ask about selection...';
-
   return (
     <div className="command-bar">
       <div className="command-bar-input-area">
         <textarea
           ref={inputRef}
           className="command-bar-input"
-          placeholder={placeholder}
+          placeholder="What do you seek?"
           value={query}
           onChange={handleInputChange}
           onKeyDown={handleKeyDown}
@@ -375,16 +277,9 @@ function CommandBar() {
           )}
         </div>
         <div className="footer-right">
-          {/* Mode selector - only show if both models are available and not detecting */}
-          {canSwitchModes && mode !== 'detecting' && (
-            <button
-              className="mode-selector-trigger"
-              onClick={() => switchMode(mode === 'agent' ? 'inline' : 'agent')}
-              disabled={isProcessing}
-            >
-              <span className="mode-shortcut-hint">{shortcutToDisplay(agentSwitchShortcut)}</span>
-              <span>{modeName}</span>
-            </button>
+          {/* Selection indicator - shows character count when text is selected */}
+          {selectedTextLength > 0 && (
+            <span className="selection-indicator" title="Selected text">{selectedTextLength} chars</span>
           )}
 
           {isProcessing ? (
@@ -399,7 +294,7 @@ function CommandBar() {
             <button
               className="send-button"
               onClick={handleSubmit}
-              disabled={!query.trim() || mode === 'detecting'}
+              disabled={!query.trim()}
               title="Send message"
             >
               <IoMdSend />

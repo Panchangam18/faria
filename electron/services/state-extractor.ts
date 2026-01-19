@@ -30,8 +30,9 @@ export class StateExtractor {
    * Extract state from the currently focused application
    * Uses native accessibility as primary method
    * No images - pure structured data
+   * @param selectedText Optional user-selected text to include at top of state
    */
-  async extractState(): Promise<AppState> {
+  async extractState(selectedText?: string): Promise<AppState> {
     const timestamp = Date.now();
 
     // Primary: Native accessibility extraction
@@ -39,11 +40,13 @@ export class StateExtractor {
     const appName = nativeResult.app;
     const bundleId = nativeResult.bundleId;
 
+    let state: AppState;
+
     // For browsers, we can optionally enhance with JS injection
     // but native AX already gives us good data
     if (isBrowser(appName) && hasUsefulContent(nativeResult)) {
       // Native AX works well for browsers too - use it
-      return {
+      state = {
         method: 'native_ax',
         appName,
         bundleId,
@@ -52,15 +55,13 @@ export class StateExtractor {
         formatted: formatNativeState(nativeResult),
         timestamp,
       };
-    }
-
-    // For browsers where native AX failed, try JS injection as fallback
-    if (isBrowser(appName) && !hasUsefulContent(nativeResult)) {
+    } else if (isBrowser(appName) && !hasUsefulContent(nativeResult)) {
+      // For browsers where native AX failed, try JS injection as fallback
       const browserType = getBrowserType(appName);
       if (browserType) {
         const browserState = await extractViaJSInjection(browserType);
         if (browserState && browserState.elements.length > 0) {
-          return {
+          state = {
             method: 'js_injection',
             appName,
             bundleId,
@@ -69,13 +70,35 @@ export class StateExtractor {
             formatted: formatBrowserStateCompact(browserState),
             timestamp,
           };
+        } else {
+          // Fallback to screenshot
+          const screenshot = await takeScreenshot({ preserveSize: true });
+          state = {
+            method: 'screenshot',
+            appName,
+            bundleId,
+            windowTitle: nativeResult.windowTitle,
+            screenshot,
+            formatted: `App: ${appName}\nWindow: ${nativeResult.windowTitle || 'Unknown'}\n\n[No structured UI data available - screenshot provided for visual context]`,
+            timestamp,
+          };
         }
+      } else {
+        // Fallback to screenshot
+        const screenshot = await takeScreenshot({ preserveSize: true });
+        state = {
+          method: 'screenshot',
+          appName,
+          bundleId,
+          windowTitle: nativeResult.windowTitle,
+          screenshot,
+          formatted: `App: ${appName}\nWindow: ${nativeResult.windowTitle || 'Unknown'}\n\n[No structured UI data available - screenshot provided for visual context]`,
+          timestamp,
+        };
       }
-    }
-
-    // If we have useful native AX content, use it
-    if (hasUsefulContent(nativeResult)) {
-      return {
+    } else if (hasUsefulContent(nativeResult)) {
+      // If we have useful native AX content, use it
+      state = {
         method: 'native_ax',
         appName,
         bundleId,
@@ -84,20 +107,28 @@ export class StateExtractor {
         formatted: formatNativeState(nativeResult),
         timestamp,
       };
+    } else {
+      // Last resort: screenshot fallback (for Electron apps, etc.)
+      // Use preserveSize to ensure coordinates match the screen dimensions for computer use
+      const screenshot = await takeScreenshot({ preserveSize: true });
+      state = {
+        method: 'screenshot',
+        appName,
+        bundleId,
+        windowTitle: nativeResult.windowTitle,
+        screenshot,
+        formatted: `App: ${appName}\nWindow: ${nativeResult.windowTitle || 'Unknown'}\n\n[No structured UI data available - screenshot provided for visual context]`,
+        timestamp,
+      };
     }
 
-    // Last resort: screenshot fallback (for Electron apps, etc.)
-    // Use preserveSize to ensure coordinates match the screen dimensions for computer use
-    const screenshot = await takeScreenshot({ preserveSize: true });
-    return {
-      method: 'screenshot',
-      appName,
-      bundleId,
-      windowTitle: nativeResult.windowTitle,
-      screenshot,
-      formatted: `App: ${appName}\nWindow: ${nativeResult.windowTitle || 'Unknown'}\n\n[No structured UI data available - screenshot provided for visual context]`,
-      timestamp,
-    };
+    // If selected text is provided, prepend it to the formatted output
+    if (selectedText) {
+      const selectedPrefix = `=== USER SELECTED TEXT ===\n"${selectedText}"\n\nYou can replace this selected text by using chain_actions with type: "type" to type replacement text.\n\n`;
+      state.formatted = selectedPrefix + state.formatted;
+    }
+
+    return state;
   }
 
   /**

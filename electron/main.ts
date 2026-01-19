@@ -4,7 +4,6 @@ import { initDatabase } from './db/sqlite';
 import { StateExtractor } from './services/state-extractor';
 import { AgentLoop } from './agent/loop';
 import { ToolExecutor } from './agent/tools';
-import { getInlineAgent } from './inline';
 import { getSelectedText } from './services/text-extraction';
 import { exec } from 'child_process';
 import { promisify } from 'util';
@@ -16,8 +15,7 @@ let mainWindow: BrowserWindow | null = null;
 let commandBarWindow: BrowserWindow | null = null;
 let isCommandBarVisible = false;
 let targetAppName: string | null = null; // The app that was focused when command bar was invoked
-let currentContextText: string | null = null; // Text around cursor for inline mode
-let currentMode: 'agent' | 'inline' = 'agent';
+let currentSelectedText: string | null = null; // User-selected text when command bar was invoked
 let cachedCommandBarPosition: { x: number; y: number } | null = null; // Cached position for instant toggle
 let commandBarSessionId = 0; // Incremented on each open to cancel stale async operations
 
@@ -48,9 +46,8 @@ let isMainWindowVisible = false;
 const DEFAULT_COMMAND_BAR_WIDTH = 400;
 const DEFAULT_COMMAND_BAR_HEIGHT = 67; // Single line: 46 (base) + 21 (one line)
 
-// Default keyboard shortcuts
+// Default keyboard shortcut
 const DEFAULT_COMMAND_BAR_SHORTCUT = 'CommandOrControl+/';
-const DEFAULT_AGENT_SWITCH_SHORTCUT = 'CommandOrControl+Shift+/';
 
 function createMainWindow() {
   mainWindow = new BrowserWindow({
@@ -253,20 +250,17 @@ async function toggleCommandBar() {
     commandBarWindow?.hide();
     isCommandBarVisible = false;
     targetAppName = null;
-    currentContextText = null;
-    currentMode = 'agent';
+    currentSelectedText = null;
     return;
   }
 
   // Check model settings (synchronous DB read is fast)
   const db = initDatabase();
   const agentModelRow = db.prepare('SELECT value FROM settings WHERE key = ?').get('selectedModel') as { value: string } | undefined;
-  const inlineModelRow = db.prepare('SELECT value FROM settings WHERE key = ?').get('selectedInlineModel') as { value: string } | undefined;
   const agentModel = agentModelRow?.value || 'claude-sonnet-4-20250514';
-  const inlineModel = inlineModelRow?.value || 'claude-sonnet-4-20250514';
 
-  // If both models are "none", show error and don't open command bar
-  if (agentModel === 'none' && inlineModel === 'none') {
+  // If model is "none", show error and don't open command bar
+  if (agentModel === 'none') {
     // Show error message - we'll send it to the command bar window
     if (!commandBarWindow) {
       createCommandBarWindow();
@@ -290,23 +284,19 @@ async function toggleCommandBar() {
     return;
   }
 
-  // Show command bar IMMEDIATELY - no waiting for async operations
-  // Start in 'detecting' state, will resolve to agent/inline once text detection completes
-  currentContextText = null;
+  // Clear selected text for this session
+  currentSelectedText = null;
 
   // Increment session ID to cancel any stale async operations from previous open/close cycles
   const thisSessionId = ++commandBarSessionId;
 
   showCommandBar();
 
-  // Send model availability right away, mode will be sent after detection
+  // Send detecting state to UI (shows loading indicator)
   setImmediate(() => {
     if (thisSessionId !== commandBarSessionId) return; // Session cancelled
     if (commandBarWindow && isCommandBarVisible) {
-      commandBarWindow.webContents.send('command-bar:model-availability', {
-        agentAvailable: agentModel !== 'none',
-        inlineAvailable: inlineModel !== 'none'
-      });
+      commandBarWindow.webContents.send('command-bar:detecting');
     }
   });
 
@@ -319,40 +309,29 @@ async function toggleCommandBar() {
     targetAppName = capturedApp;
     console.log('[Faria] Target app captured:', targetAppName);
 
-    // Only try to get selected text if inline mode is available
-    if (inlineModel === 'none') {
-      console.log('[Faria] Inline model is None, defaulting to agent mode');
-      currentMode = 'agent';
-      commandBarWindow?.webContents.send('command-bar:mode-change', currentMode, undefined);
-      return;
-    }
-
     getSelectedText(capturedApp).then(selectedText => {
       if (thisSessionId !== commandBarSessionId) return; // Session cancelled
 
       if (selectedText) {
-        console.log('[Faria] Text detected, using inline mode. Length:', selectedText.length);
-        currentContextText = selectedText;
-        currentMode = 'inline';
+        console.log('[Faria] Text detected. Length:', selectedText.length);
+        currentSelectedText = selectedText;
       } else {
-        console.log('[Faria] No text selected, using agent mode');
-        currentMode = agentModel !== 'none' ? 'agent' : 'inline';
+        console.log('[Faria] No text selected');
       }
-      // Send the resolved mode to the renderer
-      commandBarWindow?.webContents.send('command-bar:mode-change', currentMode, currentContextText || undefined);
+      // Send ready state to the renderer with character count
+      commandBarWindow?.webContents.send('command-bar:ready', {
+        hasSelectedText: !!selectedText,
+        selectedTextLength: selectedText ? selectedText.length : 0
+      });
     }).catch(e => {
       if (thisSessionId !== commandBarSessionId) return; // Session cancelled
       console.error('[Faria] Failed to get selected text:', e);
-      // Default to agent mode on error
-      currentMode = agentModel !== 'none' ? 'agent' : 'inline';
-      commandBarWindow?.webContents.send('command-bar:mode-change', currentMode, undefined);
+      commandBarWindow?.webContents.send('command-bar:ready', { hasSelectedText: false, selectedTextLength: 0 });
     });
   }).catch(e => {
     if (thisSessionId !== commandBarSessionId) return; // Session cancelled
     console.error('[Faria] Failed to get frontmost app:', e);
-    // Default to agent mode on error
-    currentMode = agentModel !== 'none' ? 'agent' : 'inline';
-    commandBarWindow?.webContents.send('command-bar:mode-change', currentMode, undefined);
+    commandBarWindow?.webContents.send('command-bar:ready', { hasSelectedText: false, selectedTextLength: 0 });
   });
 }
 
@@ -426,15 +405,12 @@ function registerGlobalShortcuts() {
   // Unregister all existing shortcuts first
   globalShortcut.unregisterAll();
 
-  // Load shortcuts from settings
+  // Load shortcut from settings
   const db = initDatabase();
   const commandBarShortcutRow = db.prepare('SELECT value FROM settings WHERE key = ?').get('commandBarShortcut') as { value: string } | undefined;
-  const agentSwitchShortcutRow = db.prepare('SELECT value FROM settings WHERE key = ?').get('agentSwitchShortcut') as { value: string } | undefined;
-
   const commandBarShortcut = commandBarShortcutRow?.value || DEFAULT_COMMAND_BAR_SHORTCUT;
-  const agentSwitchShortcut = agentSwitchShortcutRow?.value || DEFAULT_AGENT_SWITCH_SHORTCUT;
 
-  console.log('[Faria] Registering shortcuts:', { commandBarShortcut, agentSwitchShortcut });
+  console.log('[Faria] Registering shortcut:', commandBarShortcut);
 
   // Register command bar toggle shortcut
   const ret = globalShortcut.register(commandBarShortcut, () => {
@@ -444,42 +420,14 @@ function registerGlobalShortcuts() {
   if (!ret) {
     console.error('[Faria] Failed to register global shortcut for toggle:', commandBarShortcut);
   }
-
-  // Register agent switch shortcut (only when command bar is visible)
-  const ret2 = globalShortcut.register(agentSwitchShortcut, () => {
-    if (isCommandBarVisible && commandBarWindow) {
-      // Toggle between agent and inline mode
-      const newMode = currentMode === 'agent' ? 'inline' : 'agent';
-
-      // Check if the target mode's model is available
-      const db = initDatabase();
-      const modelKey = newMode === 'agent' ? 'selectedModel' : 'selectedInlineModel';
-      const modelRow = db.prepare('SELECT value FROM settings WHERE key = ?').get(modelKey) as { value: string } | undefined;
-      const model = modelRow?.value || 'claude-sonnet-4-20250514';
-
-      if (model === 'none') {
-        console.log('[Faria] Cannot switch to', newMode, '- model is None');
-        commandBarWindow.webContents.send('command-bar:error', `Cannot switch to ${newMode} mode - model is set to None in Settings`);
-        return;
-      }
-
-      currentMode = newMode;
-      console.log('[Faria] Mode switched via hotkey to:', newMode);
-      commandBarWindow.webContents.send('command-bar:mode-change', newMode, currentContextText || undefined);
-    }
-  });
-
-  if (!ret2) {
-    console.error('[Faria] Failed to register global shortcut for agent switch:', agentSwitchShortcut);
-  }
 }
 
 function setupIPC() {
   // Agent-related IPC
   ipcMain.handle('agent:submit', async (_event, query: string) => {
     try {
-      console.log('[Faria] Agent submit with target app:', targetAppName);
-      const result = await agentLoop.run(query, targetAppName);
+      console.log('[Faria] Agent submit with target app:', targetAppName, 'selectedText:', currentSelectedText ? `${currentSelectedText.length} chars` : 'none');
+      const result = await agentLoop.run(query, targetAppName, currentSelectedText);
       return { success: true, result };
     } catch (error) {
       return { success: false, error: String(error) };
@@ -487,9 +435,7 @@ function setupIPC() {
   });
 
   ipcMain.handle('agent:cancel', async () => {
-    // Cancel both agent and inline agent
     agentLoop.cancel();
-    getInlineAgent().cancel();
     return { success: true };
   });
 
@@ -523,15 +469,10 @@ function setupIPC() {
     return { success: true };
   });
 
-  // Get default prompts
-  ipcMain.handle('settings:getDefaultPrompt', async (_event, promptType: 'inline' | 'agent') => {
-    if (promptType === 'inline') {
-      const { INLINE_SYSTEM_PROMPT } = await import('./static/prompts/inline');
-      return INLINE_SYSTEM_PROMPT;
-    } else {
-      const { AGENT_SYSTEM_PROMPT } = await import('./static/prompts/agent');
-      return AGENT_SYSTEM_PROMPT;
-    }
+  // Get default prompt
+  ipcMain.handle('settings:getDefaultPrompt', async () => {
+    const { AGENT_SYSTEM_PROMPT } = await import('./static/prompts/agent');
+    return AGENT_SYSTEM_PROMPT;
   });
 
   // Shortcuts IPC
@@ -619,8 +560,7 @@ function setupIPC() {
       commandBarWindow.webContents.send('command-bar:will-hide');
       commandBarWindow.hide();
       isCommandBarVisible = false;
-      currentMode = 'agent';
-      currentContextText = null;
+      currentSelectedText = null;
     }
   });
 
@@ -655,26 +595,6 @@ function setupIPC() {
     }
   });
 
-  // Mode switching IPC
-  ipcMain.on('command-bar:set-mode', (_event, mode: 'agent' | 'inline') => {
-    // Check if the target mode's model is available
-    const db = initDatabase();
-    const modelKey = mode === 'agent' ? 'selectedModel' : 'selectedInlineModel';
-    const modelRow = db.prepare('SELECT value FROM settings WHERE key = ?').get(modelKey) as { value: string } | undefined;
-    const model = modelRow?.value || 'claude-sonnet-4-20250514';
-    
-    if (model === 'none') {
-      console.log('[Faria] Cannot switch to', mode, '- model is None');
-      if (commandBarWindow) {
-        commandBarWindow.webContents.send('command-bar:error', `Cannot switch to ${mode} mode - model is set to None in Settings`);
-      }
-      return;
-    }
-    
-    currentMode = mode;
-    console.log('[Faria] Mode switched to:', mode);
-  });
-
   // Dropdown visibility - expand window upward to make room
   ipcMain.on('command-bar:dropdown-visible', (_event, visible: boolean) => {
     if (!commandBarWindow) return;
@@ -700,33 +620,6 @@ function setupIPC() {
         width,
         height: baseContentHeight
       });
-    }
-  });
-
-  // Inline submission IPC (for unified command bar)
-  ipcMain.handle('command-bar:submit-inline', async (_event, query: string, contextText: string) => {
-    try {
-      console.log('[Faria] Inline submit:', query, 'context length:', contextText?.length || 0);
-      
-      const inlineAgent = getInlineAgent();
-      
-      // Set up status callback
-      inlineAgent.setStatusCallback((status) => {
-        commandBarWindow?.webContents.send('command-bar:inline-status', status);
-      });
-      
-      const result = await inlineAgent.run(query, contextText || currentContextText || null, targetAppName);
-      
-      if (result.type === 'edits') {
-        commandBarWindow?.webContents.send('command-bar:edit-applied');
-      }
-      
-      commandBarWindow?.webContents.send('command-bar:inline-response', result.content);
-      return { success: true, result: result.content };
-    } catch (error) {
-      const errorMsg = String(error);
-      commandBarWindow?.webContents.send('command-bar:inline-response', errorMsg);
-      return { success: false, error: errorMsg };
     }
   });
 

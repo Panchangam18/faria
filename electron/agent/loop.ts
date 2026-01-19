@@ -60,25 +60,26 @@ export class AgentLoop {
    * Run the agent loop for a user query
    * @param query The user's request
    * @param targetApp The app that was focused when the command bar was invoked
+   * @param selectedText Optional text that was selected when the command bar was invoked
    */
-  async run(query: string, targetApp?: string | null): Promise<string> {
+  async run(query: string, targetApp?: string | null, selectedText?: string | null): Promise<string> {
     if (this.isRunning) {
       throw new Error('Agent is already running');
     }
-    
+
     this.isRunning = true;
     this.shouldCancel = false;
-    
-    console.log(`[Faria] Starting agent run with targetApp: ${targetApp}`);
-    
+
+    console.log(`[Faria] Starting agent run with targetApp: ${targetApp}, selectedText: ${selectedText ? `${selectedText.length} chars` : 'none'}`);
+
     try {
       // Set the target app for tools to use
       this.toolExecutor.setTargetApp(targetApp || null);
-      
+
       // Run the traceable agent loop - this creates a single parent trace in LangSmith
       // with all iterations nested underneath
-      const result = await this.executeAgentLoop(query, targetApp);
-      
+      const result = await this.executeAgentLoop(query, targetApp, selectedText);
+
       this.sendResponse(result);
       return result;
     } finally {
@@ -91,10 +92,10 @@ export class AgentLoop {
    * This ensures all iterations appear under a single trace
    */
   private executeAgentLoop = traceable(
-    async (query: string, targetApp?: string | null): Promise<string> => {
-      // Extract initial state
+    async (query: string, targetApp?: string | null, selectedText?: string | null): Promise<string> => {
+      // Extract initial state (with selected text if provided)
       this.sendStatus('Extracting state...');
-      let state = await this.stateExtractor.extractState();
+      let state = await this.stateExtractor.extractState(selectedText || undefined);
       this.toolExecutor.setCurrentState(state);
 
       // Get relevant memories via semantic search
@@ -206,15 +207,14 @@ export class AgentLoop {
         }
         
         console.log(`[Faria] Response received, tool_calls:`, response.tool_calls?.length || 0);
-        
+
         // Check if there are tool calls
         if (response.tool_calls && response.tool_calls.length > 0) {
-          // Add the assistant's response with tool calls first
-          addMessage(new AIMessage({
-            content: response.content as string || '',
-            tool_calls: response.tool_calls,
-          }));
-          
+          // Add the assistant's response directly - preserves all metadata
+          // (id, additional_kwargs, etc.) that LangChain needs for proper
+          // message threading with different providers
+          addMessage(response);
+
           // Execute tool calls and add ToolMessage for each
           for (const toolCall of response.tool_calls) {
             // Check for cancellation before each tool call
@@ -222,7 +222,7 @@ export class AgentLoop {
               console.log('[Faria] Cancelled before tool execution');
               break;
             }
-            
+
             console.log(`[Faria] Tool call: ${toolCall.name}`, JSON.stringify(toolCall.args).slice(0, 500));
             this.sendStatus(`${getToolDisplayName(toolCall.name)}...`);
             toolsUsed.push(toolCall.name);
@@ -231,7 +231,7 @@ export class AgentLoop {
               input: toolCall.args,
               timestamp: Date.now()
             });
-            
+
             // Handle computer tool specially (works for both providers)
             if (isComputerUseTool(toolCall.name)) {
               try {
@@ -241,12 +241,14 @@ export class AgentLoop {
                 addMessage(new ToolMessage({
                   content: computerResult,
                   tool_call_id: toolCall.id || toolCall.name,
+                  name: toolCall.name,
                 }));
               } catch (error) {
                 console.log(`[Faria] Computer tool result: FAILED`, error);
                 addMessage(new ToolMessage({
                   content: `Error: ${error}`,
                   tool_call_id: toolCall.id || toolCall.name,
+                  name: toolCall.name,
                 }));
               }
             } else {
@@ -255,42 +257,32 @@ export class AgentLoop {
                 toolCall.name,
                 toolCall.args as Record<string, unknown>
               );
-              
+
               console.log(`[Faria] Tool result: ${result.success ? 'SUCCESS' : 'FAILED'}`, result.result?.slice(0, 200) || result.error);
-              
+
               const resultContent = result.success ? (result.result || 'Done') : `Error: ${result.error}`;
 
-              // Add proper ToolMessage with tool_call_id
               addMessage(new ToolMessage({
                 content: resultContent,
                 tool_call_id: toolCall.id || toolCall.name,
+                name: toolCall.name,
               }));
             }
           }
-          
+
           // Break out of main loop if cancelled during tool execution
           if (this.shouldCancel) {
             console.log('[Faria] Cancelled after tool execution');
             break;
           }
-          
-          // Refresh state after tool execution
-          this.sendStatus('Checking result...');
+
+          // Refresh state for tool executor (but don't add to messages)
+          // Standard LangChain pattern: after ToolMessages, invoke model directly
+          // Adding HumanMessages between ToolMessages and next model call breaks
+          // the expected message flow for some providers
+          this.sendStatus('Thinking...');
           state = await this.stateExtractor.extractState();
           this.toolExecutor.setCurrentState(state);
-
-          // Add updated state context as a human message (with screenshot if fallback)
-          const stateText = `Updated state:\n${this.stateExtractor.formatForAgent(state)}`;
-          if (state.screenshot) {
-            addMessage(new HumanMessage({
-              content: [
-                { type: 'text', text: stateText },
-                { type: 'image_url', image_url: { url: state.screenshot } },
-              ],
-            }));
-          } else {
-            addMessage(new HumanMessage(stateText));
-          }
         } else {
           // No tool calls - agent is done
           finalResponse = typeof response.content === 'string' 

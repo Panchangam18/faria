@@ -24,7 +24,7 @@ contextBridge.exposeInMainWorld('faria', {
   settings: {
     get: (key: string) => ipcRenderer.invoke('settings:get', key),
     set: (key: string, value: string) => ipcRenderer.invoke('settings:set', key, value),
-    getDefaultPrompt: (promptType: 'inline' | 'agent') => ipcRenderer.invoke('settings:getDefaultPrompt', promptType),
+    getDefaultPrompt: () => ipcRenderer.invoke('settings:getDefaultPrompt'),
     onThemeChange: (callback: (themeData: { theme: string; customColors?: { background: string; text: string; accent: string }; font: string }) => void) => {
       ipcRenderer.on('settings:theme-change', (_event, themeData) => callback(themeData));
     }
@@ -55,33 +55,22 @@ contextBridge.exposeInMainWorld('faria', {
     reregister: () => ipcRenderer.invoke('shortcuts:reregister'),
   },
 
-  // Command Bar (unified for both agent and inline modes)
+  // Command Bar
   commandBar: {
     hide: () => ipcRenderer.send('command-bar:hide'),
     resize: (height: number) => ipcRenderer.send('command-bar:resize', height),
-    setMode: (mode: 'agent' | 'inline') => ipcRenderer.send('command-bar:set-mode', mode),
     setDropdownVisible: (visible: boolean) => ipcRenderer.send('command-bar:dropdown-visible', visible),
-    submitInline: (query: string, contextText: string) => ipcRenderer.invoke('command-bar:submit-inline', query, contextText),
     onFocus: (callback: () => void) => {
       ipcRenderer.on('command-bar:focus', () => callback());
     },
-    onModeChange: (callback: (mode: 'agent' | 'inline', context?: string) => void) => {
-      ipcRenderer.on('command-bar:mode-change', (_event, mode, context) => callback(mode, context));
+    onDetecting: (callback: () => void) => {
+      ipcRenderer.on('command-bar:detecting', () => callback());
     },
-    onModelAvailability: (callback: (availability: { agentAvailable: boolean; inlineAvailable: boolean }) => void) => {
-      ipcRenderer.on('command-bar:model-availability', (_event, availability) => callback(availability));
+    onReady: (callback: (data: { hasSelectedText: boolean; selectedTextLength: number }) => void) => {
+      ipcRenderer.on('command-bar:ready', (_event, data) => callback(data));
     },
     onError: (callback: (error: string) => void) => {
       ipcRenderer.on('command-bar:error', (_event, error) => callback(error));
-    },
-    onInlineStatus: (callback: (status: string) => void) => {
-      ipcRenderer.on('command-bar:inline-status', (_event, status) => callback(status));
-    },
-    onInlineResponse: (callback: (response: string) => void) => {
-      ipcRenderer.on('command-bar:inline-response', (_event, response) => callback(response));
-    },
-    onEditApplied: (callback: () => void) => {
-      ipcRenderer.on('command-bar:edit-applied', () => callback());
     },
     onWillHide: (callback: () => void) => {
       ipcRenderer.on('command-bar:will-hide', () => callback());
@@ -103,7 +92,7 @@ export interface FariaAPI {
   settings: {
     get: (key: string) => Promise<string | null>;
     set: (key: string, value: string) => Promise<{ success: boolean }>;
-    getDefaultPrompt: (promptType: 'inline' | 'agent') => Promise<string>;
+    getDefaultPrompt: () => Promise<string>;
     onThemeChange: (callback: (themeData: { theme: string; customColors?: { background: string; text: string; accent: string }; font: string }) => void) => void;
   };
   history: {
@@ -149,16 +138,11 @@ export interface FariaAPI {
   commandBar: {
     hide: () => void;
     resize: (height: number) => void;
-    setMode: (mode: 'agent' | 'inline') => void;
     setDropdownVisible: (visible: boolean) => void;
-    submitInline: (query: string, contextText: string) => Promise<{ success: boolean; result?: string; error?: string }>;
     onFocus: (callback: () => void) => void;
-    onModeChange: (callback: (mode: 'agent' | 'inline', context?: string) => void) => void;
-    onModelAvailability: (callback: (availability: { agentAvailable: boolean; inlineAvailable: boolean }) => void) => void;
+    onDetecting: (callback: () => void) => void;
+    onReady: (callback: (data: { hasSelectedText: boolean; selectedTextLength: number }) => void) => void;
     onError: (callback: (error: string) => void) => void;
-    onInlineStatus: (callback: (status: string) => void) => void;
-    onInlineResponse: (callback: (response: string) => void) => void;
-    onEditApplied: (callback: () => void) => void;
     onWillHide: (callback: () => void) => void;
   };
 }

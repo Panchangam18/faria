@@ -6,7 +6,6 @@ export interface Memory {
   content: string;
   embedding: number[];  // 384-dimensional vector from all-MiniLM-L6-v2
   createdAt: number;    // Unix timestamp
-  source?: 'agent' | 'inline';
 }
 
 /**

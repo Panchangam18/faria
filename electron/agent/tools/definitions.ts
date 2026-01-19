@@ -77,5 +77,38 @@ export const toolDefinitions: ToolDefinition[] = [
       required: ['actions'],
     },
   },
+  {
+    name: 'web_search',
+    description: 'Search the web for information using DuckDuckGo. Returns facts and information.',
+    parameters: {
+      type: 'object',
+      properties: {
+        query: { type: 'string', description: 'The search query' },
+      },
+      required: ['query'],
+    },
+  },
+  {
+    name: 'insert_image',
+    description: 'Search Google Images and insert the best result at cursor position.',
+    parameters: {
+      type: 'object',
+      properties: {
+        query: { type: 'string', description: 'Image search query' },
+      },
+      required: ['query'],
+    },
+  },
+  {
+    name: 'replace_selected_text',
+    description: 'Replace the currently selected text in the target app with new text. Use this when the user has text selected (shown as USER SELECTED TEXT in state) and wants to modify/replace/expand it. The selected text will be replaced with your new text.',
+    parameters: {
+      type: 'object',
+      properties: {
+        text: { type: 'string', description: 'The replacement text that will replace the current selection' },
+      },
+      required: ['text'],
+    },
+  },
 ];
 
