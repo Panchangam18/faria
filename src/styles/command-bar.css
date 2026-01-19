@@ -39,6 +39,18 @@ html, body, #root {
   background: rgba(26, 47, 26, 0.92);
 }
 
+[data-theme="aurora"] .command-bar {
+  background: rgba(26, 26, 46, 0.92);
+}
+
+[data-theme="obsidian"] .command-bar {
+  background: rgba(30, 30, 30, 0.92);
+}
+
+[data-theme="ocean"] .command-bar {
+  background: rgba(15, 32, 39, 0.92);
+}
+
 /* Input Area */
 .command-bar-input-area {
   flex: 0 0 auto; /* Don't grow or shrink - size determined by content */
@@ -275,6 +287,18 @@ html, body, #root {
 
 [data-theme="forest"] .mode-selector-menu {
   background: rgba(26, 47, 26, 0.92);
+}
+
+[data-theme="aurora"] .mode-selector-menu {
+  background: rgba(26, 26, 46, 0.92);
+}
+
+[data-theme="obsidian"] .mode-selector-menu {
+  background: rgba(30, 30, 30, 0.92);
+}
+
+[data-theme="ocean"] .mode-selector-menu {
+  background: rgba(15, 32, 39, 0.92);
 }
 
 .mode-option {
