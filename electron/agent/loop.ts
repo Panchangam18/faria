@@ -52,12 +52,10 @@ function parseComposioAuthRequired(result: string): ComposioAuthRequired | null 
 }
 
 interface AgentConfig {
-  maxIterations: number;
   maxTokens: number;
 }
 
 const DEFAULT_CONFIG: AgentConfig = {
-  maxIterations: 10,
   maxTokens: 4096,
 };
 
@@ -218,17 +216,14 @@ export class AgentLoop {
 
       const { model: modelWithTools, invokeOptions: providerInvokeOptions } = boundModel;
 
-      let iterations = 0;
       let finalResponse = '';
       const toolsUsed: string[] = [];
       const actions: Array<{ tool: string; input: unknown; timestamp: number }> = [];
-      
-      
-      while (iterations < this.config.maxIterations && !this.shouldCancel) {
-        iterations++;
+
+
+      while (!this.shouldCancel) {
         
         this.sendStatus('Thinking...');
-        console.log(`[Faria] Iteration ${iterations}/${this.config.maxIterations}`);
         
         // Check for cancellation before API call
         if (this.shouldCancel) {
@@ -248,7 +243,6 @@ export class AgentLoop {
           tags: ['faria', 'agent-loop'],
           metadata: {
             targetApp,
-            iteration: iterations,
             query: query.slice(0, 100),
           },
         };
