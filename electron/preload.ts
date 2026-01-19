@@ -64,6 +64,9 @@ contextBridge.exposeInMainWorld('faria', {
     },
     onWillHide: (callback: () => void) => {
       ipcRenderer.on('command-bar:will-hide', () => callback());
+    },
+    onReset: (callback: () => void) => {
+      ipcRenderer.on('command-bar:reset', () => callback());
     }
   }
 });
@@ -108,6 +111,7 @@ export interface FariaAPI {
     onReady: (callback: (data: { hasSelectedText: boolean; selectedTextLength: number }) => void) => void;
     onError: (callback: (error: string) => void) => void;
     onWillHide: (callback: () => void) => void;
+    onReset: (callback: () => void) => void;
   };
 }
 

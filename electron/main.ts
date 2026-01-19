@@ -48,8 +48,9 @@ let isMainWindowVisible = false;
 const DEFAULT_COMMAND_BAR_WIDTH = 400;
 const DEFAULT_COMMAND_BAR_HEIGHT = 67; // Single line: 46 (base) + 21 (one line)
 
-// Default keyboard shortcut
-const DEFAULT_COMMAND_BAR_SHORTCUT = 'CommandOrControl+/';
+// Default keyboard shortcuts
+const DEFAULT_COMMAND_BAR_SHORTCUT = 'CommandOrControl+Enter';
+const DEFAULT_RESET_COMMAND_BAR_SHORTCUT = 'CommandOrControl+Shift+Enter';
 
 function createMainWindow() {
   mainWindow = new BrowserWindow({
@@ -403,16 +404,66 @@ function showCommandBar() {
   });
 }
 
+// Reset the command bar to its default position and clear all state
+async function resetCommandBar() {
+  // Cancel any running agent
+  agentLoop.cancel();
+
+  // Increment session ID to cancel any pending async operations
+  commandBarSessionId++;
+
+  // Reset cached position to default (center, near bottom)
+  const { width: screenWidth, height: screenHeight } = screen.getPrimaryDisplay().workAreaSize;
+  cachedCommandBarPosition = {
+    x: Math.round((screenWidth - DEFAULT_COMMAND_BAR_WIDTH) / 2),
+    y: Math.round(screenHeight - 300)
+  };
+
+  // Clear any saved position in the database
+  const db = initDatabase();
+  db.prepare('DELETE FROM settings WHERE key = ?').run('commandBarPosition');
+
+  // Clear context
+  targetAppName = null;
+  currentSelectedText = null;
+
+  // If command bar doesn't exist, create it
+  if (!commandBarWindow || commandBarWindow.webContents.isDestroyed()) {
+    commandBarWindow = null;
+    createCommandBarWindow();
+  }
+
+  // Reset window size and position
+  commandBarWindow?.setSize(DEFAULT_COMMAND_BAR_WIDTH, DEFAULT_COMMAND_BAR_HEIGHT);
+  positionCommandBar();
+
+  // Send reset event to renderer to clear all state
+  commandBarWindow?.webContents.send('command-bar:reset');
+
+  // Show the command bar
+  showCommandBar();
+
+  // Send ready state after reset
+  commandBarWindow?.webContents.send('command-bar:ready', {
+    hasSelectedText: false,
+    selectedTextLength: 0
+  });
+}
+
 function registerGlobalShortcuts() {
   // Unregister all existing shortcuts first
   globalShortcut.unregisterAll();
 
-  // Load shortcut from settings
+  // Load shortcuts from settings
   const db = initDatabase();
   const commandBarShortcutRow = db.prepare('SELECT value FROM settings WHERE key = ?').get('commandBarShortcut') as { value: string } | undefined;
   const commandBarShortcut = commandBarShortcutRow?.value || DEFAULT_COMMAND_BAR_SHORTCUT;
 
+  const resetShortcutRow = db.prepare('SELECT value FROM settings WHERE key = ?').get('resetCommandBarShortcut') as { value: string } | undefined;
+  const resetShortcut = resetShortcutRow?.value || DEFAULT_RESET_COMMAND_BAR_SHORTCUT;
+
   console.log('[Faria] Registering shortcut:', commandBarShortcut);
+  console.log('[Faria] Registering reset shortcut:', resetShortcut);
 
   // Register command bar toggle shortcut
   const ret = globalShortcut.register(commandBarShortcut, () => {
@@ -421,6 +472,15 @@ function registerGlobalShortcuts() {
 
   if (!ret) {
     console.error('[Faria] Failed to register global shortcut for toggle:', commandBarShortcut);
+  }
+
+  // Register reset command bar shortcut
+  const retReset = globalShortcut.register(resetShortcut, () => {
+    resetCommandBar();
+  });
+
+  if (!retReset) {
+    console.error('[Faria] Failed to register global shortcut for reset:', resetShortcut);
   }
 }
 

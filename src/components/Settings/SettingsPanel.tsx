@@ -6,7 +6,8 @@ interface SettingsPanelProps {
 }
 
 // Default shortcuts
-const DEFAULT_COMMAND_BAR_SHORTCUT = 'CommandOrControl+/';
+const DEFAULT_COMMAND_BAR_SHORTCUT = 'CommandOrControl+Enter';
+const DEFAULT_RESET_COMMAND_BAR_SHORTCUT = 'CommandOrControl+Shift+Enter';
 
 // Convert Electron accelerator to display format
 const shortcutToDisplay = (accelerator: string): string => {
@@ -19,11 +20,13 @@ const shortcutToDisplay = (accelerator: string): string => {
     .replace('Option', '⌥')
     .replace(/\+/g, '')
     .replace('Space', '␣')
+    .replace('Enter', '↵')
     .toUpperCase()
     .replace('⌘', '⌘')
     .replace('⇧', '⇧')
     .replace('⌃', '⌃')
-    .replace('⌥', '⌥');
+    .replace('⌥', '⌥')
+    .replace('↵', '↵');
 };
 
 // Convert keyboard event to Electron accelerator format
@@ -318,7 +321,8 @@ function SettingsPanel({ currentTheme, onThemeChange }: SettingsPanelProps) {
 
   // Keyboard shortcuts
   const [commandBarShortcut, setCommandBarShortcut] = useState(DEFAULT_COMMAND_BAR_SHORTCUT);
-  const [recordingShortcut, setRecordingShortcut] = useState<'commandBar' | null>(null);
+  const [resetCommandBarShortcut, setResetCommandBarShortcut] = useState(DEFAULT_RESET_COMMAND_BAR_SHORTCUT);
+  const [recordingShortcut, setRecordingShortcut] = useState<'commandBar' | 'resetCommandBar' | null>(null);
 
   useEffect(() => {
     loadSettings().then(() => {
@@ -422,9 +426,12 @@ function SettingsPanel({ currentTheme, onThemeChange }: SettingsPanelProps) {
       document.documentElement.style.setProperty('--font-family', AVAILABLE_FONTS[0].value);
     }
 
-    // Load keyboard shortcut
+    // Load keyboard shortcuts
     const savedCommandBarShortcut = await window.faria.settings.get('commandBarShortcut');
     if (savedCommandBarShortcut) setCommandBarShortcut(savedCommandBarShortcut);
+
+    const savedResetCommandBarShortcut = await window.faria.settings.get('resetCommandBarShortcut');
+    if (savedResetCommandBarShortcut) setResetCommandBarShortcut(savedResetCommandBarShortcut);
   };
 
   // Keyboard shortcut recording
@@ -442,6 +449,12 @@ function SettingsPanel({ currentTheme, onThemeChange }: SettingsPanelProps) {
         setCommandBarShortcut(accelerator);
         saveSettings('commandBarShortcut', accelerator);
         window.faria.settings.set('commandBarShortcut', accelerator).then(() => {
+          window.faria.shortcuts?.reregister();
+        });
+      } else if (recordingShortcut === 'resetCommandBar') {
+        setResetCommandBarShortcut(accelerator);
+        saveSettings('resetCommandBarShortcut', accelerator);
+        window.faria.settings.set('resetCommandBarShortcut', accelerator).then(() => {
           window.faria.shortcuts?.reregister();
         });
       }
@@ -714,6 +727,38 @@ function SettingsPanel({ currentTheme, onThemeChange }: SettingsPanelProps) {
               }}
             >
               {recordingShortcut === 'commandBar' ? 'Press keys...' : shortcutToDisplay(commandBarShortcut)}
+            </button>
+          </div>
+
+          {/* Reset Command Bar */}
+          <div style={{
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'space-between',
+            padding: 'var(--spacing-md)',
+            background: 'var(--color-surface)',
+            borderRadius: 'var(--radius-md)',
+            border: '1px solid var(--color-border)',
+          }}>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
+              <span style={{ fontSize: 'var(--font-size-sm)' }}>Reset Faria</span>
+            </div>
+            <button
+              onClick={() => setRecordingShortcut('resetCommandBar')}
+              style={{
+                padding: 'var(--spacing-xs) var(--spacing-md)',
+                fontSize: 'var(--font-size-sm)',
+                fontFamily: 'system-ui',
+                background: recordingShortcut === 'resetCommandBar' ? 'var(--color-accent)' : 'var(--color-background)',
+                color: recordingShortcut === 'resetCommandBar' ? 'var(--color-background)' : 'var(--color-text)',
+                border: '1px solid var(--color-border)',
+                borderRadius: 'var(--radius-sm)',
+                cursor: 'pointer',
+                minWidth: 80,
+                transition: 'all 0.15s ease',
+              }}
+            >
+              {recordingShortcut === 'resetCommandBar' ? 'Press keys...' : shortcutToDisplay(resetCommandBarShortcut)}
             </button>
           </div>
         </div>

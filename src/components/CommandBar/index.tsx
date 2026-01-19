@@ -210,6 +210,17 @@ function CommandBar() {
         setResponse('');
       }, 3000);
     });
+
+    // Listen for reset event (clears all state completely)
+    window.faria.commandBar.onReset(() => {
+      setQuery('');
+      setResponse('');
+      setStatus('');
+      setIsProcessing(false);
+      setSelectedTextLength(0);
+      setErrorMessage(null);
+      setPendingAuth(null);
+    });
   }, []);
 
   const handleSubmit = useCallback(async () => {
