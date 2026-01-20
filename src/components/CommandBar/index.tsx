@@ -255,6 +255,8 @@ function CommandBar() {
       setStatus('');
       setPendingAuth(null);
       setPendingToolApproval(null);
+      // Refocus input after response
+      setTimeout(() => inputRef.current?.focus(), 0);
     });
 
     // Listen for auth-required from agent (Composio OAuth flow)
@@ -278,6 +280,8 @@ function CommandBar() {
       setIsProcessing(false);
       setStatus('');
       setPendingAuth(null);
+      // Refocus input after error
+      setTimeout(() => inputRef.current?.focus(), 0);
       // Clear error after 3 seconds
       setTimeout(() => {
         setErrorMessage(null);
@@ -385,6 +389,8 @@ function CommandBar() {
     setStatus('');
     setPendingAuth(null);
     setPendingToolApproval(null);
+    // Refocus input after stop
+    setTimeout(() => inputRef.current?.focus(), 0);
   }, [isProcessing]);
 
   const handleOpenAuthUrl = useCallback(() => {
