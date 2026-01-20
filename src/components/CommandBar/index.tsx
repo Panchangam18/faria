@@ -118,8 +118,11 @@ function CommandBar() {
   const [selectedTextLength, setSelectedTextLength] = useState<number>(0); // Character count of selected text
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [pendingAuth, setPendingAuth] = useState<{ toolkit: string; redirectUrl: string } | null>(null);
+  const [pendingToolApproval, setPendingToolApproval] = useState<{ toolName: string; toolDescription: string; args: Record<string, unknown>; isComposio: boolean; displayName?: string; details?: Record<string, string> } | null>(null);
+  const [toolApprovalExpanded, setToolApprovalExpanded] = useState(false);
   const inputRef = useRef<HTMLTextAreaElement>(null);
   const responseRef = useRef<HTMLDivElement>(null);
+  const toolApprovalRef = useRef<HTMLDivElement>(null);
 
   // Resize window based on textarea content - runs synchronously after DOM updates
   useLayoutEffect(() => {
@@ -157,10 +160,16 @@ function CommandBar() {
       responseHeight = Math.min(actualHeight, MAX_RESPONSE_HEIGHT) + 16; // +16 for margin
     }
 
+    // Calculate tool approval height
+    let toolApprovalHeight = 0;
+    if (pendingToolApproval && toolApprovalRef.current) {
+      toolApprovalHeight = toolApprovalRef.current.scrollHeight;
+    }
+
     // Calculate and set window height
-    const totalHeight = BASE_HEIGHT + contentHeight + responseHeight;
+    const totalHeight = BASE_HEIGHT + contentHeight + responseHeight + toolApprovalHeight;
     window.faria.commandBar.resize(totalHeight);
-  }, [query, response, streamingResponse]);
+  }, [query, response, streamingResponse, pendingToolApproval, toolApprovalExpanded]);
 
   // Load theme on mount
   useEffect(() => {
@@ -241,6 +250,7 @@ function CommandBar() {
       setIsProcessing(false);
       setStatus('');
       setPendingAuth(null);
+      setPendingToolApproval(null);
     });
 
     // Listen for auth-required from agent (Composio OAuth flow)
@@ -248,6 +258,13 @@ function CommandBar() {
       console.log('[CommandBar] Auth required:', data);
       setPendingAuth(data);
       setStatus(`Waiting for ${data.toolkit} authentication...`);
+    });
+
+    // Listen for tool approval required from agent
+    window.faria.agent.onToolApprovalRequired((data) => {
+      console.log('[CommandBar] Tool approval required:', data);
+      setPendingToolApproval(data);
+      setStatus('Waiting for approval...');
     });
 
     // Listen for error messages
@@ -274,8 +291,46 @@ function CommandBar() {
       setSelectedTextLength(0);
       setErrorMessage(null);
       setPendingAuth(null);
+      setPendingToolApproval(null);
+      setToolApprovalExpanded(false);
     });
   }, []);
+
+  // Reset expanded state when tool approval changes
+  useEffect(() => {
+    setToolApprovalExpanded(false);
+  }, [pendingToolApproval]);
+
+  // Global keyboard listener for tool approval shortcuts
+  useEffect(() => {
+    if (!pendingToolApproval) return;
+
+    const handleGlobalKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Enter') {
+        e.preventDefault();
+        // Trigger allow
+        console.log('[CommandBar] Enter pressed, approving tool');
+        setPendingToolApproval(null);
+        setStatus('Executing...');
+        window.faria.agent.toolApprovalResponse(true);
+      }
+      if (e.key === 'c' && (e.ctrlKey || e.metaKey)) {
+        e.preventDefault();
+        // Trigger deny/cancel
+        console.log('[CommandBar] Ctrl+C pressed, denying tool and cancelling');
+        setPendingToolApproval(null);
+        setToolApprovalExpanded(false);
+        window.faria.agent.cancel();
+        setIsProcessing(false);
+        setStatus('');
+        // Refocus the input after state updates
+        setTimeout(() => inputRef.current?.focus(), 0);
+      }
+    };
+
+    document.addEventListener('keydown', handleGlobalKeyDown);
+    return () => document.removeEventListener('keydown', handleGlobalKeyDown);
+  }, [pendingToolApproval]);
 
   const handleSubmit = useCallback(async () => {
     if (!query.trim() || isProcessing) return;
@@ -300,16 +355,6 @@ function CommandBar() {
     }
   }, [query, isProcessing]);
 
-  const handleKeyDown = useCallback((e: React.KeyboardEvent) => {
-    if (e.key === 'Enter' && !e.shiftKey) {
-      e.preventDefault();
-      handleSubmit();
-    }
-    if (e.key === 'Escape') {
-      window.faria.commandBar.hide();
-    }
-  }, [handleSubmit]);
-
   const handleInputChange = (e: React.ChangeEvent<HTMLTextAreaElement>) => {
     setQuery(e.target.value);
   };
@@ -320,6 +365,7 @@ function CommandBar() {
     setIsProcessing(false);
     setStatus('');
     setPendingAuth(null);
+    setPendingToolApproval(null);
   }, [isProcessing]);
 
   const handleOpenAuthUrl = useCallback(() => {
@@ -335,6 +381,38 @@ function CommandBar() {
     setStatus('Resuming...');
     window.faria.agent.authCompleted();
   }, [pendingAuth]);
+
+  const handleToolApprove = useCallback(() => {
+    if (!pendingToolApproval) return;
+    console.log('[CommandBar] Tool approved:', pendingToolApproval.toolName);
+    setPendingToolApproval(null);
+    setStatus('Executing...');
+    window.faria.agent.toolApprovalResponse(true);
+  }, [pendingToolApproval]);
+
+  const handleToolDeny = useCallback(async () => {
+    if (!pendingToolApproval) return;
+    console.log('[CommandBar] Tool denied, cancelling agent:', pendingToolApproval.toolName);
+    setPendingToolApproval(null);
+    setToolApprovalExpanded(false);
+    // Cancel the agent entirely (deny acts as stop)
+    await window.faria.agent.cancel();
+    setIsProcessing(false);
+    setStatus('');
+  }, [pendingToolApproval]);
+
+  const handleKeyDown = useCallback((e: React.KeyboardEvent) => {
+    // Tool approval shortcuts handled by global listener
+    if (pendingToolApproval) return;
+
+    if (e.key === 'Enter' && !e.shiftKey) {
+      e.preventDefault();
+      handleSubmit();
+    }
+    if (e.key === 'Escape') {
+      window.faria.commandBar.hide();
+    }
+  }, [handleSubmit, pendingToolApproval]);
 
   return (
     <div className="command-bar">
@@ -359,7 +437,56 @@ function CommandBar() {
 
       <div className="command-bar-footer">
         <div className="footer-left">
-          {pendingAuth ? (
+          {pendingToolApproval ? (
+            <div className="command-bar-tool-approval" ref={toolApprovalRef}>
+              <div className="tool-approval-header">
+                {pendingToolApproval.details && Object.keys(pendingToolApproval.details).length > 0 ? (
+                  <button
+                    className="tool-approval-toggle"
+                    onClick={() => setToolApprovalExpanded(!toolApprovalExpanded)}
+                  >
+                    <span className="tool-approval-name">
+                      {pendingToolApproval.isComposio
+                        ? pendingToolApproval.displayName || `Use ${formatToolkitName(pendingToolApproval.toolName.split('_')[0])}`
+                        : 'Allow computer control?'}
+                    </span>
+                    <svg
+                      className={`chevron ${toolApprovalExpanded ? 'open' : ''}`}
+                      viewBox="0 0 10 10"
+                      fill="none"
+                      stroke="currentColor"
+                      strokeWidth="1.5"
+                    >
+                      <path d="M2 3.5L5 6.5L8 3.5" />
+                    </svg>
+                  </button>
+                ) : (
+                  <span className="tool-approval-name-static">
+                    {pendingToolApproval.isComposio
+                      ? pendingToolApproval.displayName || `Use ${formatToolkitName(pendingToolApproval.toolName.split('_')[0])}`
+                      : 'Allow computer control?'}
+                  </span>
+                )}
+                <div className="tool-approval-buttons">
+                  <button className="auth-inline-button auth-inline-connect" onClick={handleToolApprove}>
+                    <span className="button-shortcut">↵</span> Allow
+                  </button>
+                  <button className="auth-inline-button auth-inline-done" onClick={handleToolDeny}>
+                    <span className="button-shortcut">⌃C</span> Deny
+                  </button>
+                </div>
+              </div>
+              {toolApprovalExpanded && pendingToolApproval.details && Object.keys(pendingToolApproval.details).length > 0 && (
+                <div className="tool-approval-details">
+                  {Object.entries(pendingToolApproval.details).map(([key, value]) => (
+                    <div key={key} className="tool-approval-detail">
+                      <span className="detail-key">{key}:</span> {value}
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          ) : pendingAuth ? (
             <div className="command-bar-auth-inline">
               <span className="auth-status-text">
                 Faria wants to use {formatToolkitName(pendingAuth.toolkit)}...
@@ -384,23 +511,26 @@ function CommandBar() {
             <span className="selection-indicator" title="Selected text">{selectedTextLength} chars</span>
           )}
 
-          {isProcessing ? (
-            <button
-              className="stop-button"
-              onClick={handleStop}
-              title="Stop"
-            >
-              <IoStopCircleSharp />
-            </button>
-          ) : (
-            <button
-              className="send-button"
-              onClick={handleSubmit}
-              disabled={!query.trim()}
-              title="Send message"
-            >
-              <IoMdSend />
-            </button>
+          {/* Hide stop/send buttons when tool approval is showing (it has its own stop button) */}
+          {!pendingToolApproval && (
+            isProcessing ? (
+              <button
+                className="stop-button"
+                onClick={handleStop}
+                title="Stop"
+              >
+                <IoStopCircleSharp />
+              </button>
+            ) : (
+              <button
+                className="send-button"
+                onClick={handleSubmit}
+                disabled={!query.trim()}
+                title="Send message"
+              >
+                <IoMdSend />
+              </button>
+            )
           )}
         </div>
       </div>

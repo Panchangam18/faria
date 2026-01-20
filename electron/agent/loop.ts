@@ -64,6 +64,67 @@ const DEFAULT_CONFIG: AgentConfig = {
  * Orchestrates the agent's reasoning and action cycle
  * Now uses LangChain for LangSmith tracing
  */
+// Tools that don't require approval (informational/read-only or user-initiated)
+const SAFE_TOOLS = new Set(['get_state', 'web_search', 'replace_selected_text', 'insert_image']);
+// Composio tools that don't require approval (management/search tools)
+const SAFE_COMPOSIO_TOOLS = new Set(['COMPOSIO_SEARCH_TOOLS', 'COMPOSIO_MANAGE_CONNECTIONS']);
+
+/**
+ * Format a tool slug into a readable name (e.g., GMAIL_SEND_EMAIL -> Gmail Send Email)
+ */
+function formatToolSlug(slug: string): string {
+  return slug
+    .split('_')
+    .map(word => word.charAt(0).toUpperCase() + word.slice(1).toLowerCase())
+    .join(' ');
+}
+
+/**
+ * Generate a human-readable description for Composio tool approval
+ */
+function generateComposioApprovalInfo(toolName: string, args: Record<string, unknown>): { displayName: string; details: Record<string, string> } {
+  // Handle COMPOSIO_MULTI_EXECUTE_TOOL - extract the actual tool being executed
+  if (toolName === 'COMPOSIO_MULTI_EXECUTE_TOOL' && args.tools && Array.isArray(args.tools)) {
+    const tools = args.tools as Array<{ tool_slug: string; arguments: Record<string, unknown> }>;
+    if (tools.length > 0) {
+      const firstTool = tools[0];
+      const toolSlug = firstTool.tool_slug || 'Unknown';
+      const displayName = formatToolSlug(toolSlug);
+
+      // Extract relevant details from arguments
+      const details: Record<string, string> = {};
+      const toolArgs = firstTool.arguments || {};
+
+      // Common fields to show
+      if (toolArgs.recipient_email) details['To'] = String(toolArgs.recipient_email);
+      if (toolArgs.subject) details['Subject'] = String(toolArgs.subject);
+      if (toolArgs.body) details['Body'] = String(toolArgs.body);
+      if (toolArgs.to) details['To'] = String(toolArgs.to);
+      if (toolArgs.message) details['Message'] = String(toolArgs.message);
+      if (toolArgs.title) details['Title'] = String(toolArgs.title);
+      if (toolArgs.content) details['Content'] = String(toolArgs.content);
+      if (toolArgs.repo) details['Repo'] = String(toolArgs.repo);
+      if (toolArgs.query) details['Query'] = String(toolArgs.query);
+
+      return { displayName, details };
+    }
+  }
+
+  // For other Composio tools, extract the app name from the tool name
+  // e.g., GMAIL_SEND_EMAIL -> Gmail Send Email
+  const displayName = formatToolSlug(toolName.replace(/^COMPOSIO_/, ''));
+
+  // Extract relevant details from args
+  const details: Record<string, string> = {};
+  if (args.recipient_email) details['To'] = String(args.recipient_email);
+  if (args.subject) details['Subject'] = String(args.subject);
+  if (args.body) details['Body'] = String(args.body);
+  if (args.to) details['To'] = String(args.to);
+  if (args.message) details['Message'] = String(args.message);
+
+  return { displayName, details };
+}
+
 export class AgentLoop {
   private stateExtractor: StateExtractor;
   private toolExecutor: ToolExecutor;
@@ -72,6 +133,8 @@ export class AgentLoop {
   private isRunning = false;
   private shouldCancel = false;
   private pendingAuthResolve: (() => void) | null = null;
+  private pendingToolApprovalResolve: ((approved: boolean) => void) | null = null;
+  private computerUseApproved = false; // Tracks if computer use has been approved for this invocation
 
   constructor(stateExtractor: StateExtractor, toolExecutor: ToolExecutor, composioService: ComposioService) {
     this.stateExtractor = stateExtractor;
@@ -85,6 +148,15 @@ export class AgentLoop {
       if (this.pendingAuthResolve) {
         this.pendingAuthResolve();
         this.pendingAuthResolve = null;
+      }
+    });
+
+    // Listen for tool approval response from UI
+    ipcMain.on('agent:tool-approval-response', (_event, approved: boolean) => {
+      console.log(`[Faria] Tool approval response: ${approved ? 'approved' : 'denied'}`);
+      if (this.pendingToolApprovalResolve) {
+        this.pendingToolApprovalResolve(approved);
+        this.pendingToolApprovalResolve = null;
       }
     });
 
@@ -109,6 +181,7 @@ export class AgentLoop {
 
     this.isRunning = true;
     this.shouldCancel = false;
+    this.computerUseApproved = false; // Reset computer use approval for each new invocation
 
     console.log(`[Faria] Starting agent run with targetApp: ${targetApp}, selectedText: ${selectedText ? `${selectedText.length} chars` : 'none'}`);
 
@@ -316,6 +389,27 @@ export class AgentLoop {
 
             // Handle computer tool specially (works for both providers)
             if (isComputerUseTool(toolCall.name)) {
+              // Request computer use approval once per invocation
+              if (!this.computerUseApproved) {
+                this.sendStatus('Waiting for approval...');
+                const approved = await this.requestToolApproval(
+                  toolCall.name,
+                  'Execute computer actions (click, type, screenshot, etc.)',
+                  toolCall.args as Record<string, unknown>,
+                  false
+                );
+
+                if (!approved || this.shouldCancel) {
+                  addMessage(new ToolMessage({
+                    content: 'Tool execution denied by user',
+                    tool_call_id: toolCall.id || toolCall.name,
+                    name: toolCall.name,
+                  }));
+                  continue;
+                }
+                this.computerUseApproved = true;
+              }
+
               try {
                 const computerResult = await executeComputerAction(toolCall.args as ComputerAction);
                 console.log(`[Faria] Computer tool result: SUCCESS`);
@@ -335,8 +429,37 @@ export class AgentLoop {
               }
             } else if (composioToolMap.has(toolCall.name)) {
               // Execute Composio tools through their invoke() method
+              const composioTool = composioToolMap.get(toolCall.name);
+
+              // Require approval for Composio tools (except safe ones like search/manage)
+              if (!SAFE_COMPOSIO_TOOLS.has(toolCall.name)) {
+                const toolDescription = composioTool.description || `Execute ${toolCall.name}`;
+                const { displayName, details } = generateComposioApprovalInfo(
+                  toolCall.name,
+                  toolCall.args as Record<string, unknown>
+                );
+
+                this.sendStatus('Waiting for approval...');
+                const approved = await this.requestToolApproval(
+                  toolCall.name,
+                  toolDescription,
+                  toolCall.args as Record<string, unknown>,
+                  true,
+                  displayName,
+                  details
+                );
+
+                if (!approved || this.shouldCancel) {
+                  addMessage(new ToolMessage({
+                    content: 'Tool execution denied by user',
+                    tool_call_id: toolCall.id || toolCall.name,
+                    name: toolCall.name,
+                  }));
+                  continue;
+                }
+              }
+
               try {
-                const composioTool = composioToolMap.get(toolCall.name);
                 let composioResult = await composioTool.invoke(toolCall.args);
                 const resultStr = typeof composioResult === 'string' ? composioResult : JSON.stringify(composioResult);
                 console.log(`[Faria] Composio tool result: SUCCESS`, resultStr.slice(0, 200));
@@ -380,6 +503,30 @@ export class AgentLoop {
               }
             } else {
               // Use our tool executor for built-in tools
+              // Request approval for computer use tools (not get_state or web_search)
+              if (!SAFE_TOOLS.has(toolCall.name) && !this.computerUseApproved) {
+                const toolDef = this.toolExecutor.getToolDefinitions().find(t => t.name === toolCall.name);
+                const toolDescription = toolDef?.description || `Execute ${toolCall.name}`;
+
+                this.sendStatus('Waiting for approval...');
+                const approved = await this.requestToolApproval(
+                  toolCall.name,
+                  toolDescription,
+                  toolCall.args as Record<string, unknown>,
+                  false
+                );
+
+                if (!approved || this.shouldCancel) {
+                  addMessage(new ToolMessage({
+                    content: 'Tool execution denied by user',
+                    tool_call_id: toolCall.id || toolCall.name,
+                    name: toolCall.name,
+                  }));
+                  continue;
+                }
+                this.computerUseApproved = true;
+              }
+
               const result = await this.toolExecutor.execute(
                 toolCall.name,
                 toolCall.args as Record<string, unknown>
@@ -466,6 +613,11 @@ export class AgentLoop {
       this.pendingAuthResolve();
       this.pendingAuthResolve = null;
     }
+    // Also resolve any pending tool approval to unblock
+    if (this.pendingToolApprovalResolve) {
+      this.pendingToolApprovalResolve(false); // Treat cancel as denial
+      this.pendingToolApprovalResolve = null;
+    }
   }
 
   /**
@@ -483,6 +635,43 @@ export class AgentLoop {
     // Wait for auth completion
     return new Promise((resolve) => {
       this.pendingAuthResolve = resolve;
+    });
+  }
+
+  /**
+   * Request tool approval from the user and wait for response
+   * @param toolName Name of the tool
+   * @param toolDescription Description of what the tool does
+   * @param args The arguments being passed to the tool
+   * @param isComposio Whether this is a Composio tool
+   * @returns true if approved, false if denied
+   */
+  private async requestToolApproval(
+    toolName: string,
+    toolDescription: string,
+    args: Record<string, unknown>,
+    isComposio: boolean,
+    displayName?: string,
+    details?: Record<string, string>
+  ): Promise<boolean> {
+    console.log(`[Faria] Requesting tool approval for ${toolName}`);
+
+    // Send approval request to UI
+    const windows = BrowserWindow.getAllWindows();
+    windows.forEach(win => {
+      win.webContents.send('agent:tool-approval-required', {
+        toolName,
+        toolDescription,
+        args,
+        isComposio,
+        displayName,
+        details
+      });
+    });
+
+    // Wait for approval response
+    return new Promise((resolve) => {
+      this.pendingToolApprovalResolve = resolve;
     });
   }
   

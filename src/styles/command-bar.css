@@ -459,3 +459,99 @@ html, body, #root {
   background: rgba(255, 255, 255, 0.1);
   color: var(--color-text);
 }
+
+.button-shortcut {
+  opacity: 0.7;
+  font-size: 10px;
+  margin-right: 2px;
+}
+
+/* Tool Approval UI */
+.command-bar-tool-approval {
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-xs);
+  width: 100%;
+  overflow: hidden;
+}
+
+.tool-approval-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--spacing-sm);
+}
+
+.tool-approval-toggle {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  background: transparent;
+  border: none;
+  color: var(--color-accent);
+  cursor: pointer;
+  padding: 0;
+  -webkit-app-region: no-drag;
+  transition: color var(--transition-fast);
+  text-align: left;
+}
+
+.tool-approval-toggle:hover {
+  color: var(--color-accent-hover);
+}
+
+.tool-approval-toggle .chevron {
+  width: 12px;
+  height: 12px;
+  flex-shrink: 0;
+  transition: transform var(--transition-fast);
+}
+
+.tool-approval-toggle .chevron.open {
+  transform: rotate(180deg);
+}
+
+.tool-approval-name {
+  font-size: var(--font-size-xs);
+  font-weight: 500;
+  color: inherit;
+}
+
+.tool-approval-name-static {
+  flex: 1;
+  font-size: var(--font-size-xs);
+  color: var(--color-accent);
+  font-weight: 500;
+}
+
+.tool-approval-buttons {
+  display: flex;
+  gap: var(--spacing-xs);
+  flex-shrink: 0;
+}
+
+.tool-approval-details {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  margin-left: 2px;
+  padding-left: 10px;
+  border-left: 1px solid var(--color-accent);
+  overflow: hidden;
+  margin-right: auto;
+  max-width: calc(100% - 120px);
+}
+
+.tool-approval-detail {
+  font-size: var(--font-size-xs);
+  color: var(--color-text);
+  line-height: 1.4;
+  word-wrap: break-word;
+  overflow-wrap: break-word;
+  white-space: pre-wrap;
+}
+
+.tool-approval-detail .detail-key {
+  color: var(--color-text-muted);
+  font-weight: 500;
+}
