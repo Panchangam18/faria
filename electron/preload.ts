@@ -45,6 +45,14 @@ contextBridge.exposeInMainWorld('faria', {
     reregister: () => ipcRenderer.invoke('shortcuts:reregister'),
   },
 
+  // Integrations - Composio connection management
+  integrations: {
+    getConnections: () => ipcRenderer.invoke('integrations:list'),
+    deleteConnection: (id: string) => ipcRenderer.invoke('integrations:delete', id),
+    getAvailableApps: () => ipcRenderer.invoke('integrations:apps'),
+    initiateConnection: (appName: string) => ipcRenderer.invoke('integrations:connect', appName)
+  },
+
   // Command Bar
   commandBar: {
     hide: () => ipcRenderer.send('command-bar:hide'),
@@ -101,6 +109,24 @@ export interface FariaAPI {
   };
   shortcuts: {
     reregister: () => Promise<{ success: boolean }>;
+  };
+  integrations: {
+    getConnections: () => Promise<Array<{
+      id: string;
+      appName: string;
+      displayName: string;
+      status: string;
+      logo?: string;
+      createdAt?: string;
+    }>>;
+    deleteConnection: (id: string) => Promise<boolean>;
+    getAvailableApps: () => Promise<Array<{
+      name: string;
+      displayName: string;
+      logo?: string;
+      categories?: string[];
+    }>>;
+    initiateConnection: (appName: string) => Promise<{ redirectUrl: string } | null>;
   };
   commandBar: {
     hide: () => void;

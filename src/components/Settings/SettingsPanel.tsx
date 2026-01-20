@@ -324,6 +324,27 @@ function SettingsPanel({ currentTheme, onThemeChange }: SettingsPanelProps) {
   const [resetCommandBarShortcut, setResetCommandBarShortcut] = useState(DEFAULT_RESET_COMMAND_BAR_SHORTCUT);
   const [recordingShortcut, setRecordingShortcut] = useState<'commandBar' | 'resetCommandBar' | null>(null);
 
+  // Integrations state
+  const [connections, setConnections] = useState<Array<{
+    id: string;
+    appName: string;
+    displayName: string;
+    status: string;
+    logo?: string;
+    createdAt?: string;
+  }>>([]);
+  const [availableApps, setAvailableApps] = useState<Array<{
+    name: string;
+    displayName: string;
+    logo?: string;
+    categories?: string[];
+  }>>([]);
+  const [integrationsLoading, setIntegrationsLoading] = useState(true);
+  const [showAddIntegrationModal, setShowAddIntegrationModal] = useState(false);
+  const [integrationSearch, setIntegrationSearch] = useState('');
+  const [connectingApp, setConnectingApp] = useState<string | null>(null);
+  const [disconnectingId, setDisconnectingId] = useState<string | null>(null);
+
   useEffect(() => {
     loadSettings().then(() => {
       setHasLoadedSettings(true);
@@ -476,6 +497,71 @@ function SettingsPanel({ currentTheme, onThemeChange }: SettingsPanelProps) {
       window.removeEventListener('keyup', handleEscape, true);
     };
   }, [recordingShortcut]);
+
+  // Load integrations on mount
+  useEffect(() => {
+    loadIntegrations();
+  }, []);
+
+  const loadIntegrations = async () => {
+    setIntegrationsLoading(true);
+    try {
+      const [conns, apps] = await Promise.all([
+        window.faria.integrations.getConnections(),
+        window.faria.integrations.getAvailableApps()
+      ]);
+      setConnections(conns);
+      setAvailableApps(apps);
+    } catch (error) {
+      console.error('Failed to load integrations:', error);
+    } finally {
+      setIntegrationsLoading(false);
+    }
+  };
+
+  const handleDisconnect = async (connectionId: string) => {
+    setDisconnectingId(connectionId);
+    try {
+      const success = await window.faria.integrations.deleteConnection(connectionId);
+      if (success) {
+        setConnections(prev => prev.filter(c => c.id !== connectionId));
+      }
+    } catch (error) {
+      console.error('Failed to disconnect:', error);
+    } finally {
+      setDisconnectingId(null);
+    }
+  };
+
+  const handleConnect = async (appName: string) => {
+    setConnectingApp(appName);
+    try {
+      const result = await window.faria.integrations.initiateConnection(appName);
+      if (result?.redirectUrl) {
+        window.open(result.redirectUrl, '_blank');
+        // Close modal after opening auth URL
+        setShowAddIntegrationModal(false);
+        setIntegrationSearch('');
+        // Refresh connections after a delay to allow OAuth to complete
+        setTimeout(() => loadIntegrations(), 3000);
+      }
+    } catch (error) {
+      console.error('Failed to initiate connection:', error);
+    } finally {
+      setConnectingApp(null);
+    }
+  };
+
+  // Get set of already connected app names
+  const connectedAppNames = new Set(connections.map(c => c.appName));
+
+  const filteredApps = availableApps.filter(app =>
+    // Exclude already connected apps
+    !connectedAppNames.has(app.name) &&
+    // Filter by search query
+    (app.displayName.toLowerCase().includes(integrationSearch.toLowerCase()) ||
+    app.name.toLowerCase().includes(integrationSearch.toLowerCase()))
+  );
 
   // Get available models based on API keys
   const getAvailableModels = () => {
@@ -1479,6 +1565,292 @@ function SettingsPanel({ currentTheme, onThemeChange }: SettingsPanelProps) {
           </div>
         </div>
       </section>
+
+      {/* Integrations Section */}
+      <section style={{ marginBottom: 'var(--spacing-xl)' }}>
+        <div style={{
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'space-between',
+          marginBottom: 'var(--spacing-md)'
+        }}>
+          <h3 style={{
+            fontSize: 'var(--font-size-md)',
+            margin: 0,
+            color: 'var(--color-text-muted)'
+          }}>
+            Integrations
+          </h3>
+          <button
+            className="btn btn-secondary"
+            onClick={() => setShowAddIntegrationModal(true)}
+            style={{ fontSize: 'var(--font-size-sm)' }}
+          >
+            Add Integration
+          </button>
+        </div>
+
+        <div className="card">
+          <div style={{ padding: 'var(--spacing-md)' }}>
+            {integrationsLoading ? (
+              <div style={{
+                textAlign: 'center',
+                padding: 'var(--spacing-lg)',
+                color: 'var(--color-text-muted)'
+              }}>
+                Loading integrations...
+              </div>
+            ) : connections.length === 0 ? (
+              <div style={{
+                textAlign: 'center',
+                padding: 'var(--spacing-lg)',
+                color: 'var(--color-text-muted)'
+              }}>
+                No integrations connected yet
+              </div>
+            ) : (
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--spacing-sm)' }}>
+                {connections.map(conn => (
+                  <div
+                    key={conn.id}
+                    style={{
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'space-between',
+                      padding: 'var(--spacing-sm) var(--spacing-md)',
+                      background: 'var(--color-surface)',
+                      borderRadius: 'var(--radius-sm)',
+                      border: '1px solid var(--color-border)',
+                    }}
+                  >
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 'var(--spacing-sm)' }}>
+                      {conn.logo ? (
+                        <img
+                          src={conn.logo}
+                          alt={conn.displayName}
+                          style={{ width: 28, height: 28, objectFit: 'contain', borderRadius: 'var(--radius-sm)' }}
+                        />
+                      ) : (
+                        <div style={{
+                          width: 28,
+                          height: 28,
+                          borderRadius: 'var(--radius-sm)',
+                          background: 'var(--color-accent)',
+                          display: 'flex',
+                          alignItems: 'center',
+                          justifyContent: 'center',
+                          fontSize: 'var(--font-size-sm)',
+                          color: 'var(--color-primary)',
+                          fontWeight: 600,
+                        }}>
+                          {conn.displayName.charAt(0).toUpperCase()}
+                        </div>
+                      )}
+                      <div style={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
+                        <span style={{
+                          fontSize: 'var(--font-size-sm)',
+                          fontWeight: 500,
+                        }}>
+                          {conn.displayName}
+                        </span>
+                        <span style={{
+                          fontSize: 'var(--font-size-xs)',
+                          color: 'var(--color-text-muted)'
+                        }}>
+                          Connected
+                        </span>
+                      </div>
+                    </div>
+                    <button
+                      className="btn btn-secondary"
+                      onClick={() => handleDisconnect(conn.id)}
+                      disabled={disconnectingId === conn.id}
+                      style={{
+                        fontSize: 'var(--font-size-xs)',
+                        padding: 'var(--spacing-xs) var(--spacing-sm)',
+                        color: 'var(--color-accent)',
+                        borderColor: 'var(--color-accent)',
+                        opacity: disconnectingId === conn.id ? 0.5 : 1
+                      }}
+                    >
+                      {disconnectingId === conn.id ? 'Disconnecting...' : 'Disconnect'}
+                    </button>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+        </div>
+      </section>
+
+      {/* Add Integration Modal */}
+      {showAddIntegrationModal && (
+        <div
+          style={{
+            position: 'fixed',
+            top: 0,
+            left: 0,
+            right: 0,
+            bottom: 0,
+            background: 'rgba(0, 0, 0, 0.6)',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            zIndex: 1000,
+          }}
+          onClick={() => {
+            setShowAddIntegrationModal(false);
+            setIntegrationSearch('');
+          }}
+        >
+          <div
+            style={{
+              background: 'var(--color-primary)',
+              borderRadius: 'var(--radius-lg)',
+              border: '1px solid var(--color-border)',
+              width: '90%',
+              maxWidth: 500,
+              maxHeight: '80vh',
+              display: 'flex',
+              flexDirection: 'column',
+              overflow: 'hidden',
+            }}
+            onClick={e => e.stopPropagation()}
+          >
+            {/* Modal Header */}
+            <div style={{
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'space-between',
+              padding: 'var(--spacing-md)',
+              borderBottom: '1px solid var(--color-border)',
+            }}>
+              <h4 style={{ margin: 0, fontSize: 'var(--font-size-md)' }}>Add Integration</h4>
+              <button
+                onClick={() => {
+                  setShowAddIntegrationModal(false);
+                  setIntegrationSearch('');
+                }}
+                style={{
+                  background: 'none',
+                  border: 'none',
+                  color: 'var(--color-text-muted)',
+                  cursor: 'pointer',
+                  fontSize: 'var(--font-size-lg)',
+                  padding: 'var(--spacing-xs)',
+                }}
+              >
+                x
+              </button>
+            </div>
+
+            {/* Search Input */}
+            <div style={{ padding: 'var(--spacing-md)', borderBottom: '1px solid var(--color-border)' }}>
+              <input
+                type="text"
+                placeholder="Search integrations..."
+                value={integrationSearch}
+                onChange={e => setIntegrationSearch(e.target.value)}
+                autoFocus
+                style={{
+                  width: '100%',
+                  padding: 'var(--spacing-sm)',
+                  fontSize: 'var(--font-size-sm)',
+                  border: '1px solid var(--color-border)',
+                  borderRadius: 'var(--radius-sm)',
+                  background: 'var(--color-surface)',
+                  color: 'var(--color-text)',
+                }}
+              />
+            </div>
+
+            {/* Apps Grid */}
+            <div style={{
+              flex: 1,
+              overflow: 'auto',
+              padding: 'var(--spacing-md)',
+            }}>
+              {filteredApps.length === 0 ? (
+                <div style={{
+                  textAlign: 'center',
+                  padding: 'var(--spacing-lg)',
+                  color: 'var(--color-text-muted)'
+                }}>
+                  {availableApps.length === 0 ? 'No integrations available' : 'No matching integrations'}
+                </div>
+              ) : (
+                <div style={{
+                  display: 'grid',
+                  gridTemplateColumns: 'repeat(auto-fill, minmax(120px, 1fr))',
+                  gap: 'var(--spacing-sm)',
+                }}>
+                  {filteredApps.map(app => (
+                    <button
+                      key={app.name}
+                      onClick={() => handleConnect(app.name)}
+                      disabled={connectingApp === app.name}
+                      style={{
+                        display: 'flex',
+                        flexDirection: 'column',
+                        alignItems: 'center',
+                        gap: 'var(--spacing-xs)',
+                        padding: 'var(--spacing-md)',
+                        background: 'var(--color-surface)',
+                        border: '1px solid var(--color-border)',
+                        borderRadius: 'var(--radius-md)',
+                        cursor: connectingApp === app.name ? 'wait' : 'pointer',
+                        opacity: connectingApp === app.name ? 0.5 : 1,
+                        transition: 'all 0.15s ease',
+                      }}
+                      onMouseEnter={e => {
+                        if (connectingApp !== app.name) {
+                          e.currentTarget.style.borderColor = 'var(--color-accent)';
+                          e.currentTarget.style.background = 'var(--color-hover)';
+                        }
+                      }}
+                      onMouseLeave={e => {
+                        e.currentTarget.style.borderColor = 'var(--color-border)';
+                        e.currentTarget.style.background = 'var(--color-surface)';
+                      }}
+                    >
+                      {app.logo ? (
+                        <img
+                          src={app.logo}
+                          alt={app.displayName}
+                          style={{ width: 32, height: 32, objectFit: 'contain' }}
+                        />
+                      ) : (
+                        <div style={{
+                          width: 32,
+                          height: 32,
+                          borderRadius: 'var(--radius-sm)',
+                          background: 'var(--color-accent)',
+                          display: 'flex',
+                          alignItems: 'center',
+                          justifyContent: 'center',
+                          fontSize: 'var(--font-size-md)',
+                          color: 'var(--color-primary)',
+                          fontWeight: 600,
+                        }}>
+                          {app.displayName.charAt(0).toUpperCase()}
+                        </div>
+                      )}
+                      <span style={{
+                        fontSize: 'var(--font-size-xs)',
+                        color: 'var(--color-text)',
+                        textAlign: 'center',
+                        wordBreak: 'break-word',
+                      }}>
+                        {connectingApp === app.name ? 'Connecting...' : app.displayName}
+                      </span>
+                    </button>
+                  ))}
+                </div>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* System Prompt Section */}
       <section style={{ marginBottom: 'var(--spacing-xl)' }}>

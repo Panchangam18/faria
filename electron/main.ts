@@ -583,6 +583,23 @@ function setupIPC() {
     return { success: true };
   });
 
+  // Integrations IPC - Composio connection management
+  ipcMain.handle('integrations:list', async () => {
+    return composioService.getConnections();
+  });
+
+  ipcMain.handle('integrations:delete', async (_event, connectionId: string) => {
+    return composioService.deleteConnection(connectionId);
+  });
+
+  ipcMain.handle('integrations:apps', async () => {
+    return composioService.getAvailableApps();
+  });
+
+  ipcMain.handle('integrations:connect', async (_event, appName: string) => {
+    return composioService.initiateConnection(appName);
+  });
+
   // Window control IPC
   ipcMain.on('command-bar:hide', () => {
     if (commandBarWindow && isCommandBarVisible) {

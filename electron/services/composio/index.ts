@@ -6,6 +6,136 @@ import { v4 as uuidv4 } from 'uuid';
 import 'dotenv/config';
 
 /**
+ * Format a slug into a proper display name
+ * e.g., "googlecalendar" -> "Google Calendar", "perplexityai" -> "Perplexity AI"
+ */
+function formatDisplayName(slug: string): string {
+  // Direct mappings for known apps with non-standard names
+  const directMappings: Record<string, string> = {
+    'perplexityai': 'Perplexity AI',
+    'retellai': 'Retell AI',
+    'openai': 'OpenAI',
+    'googlecalendar': 'Google Calendar',
+    'googledrive': 'Google Drive',
+    'googlesheets': 'Google Sheets',
+    'googledocs': 'Google Docs',
+    'googlemeet': 'Google Meet',
+    'googlemail': 'Google Mail',
+    'github': 'GitHub',
+    'gitlab': 'GitLab',
+    'linkedin': 'LinkedIn',
+    'youtube': 'YouTube',
+    'mongodb': 'MongoDB',
+    'mysql': 'MySQL',
+    'postgresql': 'PostgreSQL',
+    'chatgpt': 'ChatGPT',
+    'dall-e': 'DALL-E',
+    'hubspot': 'HubSpot',
+    'mailchimp': 'Mailchimp',
+    'salesforce': 'Salesforce',
+    'zendesk': 'Zendesk',
+    'clickup': 'ClickUp',
+    'airtable': 'Airtable',
+    'asana': 'Asana',
+    'trello': 'Trello',
+    'todoist': 'Todoist',
+    'dropbox': 'Dropbox',
+    'evernote': 'Evernote',
+    'figma': 'Figma',
+    'canva': 'Canva',
+    'zapier': 'Zapier',
+    'twilio': 'Twilio',
+    'sendgrid': 'SendGrid',
+    'stripe': 'Stripe',
+    'shopify': 'Shopify',
+    'woocommerce': 'WooCommerce',
+    'typeform': 'Typeform',
+    'calendly': 'Calendly',
+    'intercom': 'Intercom',
+    'freshdesk': 'Freshdesk',
+    'pipedrive': 'Pipedrive',
+    'monday': 'Monday.com',
+    'notion': 'Notion',
+    'coda': 'Coda',
+    'miro': 'Miro',
+    'loom': 'Loom',
+    'zoom': 'Zoom',
+    'webex': 'Webex',
+    'discord': 'Discord',
+    'telegram': 'Telegram',
+    'whatsapp': 'WhatsApp',
+    'twitter': 'Twitter',
+    'facebook': 'Facebook',
+    'instagram': 'Instagram',
+    'tiktok': 'TikTok',
+    'reddit': 'Reddit',
+    'pinterest': 'Pinterest',
+    'spotify': 'Spotify',
+    'soundcloud': 'SoundCloud',
+  };
+
+  const lowerSlug = slug.toLowerCase();
+
+  // Check direct mappings first
+  if (directMappings[lowerSlug]) {
+    return directMappings[lowerSlug];
+  }
+
+  // Common word mappings for splitting
+  const wordMappings: Record<string, string> = {
+    'ai': 'AI',
+    'api': 'API',
+    'aws': 'AWS',
+    'gcp': 'GCP',
+    'crm': 'CRM',
+    'erp': 'ERP',
+    'hr': 'HR',
+    'io': 'IO',
+    'db': 'DB',
+    'sql': 'SQL',
+    'oauth': 'OAuth',
+    'sdk': 'SDK',
+    'sms': 'SMS',
+    'url': 'URL',
+    'http': 'HTTP',
+    'https': 'HTTPS',
+    'ftp': 'FTP',
+    'ssh': 'SSH',
+    'vpn': 'VPN',
+    'pdf': 'PDF',
+    'csv': 'CSV',
+    'json': 'JSON',
+    'xml': 'XML',
+  };
+
+  // Try to split concatenated words
+  let formatted = slug
+    // Insert space before uppercase letters (camelCase)
+    .replace(/([a-z])([A-Z])/g, '$1 $2')
+    // Split before "ai" at the end
+    .replace(/([a-z])(ai)$/i, '$1 $2')
+    // Insert space before common suffixes
+    .replace(/(calendar|drive|sheets|docs|mail|meet|chat|cloud|hub|lab|flow|desk|base|form|board|point|view|time|sync|box|bit|pad|note|task|work|space|dev|app|bot|pro|plus|go|io)$/gi, ' $1')
+    // Clean up multiple spaces
+    .replace(/\s+/g, ' ')
+    .trim();
+
+  // Capitalize each word and apply mappings
+  formatted = formatted
+    .split(' ')
+    .map(word => {
+      const lower = word.toLowerCase();
+      if (wordMappings[lower]) {
+        return wordMappings[lower];
+      }
+      return word.charAt(0).toUpperCase() + word.slice(1).toLowerCase();
+    })
+    .join(' ');
+
+  return formatted;
+}
+
+/**
  * Composio Service - Manages Composio Tool Router integration
  *
  * Provides access to 100+ SaaS integrations (Gmail, GitHub, Slack, etc.)
@@ -120,6 +250,150 @@ export class ComposioService {
    */
   getUserId(): string {
     return this.userId;
+  }
+
+  /**
+   * Get the Composio client instance
+   */
+  getClient(): Composio<LangchainProvider> | null {
+    return this.composio;
+  }
+
+  /**
+   * Get all connected accounts for the current user
+   * Returns only ACTIVE connections, deduplicated by app name
+   */
+  async getConnections(): Promise<Array<{
+    id: string;
+    appName: string;
+    displayName: string;
+    status: string;
+    logo?: string;
+    createdAt?: string;
+  }>> {
+    if (this.disabled || !this.composio) {
+      return [];
+    }
+
+    try {
+      // Get connections filtered to ACTIVE only
+      const response = await this.composio.connectedAccounts.list({
+        userIds: [this.userId],
+        statuses: ['ACTIVE']
+      });
+
+      // Get toolkits to look up logos and display names
+      const toolkits = await this.composio.toolkits.get();
+      const toolkitMap = new Map<string, { logo?: string; name: string }>();
+      (toolkits || []).forEach((t: any) => {
+        toolkitMap.set(t.slug, { logo: t.meta?.logo, name: t.name });
+      });
+
+      // Deduplicate by appName (keep first/most recent connection per app)
+      const seen = new Set<string>();
+      const connections: Array<{
+        id: string;
+        appName: string;
+        displayName: string;
+        status: string;
+        logo?: string;
+        createdAt?: string;
+      }> = [];
+
+      for (const conn of (response.items || [])) {
+        const appName = conn.toolkit?.slug || 'Unknown';
+        if (!seen.has(appName)) {
+          seen.add(appName);
+          const toolkitInfo = toolkitMap.get(appName);
+          connections.push({
+            id: conn.id,
+            appName,
+            displayName: toolkitInfo?.name || formatDisplayName(appName),
+            status: conn.status || 'active',
+            logo: toolkitInfo?.logo,
+            createdAt: conn.createdAt
+          });
+        }
+      }
+
+      return connections;
+    } catch (error) {
+      console.error('[Composio] Failed to get connections:', error);
+      return [];
+    }
+  }
+
+  /**
+   * Delete/revoke a connected account
+   */
+  async deleteConnection(connectionId: string): Promise<boolean> {
+    if (this.disabled || !this.composio) {
+      return false;
+    }
+
+    try {
+      await this.composio.connectedAccounts.delete(connectionId);
+      console.log('[Composio] Connection deleted:', connectionId);
+      return true;
+    } catch (error) {
+      console.error('[Composio] Failed to delete connection:', error);
+      return false;
+    }
+  }
+
+  /**
+   * Get all available apps/integrations from Composio
+   */
+  async getAvailableApps(): Promise<Array<{
+    name: string;
+    displayName: string;
+    logo?: string;
+    categories?: string[];
+  }>> {
+    if (this.disabled || !this.composio) {
+      return [];
+    }
+
+    try {
+      // toolkits.get() returns an array directly
+      const toolkits = await this.composio.toolkits.get();
+
+      return (toolkits || []).map((toolkit: any) => ({
+        name: toolkit.slug,
+        displayName: toolkit.name || toolkit.slug,
+        logo: toolkit.meta?.logo,
+        categories: toolkit.meta?.categories?.map((c: any) => c.name) || []
+      }));
+    } catch (error) {
+      console.error('[Composio] Failed to get available apps:', error);
+      return [];
+    }
+  }
+
+  /**
+   * Initiate OAuth connection for an app
+   * Returns the redirect URL for the user to complete authentication
+   */
+  async initiateConnection(appName: string): Promise<{ redirectUrl: string } | null> {
+    if (this.disabled || !this.composio) {
+      return null;
+    }
+
+    try {
+      // Use toolkits.authorize() to generate a Connect Link
+      const connectionRequest = await this.composio.toolkits.authorize(this.userId, appName);
+
+      if (connectionRequest?.redirectUrl) {
+        return {
+          redirectUrl: connectionRequest.redirectUrl
+        };
+      }
+
+      return null;
+    } catch (error) {
+      console.error('[Composio] Failed to initiate connection:', error);
+      return null;
+    }
   }
 }
 

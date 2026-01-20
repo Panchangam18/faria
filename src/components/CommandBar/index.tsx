@@ -2,6 +2,52 @@ import React, { useState, useEffect, useRef, useCallback, useLayoutEffect } from
 import { IoMdSend } from 'react-icons/io';
 import { IoStopCircleSharp } from 'react-icons/io5';
 
+// Format toolkit slug into proper display name
+function formatToolkitName(slug: string): string {
+  const directMappings: Record<string, string> = {
+    'perplexityai': 'Perplexity AI',
+    'retellai': 'Retell AI',
+    'openai': 'OpenAI',
+    'googlecalendar': 'Google Calendar',
+    'googledrive': 'Google Drive',
+    'googlesheets': 'Google Sheets',
+    'googledocs': 'Google Docs',
+    'googlemeet': 'Google Meet',
+    'googlemail': 'Google Mail',
+    'github': 'GitHub',
+    'gitlab': 'GitLab',
+    'linkedin': 'LinkedIn',
+    'youtube': 'YouTube',
+    'chatgpt': 'ChatGPT',
+    'hubspot': 'HubSpot',
+    'clickup': 'ClickUp',
+    'sendgrid': 'SendGrid',
+    'whatsapp': 'WhatsApp',
+    'tiktok': 'TikTok',
+    'soundcloud': 'SoundCloud',
+    'woocommerce': 'WooCommerce',
+  };
+
+  const lowerSlug = slug.toLowerCase();
+  if (directMappings[lowerSlug]) {
+    return directMappings[lowerSlug];
+  }
+
+  // Split on common patterns and capitalize
+  return slug
+    .replace(/([a-z])([A-Z])/g, '$1 $2')
+    .replace(/([a-z])(ai)$/i, '$1 $2')
+    .replace(/(calendar|drive|sheets|docs|mail|meet|chat|cloud|hub)$/gi, ' $1')
+    .split(' ')
+    .map(word => {
+      const lower = word.toLowerCase();
+      if (['ai', 'api', 'crm', 'io'].includes(lower)) return lower.toUpperCase();
+      return word.charAt(0).toUpperCase() + word.slice(1).toLowerCase();
+    })
+    .join(' ')
+    .trim();
+}
+
 // Line height is 14px (font-size-sm) * 1.5 = 21px
 const LINE_HEIGHT = 21;
 const MAX_LINES = 5;
@@ -307,7 +353,7 @@ function CommandBar() {
           {pendingAuth ? (
             <div className="command-bar-auth-inline">
               <span className="auth-status-text">
-                Faria wants to use {pendingAuth.toolkit.charAt(0).toUpperCase() + pendingAuth.toolkit.slice(1)}...
+                Faria wants to use {formatToolkitName(pendingAuth.toolkit)}...
               </span>
               <button className="auth-inline-button auth-inline-connect" onClick={handleOpenAuthUrl}>
                 Connect
