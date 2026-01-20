@@ -203,19 +203,28 @@ function HistoryPanel() {
                     alignItems: 'center', 
                     justifyContent: 'space-between' 
                   }}>
-                    <span style={{ 
-                      overflow: 'hidden', 
-                      textOverflow: 'ellipsis', 
+                    <span style={{
+                      overflow: 'hidden',
+                      textOverflow: 'ellipsis',
                       whiteSpace: 'nowrap',
                       flex: 1
                     }}>
-                      {userQuery}
+                      <span
+                        style={{ cursor: 'text' }}
+                        onClick={(e) => e.stopPropagation()}
+                      >
+                        {userQuery}
+                      </span>
                     </span>
-                    <span style={{ 
-                      fontSize: 'var(--font-size-xs)', 
-                      color: 'var(--color-text-muted)',
-                      marginLeft: 'var(--spacing-md)'
-                    }}>
+                    <span
+                      style={{
+                        fontSize: 'var(--font-size-xs)',
+                        color: 'var(--color-text-muted)',
+                        marginLeft: 'var(--spacing-md)',
+                        cursor: 'text'
+                      }}
+                      onClick={(e) => e.stopPropagation()}
+                    >
                       {new Date(item.created_at).toLocaleTimeString('en-US', {
                         hour: 'numeric',
                         minute: '2-digit',
@@ -225,11 +234,15 @@ function HistoryPanel() {
                   
                   {/* Expanded content */}
                   {expandedId === item.id && (
-                    <div style={{ 
-                      marginTop: 'var(--spacing-sm)',
-                      fontSize: 'var(--font-size-sm)',
-                      lineHeight: 1.6
-                    }}>
+                    <div
+                      style={{
+                        marginTop: 'var(--spacing-sm)',
+                        fontSize: 'var(--font-size-sm)',
+                        lineHeight: 1.6,
+                        cursor: 'text'
+                      }}
+                      onClick={(e) => e.stopPropagation()}
+                    >
                       {/* Selected text (if any) */}
                       {contextText && (
                         <div style={{ 
