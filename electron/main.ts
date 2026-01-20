@@ -246,6 +246,7 @@ async function getFrontmostApp(): Promise<string | null> {
 async function toggleCommandBar() {
   // If command bar is visible, hide it immediately (synchronous)
   if (isCommandBarVisible) {
+    console.log('[Faria] Hiding command bar (toggle), agent isRunning:', agentLoop['isRunning']);
     // Increment session ID to cancel any pending async operations
     commandBarSessionId++;
     // Send hide event BEFORE hiding so renderer can reset state synchronously
@@ -406,6 +407,7 @@ function showCommandBar() {
 
 // Reset the command bar to its default position and clear all state
 async function resetCommandBar() {
+  console.log('[Faria] resetCommandBar called, cancelling agent');
   // Cancel any running agent
   agentLoop.cancel();
 
@@ -496,7 +498,8 @@ function setupIPC() {
     }
   });
 
-  ipcMain.handle('agent:cancel', async () => {
+  ipcMain.handle('agent:cancel', async (_event, source?: string) => {
+    console.log('[Faria] agent:cancel IPC received from renderer, source:', source || 'unknown');
     agentLoop.cancel();
     return { success: true };
   });

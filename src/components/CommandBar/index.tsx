@@ -210,41 +210,45 @@ function CommandBar() {
     loadSettings();
 
     // Listen for theme changes
-    window.faria.settings.onThemeChange((themeData) => {
+    const cleanupTheme = window.faria.settings.onThemeChange((themeData) => {
       applyTheme(themeData.theme, themeData.customColors, themeData.font);
     });
+
+    return () => {
+      cleanupTheme();
+    };
   }, []);
 
   useEffect(() => {
     // Reset state when command bar is about to hide (but keep processing state for persistence)
-    window.faria.commandBar.onWillHide(() => {
+    const cleanupWillHide = window.faria.commandBar.onWillHide(() => {
       setSelectedTextLength(0);
       setErrorMessage(null);
       // Don't clear isProcessing, status, or pendingAuth - keep them when command bar reopens
     });
 
     // Focus input when command bar becomes visible
-    window.faria.commandBar.onFocus(() => {
+    const cleanupFocus = window.faria.commandBar.onFocus(() => {
       inputRef.current?.focus();
     });
 
     // Listen for ready state (detection complete) - just update selected text length
-    window.faria.commandBar.onReady((data) => {
+    const cleanupReady = window.faria.commandBar.onReady((data) => {
       setSelectedTextLength(data.selectedTextLength);
     });
 
     // Listen for status updates from agent
-    window.faria.agent.onStatus((newStatus: string) => {
+    const cleanupStatus = window.faria.agent.onStatus((newStatus: string) => {
       setStatus(newStatus);
     });
 
     // Listen for streaming chunks from agent
-    window.faria.agent.onChunk((chunk: string) => {
+    const cleanupChunk = window.faria.agent.onChunk((chunk: string) => {
       setStreamingResponse(prev => prev + chunk);
     });
 
     // Listen for final response from agent
-    window.faria.agent.onResponse((newResponse: string) => {
+    const cleanupResponse = window.faria.agent.onResponse((newResponse: string) => {
       setResponse(newResponse);
       setStreamingResponse(''); // Clear streaming state
       setIsProcessing(false);
@@ -254,21 +258,21 @@ function CommandBar() {
     });
 
     // Listen for auth-required from agent (Composio OAuth flow)
-    window.faria.agent.onAuthRequired((data) => {
+    const cleanupAuth = window.faria.agent.onAuthRequired((data) => {
       console.log('[CommandBar] Auth required:', data);
       setPendingAuth(data);
       setStatus(`Waiting for ${data.toolkit} authentication...`);
     });
 
     // Listen for tool approval required from agent
-    window.faria.agent.onToolApprovalRequired((data) => {
+    const cleanupToolApproval = window.faria.agent.onToolApprovalRequired((data) => {
       console.log('[CommandBar] Tool approval required:', data);
       setPendingToolApproval(data);
       setStatus('Waiting for approval...');
     });
 
     // Listen for error messages
-    window.faria.commandBar.onError((error) => {
+    const cleanupError = window.faria.commandBar.onError((error) => {
       setErrorMessage(error);
       setResponse(`Error: ${error}`);
       setIsProcessing(false);
@@ -282,7 +286,7 @@ function CommandBar() {
     });
 
     // Listen for reset event (clears all state completely)
-    window.faria.commandBar.onReset(() => {
+    const cleanupReset = window.faria.commandBar.onReset(() => {
       setQuery('');
       setResponse('');
       setStreamingResponse('');
@@ -294,6 +298,20 @@ function CommandBar() {
       setPendingToolApproval(null);
       setToolApprovalExpanded(false);
     });
+
+    // Cleanup all listeners on unmount
+    return () => {
+      cleanupWillHide();
+      cleanupFocus();
+      cleanupReady();
+      cleanupStatus();
+      cleanupChunk();
+      cleanupResponse();
+      cleanupAuth();
+      cleanupToolApproval();
+      cleanupError();
+      cleanupReset();
+    };
   }, []);
 
   // Reset expanded state when tool approval changes
@@ -307,10 +325,9 @@ function CommandBar() {
       // Ctrl+C to cancel agent when processing
       if (e.key === 'c' && (e.ctrlKey || e.metaKey) && isProcessing) {
         e.preventDefault();
-        console.log('[CommandBar] Ctrl+C pressed, cancelling agent');
         setPendingToolApproval(null);
         setToolApprovalExpanded(false);
-        window.faria.agent.cancel();
+        window.faria.agent.cancel('ctrl-c-pressed');
         setIsProcessing(false);
         setStatus('');
         // Refocus the input after state updates
@@ -363,7 +380,7 @@ function CommandBar() {
 
   const handleStop = useCallback(async () => {
     if (!isProcessing) return;
-    await window.faria.agent.cancel();
+    await window.faria.agent.cancel('stop-button-clicked');
     setIsProcessing(false);
     setStatus('');
     setPendingAuth(null);
@@ -394,11 +411,10 @@ function CommandBar() {
 
   const handleToolDeny = useCallback(async () => {
     if (!pendingToolApproval) return;
-    console.log('[CommandBar] Tool denied, cancelling agent:', pendingToolApproval.toolName);
     setPendingToolApproval(null);
     setToolApprovalExpanded(false);
     // Cancel the agent entirely (deny acts as stop)
-    await window.faria.agent.cancel();
+    await window.faria.agent.cancel('tool-deny-button-clicked');
     setIsProcessing(false);
     setStatus('');
   }, [pendingToolApproval]);

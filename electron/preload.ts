@@ -6,22 +6,32 @@ contextBridge.exposeInMainWorld('faria', {
   // Agent
   agent: {
     submit: (query: string) => ipcRenderer.invoke('agent:submit', query),
-    cancel: () => ipcRenderer.invoke('agent:cancel'),
+    cancel: (source?: string) => ipcRenderer.invoke('agent:cancel', source || 'unknown'),
     authCompleted: () => ipcRenderer.send('agent:auth-completed'),
     onStatus: (callback: (status: string) => void) => {
-      ipcRenderer.on('agent:status', (_event, status) => callback(status));
+      const handler = (_event: Electron.IpcRendererEvent, status: string) => callback(status);
+      ipcRenderer.on('agent:status', handler);
+      return () => ipcRenderer.removeListener('agent:status', handler);
     },
     onResponse: (callback: (response: string) => void) => {
-      ipcRenderer.on('agent:response', (_event, response) => callback(response));
+      const handler = (_event: Electron.IpcRendererEvent, response: string) => callback(response);
+      ipcRenderer.on('agent:response', handler);
+      return () => ipcRenderer.removeListener('agent:response', handler);
     },
     onChunk: (callback: (chunk: string) => void) => {
-      ipcRenderer.on('agent:chunk', (_event, chunk) => callback(chunk));
+      const handler = (_event: Electron.IpcRendererEvent, chunk: string) => callback(chunk);
+      ipcRenderer.on('agent:chunk', handler);
+      return () => ipcRenderer.removeListener('agent:chunk', handler);
     },
     onAuthRequired: (callback: (data: { toolkit: string; redirectUrl: string }) => void) => {
-      ipcRenderer.on('agent:auth-required', (_event, data) => callback(data));
+      const handler = (_event: Electron.IpcRendererEvent, data: { toolkit: string; redirectUrl: string }) => callback(data);
+      ipcRenderer.on('agent:auth-required', handler);
+      return () => ipcRenderer.removeListener('agent:auth-required', handler);
     },
     onToolApprovalRequired: (callback: (data: { toolName: string; toolDescription: string; args: Record<string, unknown>; isComposio: boolean; displayName?: string; details?: Record<string, string> }) => void) => {
-      ipcRenderer.on('agent:tool-approval-required', (_event, data) => callback(data));
+      const handler = (_event: Electron.IpcRendererEvent, data: { toolName: string; toolDescription: string; args: Record<string, unknown>; isComposio: boolean; displayName?: string; details?: Record<string, string> }) => callback(data);
+      ipcRenderer.on('agent:tool-approval-required', handler);
+      return () => ipcRenderer.removeListener('agent:tool-approval-required', handler);
     },
     toolApprovalResponse: (approved: boolean) => ipcRenderer.send('agent:tool-approval-response', approved)
   },
@@ -37,7 +47,9 @@ contextBridge.exposeInMainWorld('faria', {
     set: (key: string, value: string) => ipcRenderer.invoke('settings:set', key, value),
     getDefaultPrompt: () => ipcRenderer.invoke('settings:getDefaultPrompt'),
     onThemeChange: (callback: (themeData: { theme: string; customColors?: { background: string; text: string; accent: string }; font: string }) => void) => {
-      ipcRenderer.on('settings:theme-change', (_event, themeData) => callback(themeData));
+      const handler = (_event: Electron.IpcRendererEvent, themeData: { theme: string; customColors?: { background: string; text: string; accent: string }; font: string }) => callback(themeData);
+      ipcRenderer.on('settings:theme-change', handler);
+      return () => ipcRenderer.removeListener('settings:theme-change', handler);
     }
   },
 
@@ -71,22 +83,34 @@ contextBridge.exposeInMainWorld('faria', {
     resize: (height: number) => ipcRenderer.send('command-bar:resize', height),
     setDropdownVisible: (visible: boolean) => ipcRenderer.send('command-bar:dropdown-visible', visible),
     onFocus: (callback: () => void) => {
-      ipcRenderer.on('command-bar:focus', () => callback());
+      const handler = () => callback();
+      ipcRenderer.on('command-bar:focus', handler);
+      return () => ipcRenderer.removeListener('command-bar:focus', handler);
     },
     onDetecting: (callback: () => void) => {
-      ipcRenderer.on('command-bar:detecting', () => callback());
+      const handler = () => callback();
+      ipcRenderer.on('command-bar:detecting', handler);
+      return () => ipcRenderer.removeListener('command-bar:detecting', handler);
     },
     onReady: (callback: (data: { hasSelectedText: boolean; selectedTextLength: number }) => void) => {
-      ipcRenderer.on('command-bar:ready', (_event, data) => callback(data));
+      const handler = (_event: Electron.IpcRendererEvent, data: { hasSelectedText: boolean; selectedTextLength: number }) => callback(data);
+      ipcRenderer.on('command-bar:ready', handler);
+      return () => ipcRenderer.removeListener('command-bar:ready', handler);
     },
     onError: (callback: (error: string) => void) => {
-      ipcRenderer.on('command-bar:error', (_event, error) => callback(error));
+      const handler = (_event: Electron.IpcRendererEvent, error: string) => callback(error);
+      ipcRenderer.on('command-bar:error', handler);
+      return () => ipcRenderer.removeListener('command-bar:error', handler);
     },
     onWillHide: (callback: () => void) => {
-      ipcRenderer.on('command-bar:will-hide', () => callback());
+      const handler = () => callback();
+      ipcRenderer.on('command-bar:will-hide', handler);
+      return () => ipcRenderer.removeListener('command-bar:will-hide', handler);
     },
     onReset: (callback: () => void) => {
-      ipcRenderer.on('command-bar:reset', () => callback());
+      const handler = () => callback();
+      ipcRenderer.on('command-bar:reset', handler);
+      return () => ipcRenderer.removeListener('command-bar:reset', handler);
     }
   }
 });
@@ -95,13 +119,13 @@ contextBridge.exposeInMainWorld('faria', {
 export interface FariaAPI {
   agent: {
     submit: (query: string) => Promise<{ success: boolean; result?: string; error?: string }>;
-    cancel: () => Promise<{ success: boolean }>;
+    cancel: (source?: string) => Promise<{ success: boolean }>;
     authCompleted: () => void;
-    onStatus: (callback: (status: string) => void) => void;
-    onResponse: (callback: (response: string) => void) => void;
-    onChunk: (callback: (chunk: string) => void) => void;
-    onAuthRequired: (callback: (data: { toolkit: string; redirectUrl: string }) => void) => void;
-    onToolApprovalRequired: (callback: (data: { toolName: string; toolDescription: string; args: Record<string, unknown>; isComposio: boolean; displayName?: string; details?: Record<string, string> }) => void) => void;
+    onStatus: (callback: (status: string) => void) => () => void;
+    onResponse: (callback: (response: string) => void) => () => void;
+    onChunk: (callback: (chunk: string) => void) => () => void;
+    onAuthRequired: (callback: (data: { toolkit: string; redirectUrl: string }) => void) => () => void;
+    onToolApprovalRequired: (callback: (data: { toolName: string; toolDescription: string; args: Record<string, unknown>; isComposio: boolean; displayName?: string; details?: Record<string, string> }) => void) => () => void;
     toolApprovalResponse: (approved: boolean) => void;
   };
   state: {
@@ -111,7 +135,7 @@ export interface FariaAPI {
     get: (key: string) => Promise<string | null>;
     set: (key: string, value: string) => Promise<{ success: boolean }>;
     getDefaultPrompt: () => Promise<string>;
-    onThemeChange: (callback: (themeData: { theme: string; customColors?: { background: string; text: string; accent: string }; font: string }) => void) => void;
+    onThemeChange: (callback: (themeData: { theme: string; customColors?: { background: string; text: string; accent: string }; font: string }) => void) => () => void;
   };
   history: {
     get: () => Promise<Array<{
@@ -150,12 +174,12 @@ export interface FariaAPI {
     hide: () => void;
     resize: (height: number) => void;
     setDropdownVisible: (visible: boolean) => void;
-    onFocus: (callback: () => void) => void;
-    onDetecting: (callback: () => void) => void;
-    onReady: (callback: (data: { hasSelectedText: boolean; selectedTextLength: number }) => void) => void;
-    onError: (callback: (error: string) => void) => void;
-    onWillHide: (callback: () => void) => void;
-    onReset: (callback: () => void) => void;
+    onFocus: (callback: () => void) => () => void;
+    onDetecting: (callback: () => void) => () => void;
+    onReady: (callback: (data: { hasSelectedText: boolean; selectedTextLength: number }) => void) => () => void;
+    onError: (callback: (error: string) => void) => () => void;
+    onWillHide: (callback: () => void) => () => void;
+    onReset: (callback: () => void) => () => void;
   };
 }
 
