@@ -316,7 +316,7 @@ function CommandBar() {
   const handleOpenAuthUrl = useCallback(() => {
     if (!pendingAuth) return;
     // Open the auth URL in the default browser
-    window.open(pendingAuth.redirectUrl, '_blank');
+    window.faria.shell.openExternal(pendingAuth.redirectUrl);
   }, [pendingAuth]);
 
   const handleAuthComplete = useCallback(() => {

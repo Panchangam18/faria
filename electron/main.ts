@@ -1,4 +1,4 @@
-import { app, BrowserWindow, globalShortcut, ipcMain, screen } from 'electron';
+import { app, BrowserWindow, globalShortcut, ipcMain, screen, shell } from 'electron';
 import { join } from 'path';
 import { initDatabase } from './db/sqlite';
 import { StateExtractor } from './services/state-extractor';
@@ -598,6 +598,11 @@ function setupIPC() {
 
   ipcMain.handle('integrations:connect', async (_event, appName: string) => {
     return composioService.initiateConnection(appName);
+  });
+
+  // Shell - Open external URLs in default browser
+  ipcMain.handle('shell:openExternal', async (_event, url: string) => {
+    await shell.openExternal(url);
   });
 
   // Window control IPC

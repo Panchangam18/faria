@@ -538,7 +538,7 @@ function SettingsPanel({ currentTheme, onThemeChange }: SettingsPanelProps) {
     try {
       const result = await window.faria.integrations.initiateConnection(appName);
       if (result?.redirectUrl) {
-        window.open(result.redirectUrl, '_blank');
+        window.faria.shell.openExternal(result.redirectUrl);
         // Close modal after opening auth URL
         setShowAddIntegrationModal(false);
         setIntegrationSearch('');

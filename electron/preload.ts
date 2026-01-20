@@ -53,6 +53,11 @@ contextBridge.exposeInMainWorld('faria', {
     initiateConnection: (appName: string) => ipcRenderer.invoke('integrations:connect', appName)
   },
 
+  // Shell - Open external URLs in default browser
+  shell: {
+    openExternal: (url: string) => ipcRenderer.invoke('shell:openExternal', url)
+  },
+
   // Command Bar
   commandBar: {
     hide: () => ipcRenderer.send('command-bar:hide'),
@@ -127,6 +132,9 @@ export interface FariaAPI {
       categories?: string[];
     }>>;
     initiateConnection: (appName: string) => Promise<{ redirectUrl: string } | null>;
+  };
+  shell: {
+    openExternal: (url: string) => Promise<void>;
   };
   commandBar: {
     hide: () => void;
