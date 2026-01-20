@@ -509,8 +509,8 @@ function CommandBar() {
             </div>
           ) : pendingAuth ? (
             <div className="command-bar-auth-inline">
-              <span className="auth-status-text">
-                Faria wants to use {formatToolkitName(pendingAuth.toolkit)}...
+              <span className="auth-status-text" style={{ fontStyle: 'normal' }}>
+                Faria wants to use {formatToolkitName(pendingAuth.toolkit)}
               </span>
               <button className="auth-inline-button auth-inline-connect" onClick={handleOpenAuthUrl}>
                 Connect
