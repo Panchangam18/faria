@@ -111,7 +111,7 @@ html, body, #root {
   margin-bottom: var(--spacing-md);
   max-height: 200px;
   overflow-y: auto;
-  font-size: var(--font-size-sm);
+  font-size: var(--font-size-xs);
   line-height: 1.6;
   color: var(--color-accent);
   -webkit-app-region: no-drag; /* Allow scrolling, not dragging */
@@ -563,7 +563,7 @@ html, body, #root {
 
 .tool-approval-detail {
   font-size: var(--font-size-xs);
-  color: var(--color-text);
+  color: var(--color-accent);
   line-height: 1.4;
   word-wrap: break-word;
   overflow-wrap: break-word;
@@ -571,6 +571,6 @@ html, body, #root {
 }
 
 .tool-approval-detail .detail-key {
-  color: var(--color-text-muted);
+  color: var(--color-accent);
   font-weight: 500;
 }
