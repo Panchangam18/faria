@@ -526,20 +526,39 @@ html, body, #root {
 
 .tool-approval-buttons {
   display: flex;
-  gap: var(--spacing-xs);
+  align-items: center;
+  gap: var(--spacing-sm);
   flex-shrink: 0;
 }
 
+.tool-approval-buttons .selection-indicator {
+  margin-right: var(--spacing-xs);
+}
+
 .tool-approval-details {
-  display: flex;
-  flex-direction: column;
-  gap: 2px;
+  display: block;
   margin-left: 2px;
   padding-left: 10px;
   border-left: 1px solid var(--color-accent);
-  overflow: hidden;
+  overflow-y: auto;
+  overflow-x: hidden;
   margin-right: auto;
   max-width: calc(100% - 120px);
+  max-height: 150px;
+  -webkit-app-region: no-drag;
+}
+
+.tool-approval-details::-webkit-scrollbar {
+  width: 4px;
+}
+
+.tool-approval-details::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.tool-approval-details::-webkit-scrollbar-thumb {
+  background: var(--color-border);
+  border-radius: 2px;
 }
 
 .tool-approval-detail {

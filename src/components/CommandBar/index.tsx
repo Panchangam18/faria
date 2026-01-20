@@ -448,9 +448,9 @@ function CommandBar() {
                     onClick={() => setToolApprovalExpanded(!toolApprovalExpanded)}
                   >
                     <span className="tool-approval-name">
-                      {pendingToolApproval.isComposio
-                        ? pendingToolApproval.displayName || `Use ${formatToolkitName(pendingToolApproval.toolName.split('_')[0])}`
-                        : 'Allow computer control?'}
+                      {pendingToolApproval.displayName || (pendingToolApproval.isComposio
+                        ? `Use ${formatToolkitName(pendingToolApproval.toolName.split('_')[0])}`
+                        : 'Allow computer control?')}
                     </span>
                     <svg
                       className={`chevron ${toolApprovalExpanded ? 'open' : ''}`}
@@ -464,12 +464,15 @@ function CommandBar() {
                   </button>
                 ) : (
                   <span className="tool-approval-name-static">
-                    {pendingToolApproval.isComposio
-                      ? pendingToolApproval.displayName || `Use ${formatToolkitName(pendingToolApproval.toolName.split('_')[0])}`
-                      : 'Allow computer control?'}
+                    {pendingToolApproval.displayName || (pendingToolApproval.isComposio
+                      ? `Use ${formatToolkitName(pendingToolApproval.toolName.split('_')[0])}`
+                      : 'Allow computer control?')}
                   </span>
                 )}
                 <div className="tool-approval-buttons">
+                  {selectedTextLength > 0 && (
+                    <span className="selection-indicator" title="Selected text">{selectedTextLength} chars</span>
+                  )}
                   <button className="auth-inline-button auth-inline-connect" onClick={handleToolApprove}>
                     <span className="button-shortcut">↵</span> Allow
                   </button>
@@ -481,8 +484,8 @@ function CommandBar() {
               {toolApprovalExpanded && pendingToolApproval.details && Object.keys(pendingToolApproval.details).length > 0 && (
                 <div className="tool-approval-details">
                   {Object.entries(pendingToolApproval.details).map(([key, value]) => (
-                    <div key={key} className="tool-approval-detail">
-                      <span className="detail-key">{key}:</span> {value}
+                    <div key={key || 'content'} className="tool-approval-detail">
+                      {key ? <><span className="detail-key">{key}:</span> {value}</> : value}
                     </div>
                   ))}
                 </div>
@@ -508,8 +511,8 @@ function CommandBar() {
           ) : null}
         </div>
         <div className="footer-right">
-          {/* Selection indicator - shows character count when text is selected */}
-          {selectedTextLength > 0 && (
+          {/* Selection indicator - shows character count when text is selected (hide when tool approval showing) */}
+          {selectedTextLength > 0 && !pendingToolApproval && (
             <span className="selection-indicator" title="Selected text">{selectedTextLength} chars</span>
           )}
 

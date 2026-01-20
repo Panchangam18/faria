@@ -65,7 +65,7 @@ const DEFAULT_CONFIG: AgentConfig = {
  * Now uses LangChain for LangSmith tracing
  */
 // Tools that don't require approval (informational/read-only or user-initiated)
-const SAFE_TOOLS = new Set(['get_state', 'web_search', 'replace_selected_text', 'insert_image']);
+const SAFE_TOOLS = new Set(['get_state', 'web_search', 'insert_image']);
 // Composio tools that don't require approval (management/search tools)
 const SAFE_COMPOSIO_TOOLS = new Set(['COMPOSIO_SEARCH_TOOLS', 'COMPOSIO_MANAGE_CONNECTIONS']);
 
@@ -123,6 +123,40 @@ function generateComposioApprovalInfo(toolName: string, args: Record<string, unk
   if (args.message) details['Message'] = String(args.message);
 
   return { displayName, details };
+}
+
+/**
+ * Generate a human-readable description for built-in tool approval
+ */
+function generateBuiltinApprovalInfo(toolName: string, args: Record<string, unknown>): { displayName: string; details: Record<string, string> } {
+  const details: Record<string, string> = {};
+
+  switch (toolName) {
+    case 'replace_selected_text':
+      if (args.text) details[''] = String(args.text);
+      return { displayName: 'Replace Selected Text', details };
+
+    case 'focus_app':
+      if (args.name) details['App'] = String(args.name);
+      return { displayName: 'Focus App', details };
+
+    case 'run_applescript':
+      if (args.script) details['Script'] = String(args.script);
+      return { displayName: 'Run AppleScript', details };
+
+    case 'chain_actions':
+      if (args.actions && Array.isArray(args.actions)) {
+        details['Actions'] = args.actions.map((a: any) => a.type || 'unknown').join(', ');
+      }
+      return { displayName: 'Chain Actions', details };
+
+    case 'execute_python':
+      if (args.code) details['Code'] = String(args.code);
+      return { displayName: 'Execute Python', details };
+
+    default:
+      return { displayName: formatToolSlug(toolName), details };
+  }
 }
 
 export class AgentLoop {
@@ -503,17 +537,27 @@ export class AgentLoop {
               }
             } else {
               // Use our tool executor for built-in tools
-              // Request approval for computer use tools (not get_state or web_search)
-              if (!SAFE_TOOLS.has(toolCall.name) && !this.computerUseApproved) {
+              // Request approval for computer use tools (not in SAFE_TOOLS)
+              // Note: replace_selected_text always requires approval (not covered by computerUseApproved)
+              const needsApproval = !SAFE_TOOLS.has(toolCall.name) &&
+                (toolCall.name === 'replace_selected_text' || !this.computerUseApproved);
+
+              if (needsApproval) {
                 const toolDef = this.toolExecutor.getToolDefinitions().find(t => t.name === toolCall.name);
                 const toolDescription = toolDef?.description || `Execute ${toolCall.name}`;
+                const { displayName, details } = generateBuiltinApprovalInfo(
+                  toolCall.name,
+                  toolCall.args as Record<string, unknown>
+                );
 
                 this.sendStatus('Waiting for approval...');
                 const approved = await this.requestToolApproval(
                   toolCall.name,
                   toolDescription,
                   toolCall.args as Record<string, unknown>,
-                  false
+                  false,
+                  displayName,
+                  details
                 );
 
                 if (!approved || this.shouldCancel) {
@@ -524,7 +568,10 @@ export class AgentLoop {
                   }));
                   continue;
                 }
-                this.computerUseApproved = true;
+                // Don't set computerUseApproved for replace_selected_text (always ask)
+                if (toolCall.name !== 'replace_selected_text') {
+                  this.computerUseApproved = true;
+                }
               }
 
               const result = await this.toolExecutor.execute(
