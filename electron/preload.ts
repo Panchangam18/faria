@@ -14,6 +14,9 @@ contextBridge.exposeInMainWorld('faria', {
     onResponse: (callback: (response: string) => void) => {
       ipcRenderer.on('agent:response', (_event, response) => callback(response));
     },
+    onChunk: (callback: (chunk: string) => void) => {
+      ipcRenderer.on('agent:chunk', (_event, chunk) => callback(chunk));
+    },
     onAuthRequired: (callback: (data: { toolkit: string; redirectUrl: string }) => void) => {
       ipcRenderer.on('agent:auth-required', (_event, data) => callback(data));
     }
@@ -92,6 +95,7 @@ export interface FariaAPI {
     authCompleted: () => void;
     onStatus: (callback: (status: string) => void) => void;
     onResponse: (callback: (response: string) => void) => void;
+    onChunk: (callback: (chunk: string) => void) => void;
     onAuthRequired: (callback: (data: { toolkit: string; redirectUrl: string }) => void) => void;
   };
   state: {

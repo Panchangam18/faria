@@ -112,6 +112,7 @@ function applyTheme(theme: string, customColors?: { background: string; text: st
 function CommandBar() {
   const [query, setQuery] = useState('');
   const [response, setResponse] = useState('');
+  const [streamingResponse, setStreamingResponse] = useState('');
   const [status, setStatus] = useState('');
   const [isProcessing, setIsProcessing] = useState(false);
   const [selectedTextLength, setSelectedTextLength] = useState<number>(0); // Character count of selected text
@@ -146,7 +147,7 @@ function CommandBar() {
 
     // Calculate response height (actual content height, capped at max)
     let responseHeight = 0;
-    if (response && responseRef.current) {
+    if ((response || streamingResponse) && responseRef.current) {
       // Temporarily remove max-height to measure true content height
       const el = responseRef.current;
       const originalMaxHeight = el.style.maxHeight;
@@ -159,7 +160,7 @@ function CommandBar() {
     // Calculate and set window height
     const totalHeight = BASE_HEIGHT + contentHeight + responseHeight;
     window.faria.commandBar.resize(totalHeight);
-  }, [query, response]);
+  }, [query, response, streamingResponse]);
 
   // Load theme on mount
   useEffect(() => {
@@ -228,9 +229,15 @@ function CommandBar() {
       setStatus(newStatus);
     });
 
-    // Listen for response from agent
+    // Listen for streaming chunks from agent
+    window.faria.agent.onChunk((chunk: string) => {
+      setStreamingResponse(prev => prev + chunk);
+    });
+
+    // Listen for final response from agent
     window.faria.agent.onResponse((newResponse: string) => {
       setResponse(newResponse);
+      setStreamingResponse(''); // Clear streaming state
       setIsProcessing(false);
       setStatus('');
       setPendingAuth(null);
@@ -261,6 +268,7 @@ function CommandBar() {
     window.faria.commandBar.onReset(() => {
       setQuery('');
       setResponse('');
+      setStreamingResponse('');
       setStatus('');
       setIsProcessing(false);
       setSelectedTextLength(0);
@@ -274,6 +282,7 @@ function CommandBar() {
 
     setIsProcessing(true);
     setResponse('');
+    setStreamingResponse('');
 
     try {
       setStatus('Extracting state...');
@@ -342,9 +351,9 @@ function CommandBar() {
         />
       </div>
 
-      {(response || errorMessage) && (
+      {(response || streamingResponse || errorMessage) && (
         <div className="command-bar-response" ref={responseRef} style={errorMessage ? { color: 'var(--color-error, #ff4444)' } : undefined}>
-          {errorMessage || response}
+          {errorMessage || response || streamingResponse}
         </div>
       )}
 

@@ -247,14 +247,47 @@ export class AgentLoop {
           },
         };
         
-        const response = await modelWithTools.invoke(messages, invokeOptions);
-        
-        // Check for cancellation after API call
+        // Stream the response for real-time display
+        let fullContent = '';
+        let toolCalls: any[] = [];
+
+        const stream = await modelWithTools.stream(messages, invokeOptions);
+
+        for await (const chunk of stream) {
+          if (this.shouldCancel) break;
+
+          // Handle text content chunks
+          if (typeof chunk.content === 'string' && chunk.content) {
+            fullContent += chunk.content;
+            this.sendChunk(chunk.content);
+          } else if (Array.isArray(chunk.content)) {
+            for (const part of chunk.content as any[]) {
+              if (part.type === 'text' && part.text) {
+                fullContent += part.text;
+                this.sendChunk(part.text);
+              }
+            }
+          }
+
+          // Accumulate tool calls from chunks
+          if (chunk.tool_calls && chunk.tool_calls.length > 0) {
+            toolCalls = chunk.tool_calls;
+          }
+        }
+
+        // Build AIMessage compatible with existing tool handling
+        const response = new AIMessage({
+          content: fullContent,
+          tool_calls: toolCalls.length > 0 ? toolCalls : undefined,
+          additional_kwargs: {},
+        });
+
+        // Check for cancellation after streaming
         if (this.shouldCancel) {
-          console.log('[Faria] Cancelled after API call');
+          console.log('[Faria] Cancelled after streaming');
           break;
         }
-        
+
         console.log(`[Faria] Response received, tool_calls:`, response.tool_calls?.length || 0);
 
         // Check if there are tool calls
@@ -513,5 +546,15 @@ export class AgentLoop {
       win.webContents.send('agent:response', response);
     });
   }
-  
+
+  /**
+   * Send streaming chunk to UI
+   */
+  private sendChunk(chunk: string): void {
+    const windows = BrowserWindow.getAllWindows();
+    windows.forEach(win => {
+      win.webContents.send('agent:chunk', chunk);
+    });
+  }
+
 }
