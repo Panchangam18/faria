@@ -103,8 +103,10 @@ function createMainWindow() {
 }
 
 function createCommandBarWindow() {
-  const { width: screenWidth, height: screenHeight } = screen.getPrimaryDisplay().workAreaSize;
-  
+  const display = screen.getPrimaryDisplay();
+  const { width: screenWidth } = display.bounds;  // Use full display width for perfect centering
+  const { height: screenHeight } = display.workAreaSize;
+
   commandBarWindow = new BrowserWindow({
     width: DEFAULT_COMMAND_BAR_WIDTH,
     height: DEFAULT_COMMAND_BAR_HEIGHT,
@@ -210,8 +212,10 @@ function getCommandBarSettings() {
 
 // Calculate and cache position at startup - call this once
 function cacheCommandBarPosition() {
-  const { width: screenWidth, height: screenHeight } = screen.getPrimaryDisplay().workAreaSize;
-  
+  const display = screen.getPrimaryDisplay();
+  const { width: screenWidth } = display.bounds;  // Use full display width for perfect centering
+  const { height: screenHeight } = display.workAreaSize;
+
   // Check for saved position
   const savedPosition = getCommandBarSettings();
   if (savedPosition && savedPosition.width === DEFAULT_COMMAND_BAR_WIDTH) {
@@ -415,7 +419,9 @@ async function resetCommandBar() {
   commandBarSessionId++;
 
   // Reset cached position to default (center, near bottom)
-  const { width: screenWidth, height: screenHeight } = screen.getPrimaryDisplay().workAreaSize;
+  const display = screen.getPrimaryDisplay();
+  const { width: screenWidth } = display.bounds;  // Use full display width for perfect centering
+  const { height: screenHeight } = display.workAreaSize;
   cachedCommandBarPosition = {
     x: Math.round((screenWidth - DEFAULT_COMMAND_BAR_WIDTH) / 2),
     y: Math.round(screenHeight - 300)
