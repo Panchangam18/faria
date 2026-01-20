@@ -21,7 +21,6 @@ export default defineConfig({
                 'langsmith',
                 'dotenv',
                 '@anthropic-ai/sdk',
-                'magnitude-core',
               ]
             }
           }
