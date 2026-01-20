@@ -1,5 +1,5 @@
 import React from 'react';
-import { MdDescription, MdSettings } from 'react-icons/md';
+import { MdHistory, MdSettings } from 'react-icons/md';
 
 interface SidebarProps {
   activeTab: 'history' | 'settings';
@@ -14,7 +14,7 @@ function Sidebar({ activeTab, onTabChange }: SidebarProps) {
         onClick={() => onTabChange('history')}
         title="History"
       >
-        <MdDescription size={20} />
+        <MdHistory size={20} />
       </button>
       <button
         className={`sidebar-tab ${activeTab === 'settings' ? 'active' : ''}`}
