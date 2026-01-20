@@ -301,23 +301,13 @@ function CommandBar() {
     setToolApprovalExpanded(false);
   }, [pendingToolApproval]);
 
-  // Global keyboard listener for tool approval shortcuts
+  // Global keyboard listener for Ctrl+C to cancel and tool approval shortcuts
   useEffect(() => {
-    if (!pendingToolApproval) return;
-
     const handleGlobalKeyDown = (e: KeyboardEvent) => {
-      if (e.key === 'Enter') {
+      // Ctrl+C to cancel agent when processing
+      if (e.key === 'c' && (e.ctrlKey || e.metaKey) && isProcessing) {
         e.preventDefault();
-        // Trigger allow
-        console.log('[CommandBar] Enter pressed, approving tool');
-        setPendingToolApproval(null);
-        setStatus('Executing...');
-        window.faria.agent.toolApprovalResponse(true);
-      }
-      if (e.key === 'c' && (e.ctrlKey || e.metaKey)) {
-        e.preventDefault();
-        // Trigger deny/cancel
-        console.log('[CommandBar] Ctrl+C pressed, denying tool and cancelling');
+        console.log('[CommandBar] Ctrl+C pressed, cancelling agent');
         setPendingToolApproval(null);
         setToolApprovalExpanded(false);
         window.faria.agent.cancel();
@@ -325,12 +315,24 @@ function CommandBar() {
         setStatus('');
         // Refocus the input after state updates
         setTimeout(() => inputRef.current?.focus(), 0);
+        return;
+      }
+
+      // Tool approval shortcuts
+      if (pendingToolApproval) {
+        if (e.key === 'Enter') {
+          e.preventDefault();
+          console.log('[CommandBar] Enter pressed, approving tool');
+          setPendingToolApproval(null);
+          setStatus('Executing...');
+          window.faria.agent.toolApprovalResponse(true);
+        }
       }
     };
 
     document.addEventListener('keydown', handleGlobalKeyDown);
     return () => document.removeEventListener('keydown', handleGlobalKeyDown);
-  }, [pendingToolApproval]);
+  }, [pendingToolApproval, isProcessing]);
 
   const handleSubmit = useCallback(async () => {
     if (!query.trim() || isProcessing) return;
