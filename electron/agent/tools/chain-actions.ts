@@ -1,8 +1,29 @@
+import { tool } from '@langchain/core/tools';
+import { DynamicStructuredTool } from '@langchain/core/tools';
+import { z } from 'zod';
 import { ToolResult, ToolContext } from './types';
 import { runAppleScript, focusApp } from '../../services/applescript';
 import { insertImageFromUrl } from '../../services/text-extraction';
 import * as cliclick from '../../services/cliclick';
 import { screen } from 'electron';
+
+// Zod schema for the tool
+export const ChainActionsSchema = z.object({
+  actions: z.array(
+    z.object({
+      type: z.enum(['activate', 'hotkey', 'type', 'key', 'click', 'scroll', 'wait', 'insert_image']),
+      app: z.string().optional(),
+      modifiers: z.array(z.string()).optional(),
+      key: z.string().optional(),
+      text: z.string().optional(),
+      x: z.number().optional(),
+      y: z.number().optional(),
+      direction: z.enum(['up', 'down', 'left', 'right']).optional(),
+      amount: z.number().optional(),
+      query: z.string().optional(),
+    })
+  ).describe('List of actions to execute in sequence. Each action has: type (activate/hotkey/type/key/click/scroll/wait/insert_image), app (for activate), modifiers+key (for hotkey), text (for type), key (for key), x+y (for click), direction (for scroll), amount (for wait ms), query (for insert_image)'),
+});
 
 /**
  * Convert coordinates from Google's 0-999 normalized grid to actual pixels
@@ -14,10 +35,10 @@ function convertCoordinates(x: number, y: number, provider: 'anthropic' | 'googl
   if (provider !== 'google') {
     return { x, y };
   }
-  
+
   const primaryDisplay = screen.getPrimaryDisplay();
   const { width: screenWidth, height: screenHeight } = primaryDisplay.size;
-  
+
   // Google uses 0-999 normalized coordinates
   const pixelX = Math.round((x / 999) * screenWidth);
   const pixelY = Math.round((y / 999) * screenHeight);
@@ -59,6 +80,42 @@ interface Action {
 
 export interface ChainActionsParams {
   actions: Action[];
+}
+
+/**
+ * Factory function that creates the chain actions tool with context injected
+ */
+export function createChainActionsTool(context: ToolContext): DynamicStructuredTool {
+  return tool(
+    async (input) => {
+      const results: string[] = [];
+
+      try {
+        for (let i = 0; i < input.actions.length; i++) {
+          const action = input.actions[i];
+          const nextAction = i < input.actions.length - 1 ? input.actions[i + 1] : null;
+
+          // Execute the action
+          const result = await executeAction(action, context);
+          results.push(result);
+
+          // Wait for the appropriate condition before proceeding
+          if (nextAction) {
+            await waitForActionComplete(action, nextAction, context);
+          }
+        }
+
+        return `Completed ${input.actions.length} actions: ${results.join(' → ')}`;
+      } catch (error) {
+        throw new Error(`Failed at action ${results.length + 1}: ${error}`);
+      }
+    },
+    {
+      name: 'chain_actions',
+      description: 'Execute a sequence of actions with automatic timing. PREFERRED for multi-step UI tasks. Actions: activate (switch app), hotkey (keyboard shortcut), type (text), key (single key like return/tab), click, scroll, wait, insert_image (search and insert image at cursor).',
+      schema: ChainActionsSchema,
+    }
+  );
 }
 
 /**

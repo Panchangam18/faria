@@ -1,4 +1,5 @@
 import { BaseChatModel } from '@langchain/core/language_models/chat_models';
+import { DynamicStructuredTool } from '@langchain/core/tools';
 import Anthropic from '@anthropic-ai/sdk';
 import { GoogleGenerativeAI, GenerativeModel } from '@google/generative-ai';
 import { initDatabase } from '../../db/sqlite';
@@ -77,7 +78,7 @@ export function createModel(modelName: string, maxTokens: number = 4096): BaseCh
  */
 export function createModelWithTools(
   modelName: string,
-  tools: unknown[],
+  tools: DynamicStructuredTool[],
   screenDimensions: ScreenDimensions,
   maxTokens: number = 4096
 ): BoundModel | null {

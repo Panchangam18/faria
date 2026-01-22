@@ -1,23 +1,20 @@
+import { DynamicStructuredTool } from '@langchain/core/tools';
 import { StateExtractor, AppState } from '../../services/state-extractor';
+import type { ToolContext } from './types';
 
 // Types
-export type { ToolResult, ToolDefinition, ToolContext } from './types';
+export type { ToolContext } from './types';
 export { executeComputerAction, type ComputerAction, type ComputerActionResult } from './computer-use';
 
-// Tool definitions
-import { toolDefinitions } from './definitions';
-
-// Tool implementations
-import { focusApp } from './focus-app';
-import { getState } from './get-state';
-import { runAppleScriptTool } from './run-applescript';
-import { chainActions } from './chain-actions';
-import { webSearch } from './web-search';
-import { insertImage } from './insert-image';
-import { replaceSelectedText } from './replace-text';
-import { executePython, ExecutePythonParams } from './execute-python';
-
-import type { ToolResult, ToolContext } from './types';
+// Tool factory functions
+import { createFocusAppTool } from './focus-app';
+import { createGetStateTool } from './get-state';
+import { createRunAppleScriptTool } from './run-applescript';
+import { createChainActionsTool } from './chain-actions';
+import { createWebSearchTool } from './web-search';
+import { createInsertImageTool } from './insert-image';
+import { createReplaceSelectedTextTool } from './replace-text';
+import { createExecutePythonTool } from './execute-python';
 
 /**
  * Tool Executor - handles execution of all built-in and custom tools
@@ -56,12 +53,24 @@ export class ToolExecutor {
   }
   
   /**
-   * Get all tool definitions for Claude
+   * Get all built-in tools as DynamicStructuredTool instances
+   * This creates tools with context baked in via closure
    */
-  getToolDefinitions() {
-    return toolDefinitions;
+  getTools(): DynamicStructuredTool[] {
+    const context = this.getContext();
+
+    return [
+      createFocusAppTool(context),
+      createGetStateTool(context),
+      createRunAppleScriptTool(),
+      createChainActionsTool(context),
+      createWebSearchTool(),
+      createInsertImageTool(context),
+      createReplaceSelectedTextTool(context),
+      createExecutePythonTool(),
+    ];
   }
-  
+
   /**
    * Get the tool context for passing to individual tools
    */
@@ -79,38 +88,5 @@ export class ToolExecutor {
         console.log(`[Faria] Target app updated to: ${appName}`);
       },
     };
-  }
-  
-  /**
-   * Execute a tool by name
-   */
-  async execute(toolName: string, params: Record<string, unknown>): Promise<ToolResult> {
-    const context = this.getContext();
-    
-    try {
-      switch (toolName) {
-        case 'focus_app':
-          return await focusApp(params as { name: string }, context);
-        case 'get_state':
-          return await getState(context);
-        case 'run_applescript':
-          return await runAppleScriptTool(params as { script: string });
-        case 'chain_actions':
-          // eslint-disable-next-line @typescript-eslint/no-explicit-any
-          return await chainActions(params as any, context);
-        case 'web_search':
-          return await webSearch(params as { query: string });
-        case 'insert_image':
-          return await insertImage(params as { query: string }, context);
-        case 'replace_selected_text':
-          return await replaceSelectedText(params as { text: string }, context);
-        case 'execute_python':
-          return await executePython(params as unknown as ExecutePythonParams);
-        default:
-          return { success: false, error: `Unknown tool: ${toolName}` };
-      }
-    } catch (error) {
-      return { success: false, error: String(error) };
-    }
   }
 }

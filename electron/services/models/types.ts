@@ -1,4 +1,5 @@
 import { BaseChatModel } from '@langchain/core/language_models/chat_models';
+import { DynamicStructuredTool } from '@langchain/core/tools';
 
 /**
  * Configuration for creating a model
@@ -35,20 +36,20 @@ export interface BoundModel {
 export interface ModelProvider {
   /** Provider name */
   name: string;
-  
+
   /** Check if this provider handles the given model */
   supportsModel(modelName: string): boolean;
-  
+
   /** Create a base model instance */
   createModel(config: ModelConfig): BaseChatModel | null;
-  
+
   /** Create a model with computer use and other tools bound */
   createModelWithTools(
     config: ModelConfig,
-    tools: unknown[],
+    tools: DynamicStructuredTool[],
     screenDimensions: ScreenDimensions
   ): BoundModel | null;
-  
+
   /** Get invoke options for this provider */
   getInvokeOptions(): Record<string, unknown>;
 }

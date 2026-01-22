@@ -1,5 +1,7 @@
 import { StateExtractor, AppState } from '../../services/state-extractor';
 
+// Legacy interfaces kept for backward compatibility in tool files
+// These are still used by legacy functions but tools now return strings directly
 export interface ToolResult {
   success: boolean;
   result?: string;
@@ -21,6 +23,7 @@ export interface ToolDefinition {
   };
 }
 
+// ToolContext is still actively used for dependency injection
 export interface ToolContext {
   stateExtractor: StateExtractor;
   currentState: AppState | null;

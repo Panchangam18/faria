@@ -1,7 +1,7 @@
 import { HumanMessage, SystemMessage, AIMessage, ToolMessage } from '@langchain/core/messages';
 import { BrowserWindow, screen, shell, ipcMain } from 'electron';
 import { StateExtractor, AppState } from '../services/state-extractor';
-import { ToolExecutor, ToolDefinition, executeComputerAction, ComputerAction } from './tools';
+import { ToolExecutor, executeComputerAction, ComputerAction } from './tools';
 import { initDatabase } from '../db/sqlite';
 import { traceable } from 'langsmith/traceable';
 import { getLangchainCallbacks } from 'langsmith/langchain';
@@ -261,21 +261,16 @@ export class AgentLoop {
           : new HumanMessage({ content: userPrompt }),
       ];
       
-      // Get tool definitions
-      const regularTools = this.toolExecutor.getToolDefinitions().map(this.convertToLangChainTool);
+      // Get built-in tools (now DynamicStructuredTool instances like Composio)
+      const builtinTools = this.toolExecutor.getTools();
+      console.log(`[Faria] Loaded ${builtinTools.length} built-in tools`);
 
       // Get Composio tools (already in LangChain DynamicStructuredTool format)
       const composioTools = await this.composioService.getTools();
       console.log(`[Faria] Loaded ${composioTools.length} Composio tools`);
 
-      // Create a map of Composio tools by name for quick lookup during execution
-      const composioToolMap = new Map<string, any>();
-      for (const tool of composioTools) {
-        composioToolMap.set(tool.name, tool);
-      }
-
-      // Merge all tools - Composio tools are DynamicStructuredTools that handle their own execution
-      const allTools = [...regularTools, ...composioTools];
+      // Merge all tools - both built-in and Composio are now DynamicStructuredTools
+      const allTools = [...builtinTools, ...composioTools];
 
       // Get screen dimensions for computer use tool
       const primaryDisplay = screen.getPrimaryDisplay();
@@ -355,38 +350,36 @@ export class AgentLoop {
         };
         
         // Stream the response for real-time display
-        let fullContent = '';
-        let toolCalls: any[] = [];
+        // Use LangChain's native AIMessageChunk merging to handle tool_call_chunks
+        let aggregatedChunk: any = null;
 
         const stream = await modelWithTools.stream(messages, invokeOptions);
 
         for await (const chunk of stream) {
           if (this.shouldCancel) break;
 
-          // Handle text content chunks
+          // LangChain native way: merge chunks using concat()
+          // This automatically handles tool_call_chunks merging
+          aggregatedChunk = aggregatedChunk ? aggregatedChunk.concat(chunk) : chunk;
+
+          // Handle text content chunks for streaming display
           if (typeof chunk.content === 'string' && chunk.content) {
-            fullContent += chunk.content;
             this.sendChunk(chunk.content);
           } else if (Array.isArray(chunk.content)) {
             for (const part of chunk.content as any[]) {
               if (part.type === 'text' && part.text) {
-                fullContent += part.text;
                 this.sendChunk(part.text);
               }
             }
           }
-
-          // Accumulate tool calls from chunks
-          if (chunk.tool_calls && chunk.tool_calls.length > 0) {
-            toolCalls = chunk.tool_calls;
-          }
         }
 
-        // Build AIMessage compatible with existing tool handling
+        // Build AIMessage from the fully merged chunk
+        // LangChain's concat() has already merged tool_call_chunks into tool_calls
         const response = new AIMessage({
-          content: fullContent,
-          tool_calls: toolCalls.length > 0 ? toolCalls : undefined,
-          additional_kwargs: {},
+          content: typeof aggregatedChunk.content === 'string' ? aggregatedChunk.content : '',
+          tool_calls: aggregatedChunk.tool_calls || [],
+          additional_kwargs: aggregatedChunk.additional_kwargs || {},
         });
 
         // Check for cancellation after streaming
@@ -461,24 +454,41 @@ export class AgentLoop {
                   name: toolCall.name,
                 }));
               }
-            } else if (composioToolMap.has(toolCall.name)) {
-              // Execute Composio tools through their invoke() method
-              const composioTool = composioToolMap.get(toolCall.name);
+            } else {
+              // UNIFIED execution for ALL other tools (built-in + Composio)
+              const toolToExecute = allTools.find(t => t.name === toolCall.name);
 
-              // Require approval for Composio tools (except safe ones like search/manage)
-              if (!SAFE_COMPOSIO_TOOLS.has(toolCall.name)) {
-                const toolDescription = composioTool.description || `Execute ${toolCall.name}`;
-                const { displayName, details } = generateComposioApprovalInfo(
-                  toolCall.name,
-                  toolCall.args as Record<string, unknown>
-                );
+              if (!toolToExecute) {
+                addMessage(new ToolMessage({
+                  content: `Unknown tool: ${toolCall.name}`,
+                  tool_call_id: toolCall.id || toolCall.name,
+                  name: toolCall.name,
+                }));
+                continue;
+              }
+
+              // Check if approval is needed
+              const isComposioTool = !SAFE_TOOLS.has(toolCall.name) &&
+                                      !['focus_app', 'get_state', 'run_applescript', 'chain_actions',
+                                        'web_search', 'insert_image', 'replace_selected_text', 'execute_python'].includes(toolCall.name);
+
+              // Determine if approval is needed
+              const needsApproval = isComposioTool
+                ? !SAFE_COMPOSIO_TOOLS.has(toolCall.name)
+                : !SAFE_TOOLS.has(toolCall.name) && (toolCall.name === 'replace_selected_text' || !this.computerUseApproved);
+
+              if (needsApproval) {
+                const toolDescription = toolToExecute.description || `Execute ${toolCall.name}`;
+                const { displayName, details } = isComposioTool
+                  ? generateComposioApprovalInfo(toolCall.name, toolCall.args as Record<string, unknown>)
+                  : generateBuiltinApprovalInfo(toolCall.name, toolCall.args as Record<string, unknown>);
 
                 this.sendStatus('Waiting for approval...');
                 const approved = await this.requestToolApproval(
                   toolCall.name,
                   toolDescription,
                   toolCall.args as Record<string, unknown>,
-                  true,
+                  isComposioTool,
                   displayName,
                   details
                 );
@@ -491,14 +501,20 @@ export class AgentLoop {
                   }));
                   continue;
                 }
+
+                // Don't set computerUseApproved for replace_selected_text (always ask)
+                if (!isComposioTool && toolCall.name !== 'replace_selected_text') {
+                  this.computerUseApproved = true;
+                }
               }
 
+              // Execute the tool via its invoke() method
               try {
-                let composioResult = await composioTool.invoke(toolCall.args);
-                const resultStr = typeof composioResult === 'string' ? composioResult : JSON.stringify(composioResult);
-                console.log(`[Faria] Composio tool result: SUCCESS`, resultStr.slice(0, 200));
+                const result = await toolToExecute.invoke(toolCall.args);
+                const resultStr = typeof result === 'string' ? result : JSON.stringify(result);
+                console.log(`[Faria] Tool result: SUCCESS`, resultStr.slice(0, 200));
 
-                // Check if authentication is required
+                // Check for Composio auth requirement
                 const authRequired = parseComposioAuthRequired(resultStr);
                 if (authRequired && !this.shouldCancel) {
                   console.log(`[Faria] Auth required for ${authRequired.toolkit}`);
@@ -528,66 +544,13 @@ export class AgentLoop {
                   }));
                 }
               } catch (error) {
-                console.log(`[Faria] Composio tool result: FAILED`, error);
+                console.log(`[Faria] Tool result: FAILED`, error);
                 addMessage(new ToolMessage({
                   content: `Error: ${error}`,
                   tool_call_id: toolCall.id || toolCall.name,
                   name: toolCall.name,
                 }));
               }
-            } else {
-              // Use our tool executor for built-in tools
-              // Request approval for computer use tools (not in SAFE_TOOLS)
-              // Note: replace_selected_text always requires approval (not covered by computerUseApproved)
-              const needsApproval = !SAFE_TOOLS.has(toolCall.name) &&
-                (toolCall.name === 'replace_selected_text' || !this.computerUseApproved);
-
-              if (needsApproval) {
-                const toolDef = this.toolExecutor.getToolDefinitions().find(t => t.name === toolCall.name);
-                const toolDescription = toolDef?.description || `Execute ${toolCall.name}`;
-                const { displayName, details } = generateBuiltinApprovalInfo(
-                  toolCall.name,
-                  toolCall.args as Record<string, unknown>
-                );
-
-                this.sendStatus('Waiting for approval...');
-                const approved = await this.requestToolApproval(
-                  toolCall.name,
-                  toolDescription,
-                  toolCall.args as Record<string, unknown>,
-                  false,
-                  displayName,
-                  details
-                );
-
-                if (!approved || this.shouldCancel) {
-                  addMessage(new ToolMessage({
-                    content: 'Tool execution denied by user',
-                    tool_call_id: toolCall.id || toolCall.name,
-                    name: toolCall.name,
-                  }));
-                  continue;
-                }
-                // Don't set computerUseApproved for replace_selected_text (always ask)
-                if (toolCall.name !== 'replace_selected_text') {
-                  this.computerUseApproved = true;
-                }
-              }
-
-              const result = await this.toolExecutor.execute(
-                toolCall.name,
-                toolCall.args as Record<string, unknown>
-              );
-
-              console.log(`[Faria] Tool result: ${result.success ? 'SUCCESS' : 'FAILED'}`, result.result?.slice(0, 200) || result.error);
-
-              const resultContent = result.success ? (result.result || 'Done') : `Error: ${result.error}`;
-
-              addMessage(new ToolMessage({
-                content: resultContent,
-                tool_call_id: toolCall.id || toolCall.name,
-                name: toolCall.name,
-              }));
             }
           }
 
@@ -750,17 +713,6 @@ export class AgentLoop {
     }
 
     return textContent;
-  }
-  
-  /**
-   * Convert tool definition to LangChain format
-   */
-  private convertToLangChainTool(tool: ToolDefinition) {
-    return {
-      name: tool.name,
-      description: tool.description,
-      schema: tool.parameters,
-    };
   }
   
   /**

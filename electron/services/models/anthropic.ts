@@ -1,5 +1,6 @@
 import { ChatAnthropic } from '@langchain/anthropic';
 import { BaseChatModel } from '@langchain/core/language_models/chat_models';
+import { DynamicStructuredTool } from '@langchain/core/tools';
 import { initDatabase } from '../../db/sqlite';
 import { ModelProvider, ModelConfig, ScreenDimensions, BoundModel } from './types';
 
@@ -30,12 +31,12 @@ export const anthropicProvider: ModelProvider = {
   
   createModelWithTools(
     config: ModelConfig,
-    tools: unknown[],
+    tools: DynamicStructuredTool[],
     screenDimensions: ScreenDimensions
   ): BoundModel | null {
     const model = this.createModel(config);
     if (!model) return null;
-    
+
     // Anthropic's computer use tool format (beta)
     const computerTool = {
       type: 'computer_20250124' as const,
@@ -43,10 +44,12 @@ export const anthropicProvider: ModelProvider = {
       display_width_px: screenDimensions.width,
       display_height_px: screenDimensions.height,
     };
-    
+
+    // Bind tools using LangChain's native bindTools method
+    // Type assertion needed only for the computer tool (custom format for Anthropic beta)
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const boundModel = model.bindTools!([...tools, computerTool] as any);
-    
+    const boundModel = model.bindTools!([...tools, computerTool as any]);
+
     return {
       model: boundModel,
       invokeOptions: this.getInvokeOptions(),
