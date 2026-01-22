@@ -606,7 +606,7 @@ export class AgentLoop {
       return finalResponse;
     },
     {
-      name: 'faria-agent-loop',
+      name: 'faria-agent',
       run_type: 'chain',
       tags: ['faria', 'agent'],
     }
