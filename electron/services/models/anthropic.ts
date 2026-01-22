@@ -2,7 +2,7 @@ import { ChatAnthropic } from '@langchain/anthropic';
 import { BaseChatModel } from '@langchain/core/language_models/chat_models';
 import { DynamicStructuredTool } from '@langchain/core/tools';
 import { initDatabase } from '../../db/sqlite';
-import { ModelProvider, ModelConfig, ScreenDimensions, BoundModel } from './types';
+import { ModelProvider, ModelConfig, BoundModel } from './types';
 
 /**
  * Anthropic (Claude) model provider
@@ -31,37 +31,22 @@ export const anthropicProvider: ModelProvider = {
   
   createModelWithTools(
     config: ModelConfig,
-    tools: DynamicStructuredTool[],
-    screenDimensions: ScreenDimensions
+    tools: DynamicStructuredTool[]
   ): BoundModel | null {
     const model = this.createModel(config);
     if (!model) return null;
 
-    // Anthropic's computer use tool format (beta)
-    const computerTool = {
-      type: 'computer_20250124' as const,
-      name: 'computer',
-      display_width_px: screenDimensions.width,
-      display_height_px: screenDimensions.height,
-    };
-
     // Bind tools using LangChain's native bindTools method
-    // Type assertion needed only for the computer tool (custom format for Anthropic beta)
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const boundModel = model.bindTools!([...tools, computerTool as any]);
+    const boundModel = model.bindTools!(tools);
 
     return {
       model: boundModel,
       invokeOptions: this.getInvokeOptions(),
-      computerToolName: 'computer',
     };
   },
   
   getInvokeOptions(): Record<string, unknown> {
-    return {
-      // Use latest computer use beta (matches computer_20250124 tool version)
-      betas: ['computer-use-2025-01-24'],
-    };
+    return {};
   },
 };
 

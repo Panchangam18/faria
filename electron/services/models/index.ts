@@ -5,7 +5,7 @@ import { GoogleGenerativeAI, GenerativeModel } from '@google/generative-ai';
 import { initDatabase } from '../../db/sqlite';
 import { anthropicProvider } from './anthropic';
 import { googleProvider } from './google';
-import { ModelProvider, ModelConfig, ScreenDimensions, BoundModel } from './types';
+import { ModelProvider, ModelConfig, BoundModel } from './types';
 
 export * from './types';
 
@@ -73,13 +73,12 @@ export function createModel(modelName: string, maxTokens: number = 4096): BaseCh
 }
 
 /**
- * Create a model with computer use and other tools bound
+ * Create a model with tools bound
  * Returns everything needed to invoke the model
  */
 export function createModelWithTools(
   modelName: string,
   tools: DynamicStructuredTool[],
-  screenDimensions: ScreenDimensions,
   maxTokens: number = 4096
 ): BoundModel | null {
   // Handle "none" model
@@ -96,8 +95,7 @@ export function createModelWithTools(
   
   const result = provider.createModelWithTools(
     { model: modelName, maxTokens },
-    tools,
-    screenDimensions
+    tools
   );
   
   if (result) {
@@ -110,35 +108,15 @@ export function createModelWithTools(
 }
 
 /**
- * Check if a tool call is for computer use (handles both provider naming conventions)
- */
-export function isComputerUseTool(toolName: string): boolean {
-  return toolName === 'computer' || toolName === 'computer_use';
-}
-
-/**
- * Check if a provider supports computer use
- */
-export function supportsComputerUse(modelName: string): boolean {
-  const provider = getProvider(modelName);
-  // Both Anthropic and Google support computer use
-  return provider?.name === 'anthropic' || provider?.name === 'google';
-}
-
-/**
  * Get a human-readable display name for a tool
  */
 export function getToolDisplayName(toolName: string): string {
   // Built-in tools
   const names: Record<string, string> = {
-    focus_app: 'Switching app',
     get_state: 'Checking state',
-    computer: 'Using computer',
-    computer_use: 'Using computer',
-    run_applescript: 'Running AppleScript',
     search_tools: 'Searching tools',
     create_tool: 'Creating tool',
-    chain_actions: 'Executing actions',
+    computer_actions: 'Executing actions',
     web_search: 'Searching the web',
     insert_image: 'Inserting image',
     replace_selected_text: 'Replacing text',

@@ -10,14 +10,6 @@ export interface ModelConfig {
 }
 
 /**
- * Screen dimensions for computer use
- */
-export interface ScreenDimensions {
-  width: number;
-  height: number;
-}
-
-/**
  * Result of creating a model with tools bound
  */
 export interface BoundModel {
@@ -26,8 +18,6 @@ export interface BoundModel {
   model: any;
   /** Options to pass when invoking the model */
   invokeOptions: Record<string, unknown>;
-  /** The name of the computer tool for this provider */
-  computerToolName: string;
 }
 
 /**
@@ -43,11 +33,10 @@ export interface ModelProvider {
   /** Create a base model instance */
   createModel(config: ModelConfig): BaseChatModel | null;
 
-  /** Create a model with computer use and other tools bound */
+  /** Create a model with tools bound */
   createModelWithTools(
     config: ModelConfig,
-    tools: DynamicStructuredTool[],
-    screenDimensions: ScreenDimensions
+    tools: DynamicStructuredTool[]
   ): BoundModel | null;
 
   /** Get invoke options for this provider */

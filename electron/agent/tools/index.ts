@@ -4,13 +4,10 @@ import type { ToolContext } from './types';
 
 // Types
 export type { ToolContext } from './types';
-export { executeComputerAction, type ComputerAction, type ComputerActionResult } from './computer-use';
 
 // Tool factory functions
-import { createFocusAppTool } from './focus-app';
 import { createGetStateTool } from './get-state';
-import { createRunAppleScriptTool } from './run-applescript';
-import { createChainActionsTool } from './chain-actions';
+import { createChainActionsTool } from './computer-actions';
 import { createWebSearchTool } from './web-search';
 import { createInsertImageTool } from './insert-image';
 import { createReplaceSelectedTextTool } from './replace-text';
@@ -24,6 +21,7 @@ export class ToolExecutor {
   private currentState: AppState | null = null;
   private targetApp: string | null = null; // The app that was focused when command bar opened
   private provider: 'anthropic' | 'google' | null = null; // Which model provider is being used
+  private pendingImages: string[] = [];
   
   constructor(stateExtractor: StateExtractor) {
     this.stateExtractor = stateExtractor;
@@ -44,6 +42,23 @@ export class ToolExecutor {
     this.provider = provider;
     console.log(`[Faria] Tool executor provider set to: ${provider}`);
   }
+
+  /**
+   * Add images captured during tool execution
+   */
+  addPendingImages(images: string[]): void {
+    if (images.length === 0) return;
+    this.pendingImages.push(...images);
+  }
+
+  /**
+   * Consume and clear pending images
+   */
+  consumePendingImages(): string[] {
+    const images = this.pendingImages.slice();
+    this.pendingImages = [];
+    return images;
+  }
   
   /**
    * Set the current state for element ID resolution
@@ -60,9 +75,7 @@ export class ToolExecutor {
     const context = this.getContext();
 
     return [
-      createFocusAppTool(context),
       createGetStateTool(context),
-      createRunAppleScriptTool(),
       createChainActionsTool(context),
       createWebSearchTool(),
       createInsertImageTool(context),
@@ -87,6 +100,10 @@ export class ToolExecutor {
         this.targetApp = appName;
         console.log(`[Faria] Target app updated to: ${appName}`);
       },
+      addPendingImages: (images: string[]) => {
+        this.addPendingImages(images);
+      },
+      consumePendingImages: () => this.consumePendingImages(),
     };
   }
 }

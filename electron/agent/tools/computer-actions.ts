@@ -5,24 +5,55 @@ import { ToolResult, ToolContext } from './types';
 import { runAppleScript, focusApp } from '../../services/applescript';
 import { insertImageFromUrl } from '../../services/text-extraction';
 import * as cliclick from '../../services/cliclick';
+import { takeScreenshot } from '../../services/screenshot';
 import { screen } from 'electron';
 
 // Zod schema for the tool
 export const ChainActionsSchema = z.object({
   actions: z.array(
     z.object({
-      type: z.enum(['activate', 'hotkey', 'type', 'key', 'click', 'scroll', 'wait', 'insert_image']),
+      type: z.enum([
+        'activate',
+        'applescript',
+        'hotkey',
+        'type',
+        'key',
+        'click',
+        'left_click',
+        'right_click',
+        'middle_click',
+        'double_click',
+        'triple_click',
+        'mouse_move',
+        'scroll',
+        'wait',
+        'insert_image',
+        'screenshot',
+        'left_click_drag',
+        'drag'
+      ]),
       app: z.string().optional(),
+      script: z.string().optional(),
       modifiers: z.array(z.string()).optional(),
       key: z.string().optional(),
       text: z.string().optional(),
       x: z.number().optional(),
       y: z.number().optional(),
+      coordinate: z.array(z.number()).length(2).optional(),
+      start_coordinate: z.array(z.number()).length(2).optional(),
+      end_coordinate: z.array(z.number()).length(2).optional(),
+      start_x: z.number().optional(),
+      start_y: z.number().optional(),
+      end_x: z.number().optional(),
+      end_y: z.number().optional(),
       direction: z.enum(['up', 'down', 'left', 'right']).optional(),
       amount: z.number().optional(),
+      scroll_direction: z.enum(['up', 'down', 'left', 'right']).optional(),
+      scroll_amount: z.number().optional(),
+      duration: z.number().optional(),
       query: z.string().optional(),
     })
-  ).describe('List of actions to execute in sequence. Each action has: type (activate/hotkey/type/key/click/scroll/wait/insert_image), app (for activate), modifiers+key (for hotkey), text (for type), key (for key), x+y (for click), direction (for scroll), amount (for wait ms), query (for insert_image)'),
+  ).describe('List of actions to execute in sequence. Types: activate, applescript, hotkey, type, key, click/left_click/right_click/middle_click/double_click/triple_click, mouse_move, scroll, wait, insert_image, screenshot, left_click_drag/drag. Use app for activate, script for applescript. Use x+y or coordinate for points; start/end coordinate or start_x/start_y/end_x/end_y for drag. direction/scroll_direction + amount/scroll_amount for scroll; amount/duration for wait.'),
 });
 
 /**
@@ -39,11 +70,22 @@ function convertCoordinates(x: number, y: number, provider: 'anthropic' | 'googl
   const primaryDisplay = screen.getPrimaryDisplay();
   const { width: screenWidth, height: screenHeight } = primaryDisplay.size;
 
-  // Google uses 0-999 normalized coordinates
-  const pixelX = Math.round((x / 999) * screenWidth);
-  const pixelY = Math.round((y / 999) * screenHeight);
-  console.log(`[Faria] Converting Google normalized coords (${x},${y}) -> pixels (${pixelX},${pixelY}) for screen ${screenWidth}x${screenHeight}`);
-  return { x: pixelX, y: pixelY };
+  // Support both 0-1 and 0-999 normalized coordinates for Google
+  if (x <= 1 && y <= 1) {
+    const pixelX = Math.round(x * screenWidth);
+    const pixelY = Math.round(y * screenHeight);
+    console.log(`[Faria] Converting Google normalized (0-1) coords (${x},${y}) -> pixels (${pixelX},${pixelY}) for screen ${screenWidth}x${screenHeight}`);
+    return { x: pixelX, y: pixelY };
+  }
+
+  if (x <= 999 && y <= 999) {
+    const pixelX = Math.round((x / 999) * screenWidth);
+    const pixelY = Math.round((y / 999) * screenHeight);
+    console.log(`[Faria] Converting Google normalized (0-999) coords (${x},${y}) -> pixels (${pixelX},${pixelY}) for screen ${screenWidth}x${screenHeight}`);
+    return { x: pixelX, y: pixelY };
+  }
+
+  return { x, y };
 }
 
 // Timeout limits for waiting (ms)
@@ -66,15 +108,26 @@ const MIN_DELAYS = {
 };
 
 interface Action {
-  type: 'activate' | 'hotkey' | 'type' | 'key' | 'click' | 'scroll' | 'wait' | 'insert_image';
+  type: 'activate' | 'applescript' | 'hotkey' | 'type' | 'key' | 'click' | 'left_click' | 'right_click' | 'middle_click' | 'double_click' | 'triple_click' | 'mouse_move' | 'scroll' | 'wait' | 'insert_image' | 'screenshot' | 'left_click_drag' | 'drag';
   app?: string;           // For activate
+  script?: string;        // For applescript
   modifiers?: string[];   // For hotkey (cmd, ctrl, alt, shift)
   key?: string;           // For hotkey, key
   text?: string;          // For type
   x?: number;             // For click
   y?: number;             // For click
+  coordinate?: [number, number]; // For click/move (computer tool format)
+  start_coordinate?: [number, number]; // For drag (computer tool format)
+  end_coordinate?: [number, number];   // For drag (computer tool format)
+  start_x?: number;       // For drag (Google format)
+  start_y?: number;
+  end_x?: number;
+  end_y?: number;
   direction?: 'up' | 'down' | 'left' | 'right';  // For scroll
   amount?: number;        // For scroll, wait (ms)
+  scroll_direction?: 'up' | 'down' | 'left' | 'right';
+  scroll_amount?: number;
+  duration?: number;      // For wait (ms)
   query?: string;         // For insert_image (search query)
 }
 
@@ -89,6 +142,7 @@ export function createChainActionsTool(context: ToolContext): DynamicStructuredT
   return tool(
     async (input) => {
       const results: string[] = [];
+      const images: string[] = [];
 
       try {
         for (let i = 0; i < input.actions.length; i++) {
@@ -97,7 +151,12 @@ export function createChainActionsTool(context: ToolContext): DynamicStructuredT
 
           // Execute the action
           const result = await executeAction(action, context);
-          results.push(result);
+          if (result.image) {
+            images.push(result.image);
+          }
+          if (result.message) {
+            results.push(result.message);
+          }
 
           // Wait for the appropriate condition before proceeding
           if (nextAction) {
@@ -105,14 +164,33 @@ export function createChainActionsTool(context: ToolContext): DynamicStructuredT
           }
         }
 
-        return `Completed ${input.actions.length} actions: ${results.join(' → ')}`;
+        const summary = `Completed ${input.actions.length} actions: ${results.join(' → ')}`;
+        if (images.length > 0) {
+          if (context.provider === 'google') {
+            // Google doesn't accept image tool outputs; attach to next user message instead.
+            context.addPendingImages(images);
+            return summary;
+          }
+
+          const imageParts = images.map((data) => ({
+            type: 'image',
+            source: {
+              type: 'base64',
+              media_type: 'image/png',
+              data,
+            },
+          }));
+
+          return [{ type: 'text', text: summary }, ...imageParts];
+        }
+        return summary;
       } catch (error) {
         throw new Error(`Failed at action ${results.length + 1}: ${error}`);
       }
     },
     {
-      name: 'chain_actions',
-      description: 'Execute a sequence of actions with automatic timing. PREFERRED for multi-step UI tasks. Actions: activate (switch app), hotkey (keyboard shortcut), type (text), key (single key like return/tab), click, scroll, wait, insert_image (search and insert image at cursor).',
+      name: 'computer_actions',
+      description: 'Execute a sequence of UI actions with automatic timing (works for single or multi-step tasks). Actions: activate, applescript, hotkey, type, key, click/left_click/right_click/middle_click/double_click/triple_click, mouse_move, scroll, wait, insert_image, screenshot, left_click_drag/drag.',
       schema: ChainActionsSchema,
     }
   );
@@ -134,7 +212,9 @@ export async function chainActions(
       
       // Execute the action
       const result = await executeAction(action, context);
-      results.push(result);
+      if (result.message) {
+        results.push(result.message);
+      }
       
       // Wait for the appropriate condition before proceeding
       if (nextAction) {
@@ -154,14 +234,23 @@ export async function chainActions(
   }
 }
 
-async function executeAction(action: Action, context: ToolContext): Promise<string> {
+async function executeAction(
+  action: Action,
+  context: ToolContext
+): Promise<{ message?: string; image?: string }> {
   switch (action.type) {
     case 'activate': {
       if (!action.app) throw new Error('App name required for activate');
       console.log(`[Faria] Activating app: ${action.app}`);
       await focusApp(action.app);
       context.setTargetApp(action.app);
-      return `Activated ${action.app}`;
+      return { message: `Activated ${action.app}` };
+    }
+
+    case 'applescript': {
+      if (!action.script) throw new Error('Script required for applescript');
+      await runAppleScript(action.script);
+      return { message: 'Ran AppleScript' };
     }
     
     case 'hotkey': {
@@ -211,7 +300,7 @@ async function executeAction(action: Action, context: ToolContext): Promise<stri
       
       console.log(`[Faria] Executing hotkey script: ${script}`);
       await runAppleScript(script);
-      return `Pressed ${modifiers.length ? modifiers.join('+') + '+' : ''}${key}`;
+      return { message: `Pressed ${modifiers.length ? modifiers.join('+') + '+' : ''}${key}` };
     }
     
     case 'type': {
@@ -236,11 +325,27 @@ async function executeAction(action: Action, context: ToolContext): Promise<stri
         }
       }
       
-      return `Typed "${action.text.slice(0, 30)}${action.text.length > 30 ? '...' : ''}"`;
+      return { message: `Typed "${action.text.slice(0, 30)}${action.text.length > 30 ? '...' : ''}"` };
     }
     
     case 'key': {
       if (!action.key) throw new Error('Key required');
+
+      const parts = action.key.split('+').map(part => part.trim()).filter(Boolean);
+      const comboKey = parts.length > 1 ? parts.pop()! : null;
+      const comboModifiers = parts.length > 0 ? parts : [];
+      const extraModifiers = action.modifiers || [];
+      const finalModifiers = comboKey ? comboModifiers.concat(extraModifiers) : extraModifiers;
+
+      if (comboKey && finalModifiers.length > 0) {
+        await cliclick.sendHotkey(finalModifiers, comboKey);
+        return { message: `Pressed ${finalModifiers.join('+')}+${comboKey}` };
+      }
+
+      if (!comboKey && extraModifiers.length > 0) {
+        await cliclick.sendHotkey(extraModifiers, action.key);
+        return { message: `Pressed ${extraModifiers.join('+')}+${action.key}` };
+      }
       
       const keyCodeMap: Record<string, number> = {
         'return': 36, 'enter': 36,
@@ -264,30 +369,78 @@ async function executeAction(action: Action, context: ToolContext): Promise<stri
       
       console.log(`[Faria] Executing key script: ${script}`);
       await runAppleScript(script);
-      return `Pressed ${action.key}`;
+      return { message: `Pressed ${action.key}` };
     }
     
     case 'click': {
-      if (action.x === undefined || action.y === undefined) {
-        throw new Error('Coordinates required for click');
-      }
-      // Convert from Google's 0-999 normalized coords to actual pixels (Anthropic uses real pixels)
-      const { x, y } = convertCoordinates(action.x, action.y, context.provider);
+      const point = resolvePoint(action, context);
+      if (!point) throw new Error('Coordinates required for click');
+      const { x, y } = point;
       await cliclick.click(x, y);
-      return `Clicked (${x}, ${y})`;
+      return { message: `Clicked (${x}, ${y})` };
+    }
+
+    case 'left_click': {
+      const point = resolvePoint(action, context);
+      if (!point) throw new Error('Coordinates required for left_click');
+      const { x, y } = point;
+      await cliclick.click(x, y);
+      return { message: `Left-clicked (${x}, ${y})` };
+    }
+
+    case 'right_click': {
+      const point = resolvePoint(action, context);
+      if (!point) throw new Error('Coordinates required for right_click');
+      const { x, y } = point;
+      await cliclick.rightClick(x, y);
+      return { message: `Right-clicked (${x}, ${y})` };
+    }
+
+    case 'middle_click': {
+      const point = resolvePoint(action, context);
+      if (!point) throw new Error('Coordinates required for middle_click');
+      const { x, y } = point;
+      await cliclick.click(x, y);
+      return { message: `Middle-clicked (${x}, ${y})` };
+    }
+
+    case 'double_click': {
+      const point = resolvePoint(action, context);
+      if (!point) throw new Error('Coordinates required for double_click');
+      const { x, y } = point;
+      await cliclick.doubleClick(x, y);
+      return { message: `Double-clicked (${x}, ${y})` };
+    }
+
+    case 'triple_click': {
+      const point = resolvePoint(action, context);
+      if (!point) throw new Error('Coordinates required for triple_click');
+      const { x, y } = point;
+      await cliclick.click(x, y);
+      await cliclick.click(x, y);
+      await cliclick.click(x, y);
+      return { message: `Triple-clicked (${x}, ${y})` };
+    }
+
+    case 'mouse_move': {
+      const point = resolvePoint(action, context);
+      if (!point) throw new Error('Coordinates required for mouse_move');
+      const { x, y } = point;
+      await cliclick.moveMouse(x, y);
+      return { message: `Moved mouse to (${x}, ${y})` };
     }
     
     case 'scroll': {
-      const direction = action.direction || 'down';
-      const amount = action.amount || 3;
+      const direction = action.direction || action.scroll_direction || 'down';
+      const amount = action.amount || action.scroll_amount || 3;
       await cliclick.scroll(direction, amount);
-      return `Scrolled ${direction}`;
+      return { message: `Scrolled ${direction}` };
     }
     
     case 'wait': {
-      const ms = action.amount || 500;
+      const ms = action.amount || action.duration || 500;
       await sleep(ms);
-      return `Waited ${ms}ms`;
+      return { message: `Waited ${ms}ms` };
     }
 
     case 'insert_image': {
@@ -327,12 +480,63 @@ async function executeAction(action: Action, context: ToolContext): Promise<stri
         throw new Error(result.error || 'Failed to insert image');
       }
 
-      return `Inserted image for "${action.query}"`;
+      return { message: `Inserted image for "${action.query}"` };
+    }
+
+    case 'screenshot': {
+      const screenshot = await takeScreenshot({ preserveSize: true });
+      const base64Data = screenshot.replace(/^data:image\/\w+;base64,/, '');
+      return { message: 'Screenshot captured', image: base64Data };
+    }
+
+    case 'left_click_drag':
+    case 'drag': {
+      const drag = resolveDrag(action, context);
+      if (!drag) throw new Error('Start and end coordinates required for drag');
+      await cliclick.drag(drag.start.x, drag.start.y, drag.end.x, drag.end.y);
+      return { message: `Dragged from (${drag.start.x}, ${drag.start.y}) to (${drag.end.x}, ${drag.end.y})` };
     }
 
     default:
       throw new Error(`Unknown action type: ${(action as Action).type}`);
   }
+}
+
+function resolvePoint(action: Action, context: ToolContext): { x: number; y: number } | null {
+  if (action.coordinate) {
+    const [x, y] = action.coordinate;
+    return convertCoordinates(x, y, context.provider);
+  }
+  if (action.x !== undefined && action.y !== undefined) {
+    return convertCoordinates(action.x, action.y, context.provider);
+  }
+  return null;
+}
+
+function resolveDrag(
+  action: Action,
+  context: ToolContext
+): { start: { x: number; y: number }; end: { x: number; y: number } } | null {
+  if (action.start_coordinate && action.end_coordinate) {
+    const [startX, startY] = action.start_coordinate;
+    const [endX, endY] = action.end_coordinate;
+    return {
+      start: convertCoordinates(startX, startY, context.provider),
+      end: convertCoordinates(endX, endY, context.provider),
+    };
+  }
+  if (
+    action.start_x !== undefined &&
+    action.start_y !== undefined &&
+    action.end_x !== undefined &&
+    action.end_y !== undefined
+  ) {
+    return {
+      start: convertCoordinates(action.start_x, action.start_y, context.provider),
+      end: convertCoordinates(action.end_x, action.end_y, context.provider),
+    };
+  }
+  return null;
 }
 
 /**
@@ -354,6 +558,11 @@ async function waitForActionComplete(
           `App ${current.app} to become frontmost`
         );
       }
+      break;
+    }
+
+    case 'applescript': {
+      await sleep(MIN_DELAYS.afterKey);
       break;
     }
     
@@ -397,15 +606,36 @@ async function waitForActionComplete(
       await sleep(MIN_DELAYS.afterClick);
       break;
     }
+
+    case 'left_click':
+    case 'right_click':
+    case 'middle_click':
+    case 'double_click':
+    case 'triple_click': {
+      await sleep(MIN_DELAYS.afterClick);
+      break;
+    }
     
     case 'scroll': {
       await sleep(MIN_DELAYS.afterScroll);
       break;
     }
 
+    case 'mouse_move':
+    case 'left_click_drag':
+    case 'drag': {
+      await sleep(MIN_DELAYS.afterClick);
+      break;
+    }
+
     case 'insert_image': {
       // Image insertion involves clipboard and paste - wait for UI to settle
       await waitForUISettle(TIMEOUTS.uiSettle);
+      break;
+    }
+
+    case 'screenshot': {
+      // No UI wait needed for screenshot
       break;
     }
   }

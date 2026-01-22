@@ -31,5 +31,7 @@ export interface ToolContext {
   provider: 'anthropic' | 'google' | null;  // Which model provider is being used
   setCurrentState: (state: AppState) => void;
   setTargetApp: (appName: string | null) => void;
+  addPendingImages: (images: string[]) => void;
+  consumePendingImages: () => string[];
 }
 

@@ -124,7 +124,7 @@ export class StateExtractor {
 
     // If selected text is provided, prepend it to the formatted output
     if (selectedText) {
-      const selectedPrefix = `=== USER SELECTED TEXT ===\n"${selectedText}"\n\nYou can replace this selected text by using chain_actions with type: "type" to type replacement text.\n\n`;
+      const selectedPrefix = `=== USER SELECTED TEXT ===\n"${selectedText}"\n\nYou can replace this selected text by using computer_actions with type: "type" to type replacement text.\n\n`;
       state.formatted = selectedPrefix + state.formatted;
     }
 

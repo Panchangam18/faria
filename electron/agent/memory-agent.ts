@@ -24,7 +24,7 @@ Guidelines for new memories:
 - User preferences: "User prefers dark mode", "User's default browser is Chrome"
 - Workflow patterns: "User often sends Slack messages to John about project updates"
 - Facts about their setup: "User has VS Code installed", "User's email is john@example.com"
-- Successful task patterns: "For sending iMessage, use run_applescript with Messages app"
+- Successful task patterns: "For sending iMessage, use computer_actions with type applescript"
 
 DO NOT remember:
 - One-off queries with no reuse value

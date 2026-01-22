@@ -1,7 +1,7 @@
 import { HumanMessage, SystemMessage, AIMessage, ToolMessage } from '@langchain/core/messages';
-import { BrowserWindow, screen, shell, ipcMain } from 'electron';
+import { BrowserWindow, ipcMain } from 'electron';
 import { StateExtractor, AppState } from '../services/state-extractor';
-import { ToolExecutor, executeComputerAction, ComputerAction } from './tools';
+import { ToolExecutor } from './tools';
 import { initDatabase } from '../db/sqlite';
 import { traceable } from 'langsmith/traceable';
 import { getLangchainCallbacks } from 'langsmith/langchain';
@@ -10,7 +10,6 @@ import {
   createModelWithTools,
   getSelectedModel,
   getMissingKeyError,
-  isComputerUseTool,
   getToolDisplayName,
   getProviderName,
   BoundModel
@@ -136,19 +135,11 @@ function generateBuiltinApprovalInfo(toolName: string, args: Record<string, unkn
       if (args.text) details[''] = String(args.text);
       return { displayName: 'Replace Selected Text', details };
 
-    case 'focus_app':
-      if (args.name) details['App'] = String(args.name);
-      return { displayName: 'Focus App', details };
-
-    case 'run_applescript':
-      if (args.script) details['Script'] = String(args.script);
-      return { displayName: 'Run AppleScript', details };
-
-    case 'chain_actions':
+    case 'computer_actions':
       if (args.actions && Array.isArray(args.actions)) {
         details['Actions'] = args.actions.map((a: any) => a.type || 'unknown').join(', ');
       }
-      return { displayName: 'Chain Actions', details };
+      return { displayName: 'Computer Actions', details };
 
     case 'execute_python':
       if (args.code) details['Code'] = String(args.code);
@@ -261,6 +252,14 @@ export class AgentLoop {
           : new HumanMessage({ content: userPrompt }),
       ];
       
+      // Get selected model and set provider before tools are created
+      const modelName = getSelectedModel('selectedModel');
+      const providerName = getProviderName(modelName);
+      // Set provider for coordinate conversion (Google uses 0-999 normalized, Anthropic uses pixels)
+      this.toolExecutor.setProvider(
+        providerName === 'anthropic' || providerName === 'google' ? providerName : null
+      );
+
       // Get built-in tools (now DynamicStructuredTool instances like Composio)
       const builtinTools = this.toolExecutor.getTools();
       console.log(`[Faria] Loaded ${builtinTools.length} built-in tools`);
@@ -272,33 +271,61 @@ export class AgentLoop {
       // Merge all tools - both built-in and Composio are now DynamicStructuredTools
       const allTools = [...builtinTools, ...composioTools];
 
-      // Get screen dimensions for computer use tool
-      const primaryDisplay = screen.getPrimaryDisplay();
-      const { width: displayWidth, height: displayHeight } = primaryDisplay.size;
-      
-      // Get selected model and create model with tools bound
-      const modelName = getSelectedModel('selectedModel');
-      const providerName = getProviderName(modelName);
-      // Set provider for coordinate conversion (Google uses 0-999 normalized, Anthropic uses pixels)
-      this.toolExecutor.setProvider(
-        providerName === 'anthropic' || providerName === 'google' ? providerName : null
-      );
-
       // Initialize context manager for 50% FIFO context limit
       const contextManager = new ContextManager(modelName);
 
+      const estimateTokensForContext = (msg: SystemMessage | HumanMessage | AIMessage | ToolMessage): number => {
+        if (typeof msg.content === 'string') {
+          return estimateTokens(msg.content);
+        }
+        if (Array.isArray(msg.content)) {
+          const normalized = msg.content.map((part: any) => {
+            if (part?.type === 'text' && part.text) return part.text;
+            if (part?.type === 'image_url') return '[image_url]';
+            if (part?.type === 'image') return '[image]';
+            return JSON.stringify(part);
+          }).join('\n');
+          return estimateTokens(normalized);
+        }
+        return estimateTokens(JSON.stringify(msg.content));
+      };
+
+      const removeOldestMessage = (
+        stack: Array<SystemMessage | HumanMessage | AIMessage | ToolMessage>,
+        manager: ContextManager
+      ): { tokens: number; role: string } => {
+        const removed = stack.splice(1, 1)[0];
+        const removedTokens = estimateTokensForContext(removed);
+        (manager as any).currentTokens -= removedTokens;
+
+        if (removed instanceof AIMessage && removed.tool_calls?.length) {
+          const ids = removed.tool_calls
+            .map(call => call.id)
+            .filter((id): id is string => typeof id === 'string');
+
+          while (stack.length > 1) {
+            const next = stack[1];
+            if (next instanceof ToolMessage && ids.includes(next.tool_call_id)) {
+              const toolTokens = estimateTokensForContext(next);
+              stack.splice(1, 1);
+              (manager as any).currentTokens -= toolTokens;
+            } else {
+              break;
+            }
+          }
+        }
+
+        return { tokens: removedTokens, role: removed.getType() };
+      };
+
       // Helper to add message with context tracking and FIFO eviction
       const addMessage = (msg: SystemMessage | HumanMessage | AIMessage | ToolMessage) => {
-        const content = typeof msg.content === 'string' ? msg.content : JSON.stringify(msg.content);
-        const tokens = estimateTokens(content);
+        const tokens = estimateTokensForContext(msg);
 
         // FIFO: Remove oldest non-system messages if we'd exceed limit
         while (contextManager.getCurrentTokens() + tokens > contextManager.getMaxTokens() && messages.length > 1) {
-          const removed = messages.splice(1, 1)[0];
-          const removedContent = typeof removed.content === 'string' ? removed.content : JSON.stringify(removed.content);
-          // Update context manager by subtracting removed tokens
-          (contextManager as any).currentTokens -= estimateTokens(removedContent);
-          console.log(`[Context] Removed old message (${estimateTokens(removedContent)} tokens)`);
+          const removed = removeOldestMessage(messages, contextManager);
+          console.log(`[Context] Removed old message (${removed.tokens} tokens, role: ${removed.role})`);
         }
 
         messages.push(msg);
@@ -308,7 +335,6 @@ export class AgentLoop {
       const boundModel = createModelWithTools(
         modelName,
         allTools,
-        { width: displayWidth, height: displayHeight },
         this.config.maxTokens
       );
 
@@ -414,108 +440,75 @@ export class AgentLoop {
               timestamp: Date.now()
             });
 
-            // Handle computer tool specially (works for both providers)
-            if (isComputerUseTool(toolCall.name)) {
-              // Request computer use approval once per invocation
-              if (!this.computerUseApproved) {
-                this.sendStatus('Waiting for approval...');
-                const approved = await this.requestToolApproval(
-                  toolCall.name,
-                  'Execute computer actions (click, type, screenshot, etc.)',
-                  toolCall.args as Record<string, unknown>,
-                  false
-                );
+            // UNIFIED execution for ALL tools (built-in + Composio)
+            const toolToExecute = allTools.find(t => t.name === toolCall.name);
 
-                if (!approved || this.shouldCancel) {
-                  addMessage(new ToolMessage({
-                    content: 'Tool execution denied by user',
-                    tool_call_id: toolCall.id || toolCall.name,
-                    name: toolCall.name,
-                  }));
-                  continue;
-                }
-                this.computerUseApproved = true;
-              }
+            if (!toolToExecute) {
+              addMessage(new ToolMessage({
+                content: `Unknown tool: ${toolCall.name}`,
+                tool_call_id: toolCall.id || toolCall.name,
+                name: toolCall.name,
+              }));
+              continue;
+            }
 
-              try {
-                const computerResult = await executeComputerAction(toolCall.args as ComputerAction);
-                console.log(`[Faria] Computer tool result: SUCCESS`);
+            // Check if approval is needed
+            const isComposioTool = !SAFE_TOOLS.has(toolCall.name) &&
+                                    !['get_state', 'computer_actions', 'web_search',
+                                      'insert_image', 'replace_selected_text', 'execute_python'].includes(toolCall.name);
 
+            // Determine if approval is needed
+            const needsApproval = isComposioTool
+              ? !SAFE_COMPOSIO_TOOLS.has(toolCall.name)
+              : !SAFE_TOOLS.has(toolCall.name) && (toolCall.name === 'replace_selected_text' || !this.computerUseApproved);
+
+            if (needsApproval) {
+              const toolDescription = toolToExecute.description || `Execute ${toolCall.name}`;
+              const { displayName, details } = isComposioTool
+                ? generateComposioApprovalInfo(toolCall.name, toolCall.args as Record<string, unknown>)
+                : generateBuiltinApprovalInfo(toolCall.name, toolCall.args as Record<string, unknown>);
+
+              this.sendStatus('Waiting for approval...');
+              const approved = await this.requestToolApproval(
+                toolCall.name,
+                toolDescription,
+                toolCall.args as Record<string, unknown>,
+                isComposioTool,
+                displayName,
+                details
+              );
+
+              if (!approved || this.shouldCancel) {
                 addMessage(new ToolMessage({
-                  content: computerResult,
-                  tool_call_id: toolCall.id || toolCall.name,
-                  name: toolCall.name,
-                }));
-              } catch (error) {
-                console.log(`[Faria] Computer tool result: FAILED`, error);
-                addMessage(new ToolMessage({
-                  content: `Error: ${error}`,
-                  tool_call_id: toolCall.id || toolCall.name,
-                  name: toolCall.name,
-                }));
-              }
-            } else {
-              // UNIFIED execution for ALL other tools (built-in + Composio)
-              const toolToExecute = allTools.find(t => t.name === toolCall.name);
-
-              if (!toolToExecute) {
-                addMessage(new ToolMessage({
-                  content: `Unknown tool: ${toolCall.name}`,
+                  content: 'Tool execution denied by user',
                   tool_call_id: toolCall.id || toolCall.name,
                   name: toolCall.name,
                 }));
                 continue;
               }
 
-              // Check if approval is needed
-              const isComposioTool = !SAFE_TOOLS.has(toolCall.name) &&
-                                      !['focus_app', 'get_state', 'run_applescript', 'chain_actions',
-                                        'web_search', 'insert_image', 'replace_selected_text', 'execute_python'].includes(toolCall.name);
-
-              // Determine if approval is needed
-              const needsApproval = isComposioTool
-                ? !SAFE_COMPOSIO_TOOLS.has(toolCall.name)
-                : !SAFE_TOOLS.has(toolCall.name) && (toolCall.name === 'replace_selected_text' || !this.computerUseApproved);
-
-              if (needsApproval) {
-                const toolDescription = toolToExecute.description || `Execute ${toolCall.name}`;
-                const { displayName, details } = isComposioTool
-                  ? generateComposioApprovalInfo(toolCall.name, toolCall.args as Record<string, unknown>)
-                  : generateBuiltinApprovalInfo(toolCall.name, toolCall.args as Record<string, unknown>);
-
-                this.sendStatus('Waiting for approval...');
-                const approved = await this.requestToolApproval(
-                  toolCall.name,
-                  toolDescription,
-                  toolCall.args as Record<string, unknown>,
-                  isComposioTool,
-                  displayName,
-                  details
-                );
-
-                if (!approved || this.shouldCancel) {
-                  addMessage(new ToolMessage({
-                    content: 'Tool execution denied by user',
-                    tool_call_id: toolCall.id || toolCall.name,
-                    name: toolCall.name,
-                  }));
-                  continue;
-                }
-
-                // Don't set computerUseApproved for replace_selected_text (always ask)
-                if (!isComposioTool && toolCall.name !== 'replace_selected_text') {
-                  this.computerUseApproved = true;
-                }
+              // Don't set computerUseApproved for replace_selected_text (always ask)
+              if (!isComposioTool && toolCall.name !== 'replace_selected_text') {
+                this.computerUseApproved = true;
               }
+            }
 
-              // Execute the tool via its invoke() method
-              try {
-                const result = await toolToExecute.invoke(toolCall.args);
-                const resultStr = typeof result === 'string' ? result : JSON.stringify(result);
-                console.log(`[Faria] Tool result: SUCCESS`, resultStr.slice(0, 200));
+            // Execute the tool via its invoke() method
+            try {
+              const result = await toolToExecute.invoke(toolCall.args);
+              const resultContent = Array.isArray(result)
+                ? result
+                : typeof result === 'string'
+                  ? result
+                  : JSON.stringify(result);
+              const logPreview = Array.isArray(result)
+                ? '[array result]'
+                : resultContent;
+              console.log(`[Faria] Tool result: SUCCESS`, String(logPreview).slice(0, 200));
 
-                // Check for Composio auth requirement
-                const authRequired = parseComposioAuthRequired(resultStr);
+              // Check for Composio auth requirement
+              if (typeof resultContent === 'string') {
+                const authRequired = parseComposioAuthRequired(resultContent);
                 if (authRequired && !this.shouldCancel) {
                   console.log(`[Faria] Auth required for ${authRequired.toolkit}`);
 
@@ -536,21 +529,22 @@ export class AgentLoop {
                       name: toolCall.name,
                     }));
                   }
-                } else {
-                  addMessage(new ToolMessage({
-                    content: resultStr,
-                    tool_call_id: toolCall.id || toolCall.name,
-                    name: toolCall.name,
-                  }));
+                  continue;
                 }
-              } catch (error) {
-                console.log(`[Faria] Tool result: FAILED`, error);
-                addMessage(new ToolMessage({
-                  content: `Error: ${error}`,
-                  tool_call_id: toolCall.id || toolCall.name,
-                  name: toolCall.name,
-                }));
               }
+
+              addMessage(new ToolMessage({
+                content: resultContent,
+                tool_call_id: toolCall.id || toolCall.name,
+                name: toolCall.name,
+              }));
+            } catch (error) {
+              console.log(`[Faria] Tool result: FAILED`, error);
+              addMessage(new ToolMessage({
+                content: `Error: ${error}`,
+                tool_call_id: toolCall.id || toolCall.name,
+                name: toolCall.name,
+              }));
             }
           }
 
@@ -564,6 +558,20 @@ export class AgentLoop {
           // Standard LangChain pattern: after ToolMessages, invoke model directly
           // Adding HumanMessages between ToolMessages and next model call breaks
           // the expected message flow for some providers
+          if (providerName === 'google') {
+            const pendingImages = this.toolExecutor.consumePendingImages();
+            if (pendingImages.length > 0) {
+              addMessage(new HumanMessage({
+                content: [
+                  { type: 'text', text: 'Screenshot from tool execution.' },
+                  ...pendingImages.map((data) => ({
+                    type: 'image_url',
+                    image_url: { url: `data:image/png;base64,${data}` },
+                  })),
+                ],
+              }));
+            }
+          }
           this.sendStatus('Thinking...');
           state = await this.stateExtractor.extractState();
           this.toolExecutor.setCurrentState(state);

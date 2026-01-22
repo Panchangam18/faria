@@ -49,7 +49,7 @@ function formatAction(action: ActionData): string {
     case 'answer':
       return `Answered: "${(input.text as string)?.substring(0, 80)}${(input.text as string)?.length > 80 ? '...' : ''}"`;
 
-    case 'chain_actions': {
+    case 'computer_actions': {
       const actions = input.actions as Array<{ type: string; text?: string; key?: string; app?: string }>;
       if (actions && actions.length > 0) {
         const summary = actions.map(a => {
@@ -64,12 +64,6 @@ function formatAction(action: ActionData): string {
       }
       return 'Performed chain of actions';
     }
-
-    case 'run_applescript':
-      return 'Ran AppleScript';
-
-    case 'focus_app':
-      return `Focused app: ${input.name || input.app}`;
 
     case 'get_state':
       return 'Retrieved app state';
