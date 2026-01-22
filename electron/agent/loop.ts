@@ -402,8 +402,21 @@ export class AgentLoop {
 
         // Build AIMessage from the fully merged chunk
         // LangChain's concat() has already merged tool_call_chunks into tool_calls
+        // Handle both string content and array content (Anthropic uses array of content blocks)
+        let responseContent: string;
+        if (typeof aggregatedChunk.content === 'string') {
+          responseContent = aggregatedChunk.content;
+        } else if (Array.isArray(aggregatedChunk.content)) {
+          responseContent = aggregatedChunk.content
+            .filter((part: any) => part.type === 'text' && part.text)
+            .map((part: any) => part.text)
+            .join('');
+        } else {
+          responseContent = '';
+        }
+
         const response = new AIMessage({
-          content: typeof aggregatedChunk.content === 'string' ? aggregatedChunk.content : '',
+          content: responseContent,
           tool_calls: aggregatedChunk.tool_calls || [],
           additional_kwargs: aggregatedChunk.additional_kwargs || {},
         });
