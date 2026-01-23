@@ -15,22 +15,17 @@ export const ChainActionsSchema = z.object({
       type: z.enum([
         'activate',
         'applescript',
-        'hotkey',
+        'click',
+        'right_click',
+        'double_click',
         'type',
         'key',
-        'click',
-        'left_click',
-        'right_click',
-        'middle_click',
-        'double_click',
-        'triple_click',
         'mouse_move',
         'scroll',
+        'drag',
         'wait',
-        'insert_image',
         'screenshot',
-        'left_click_drag',
-        'drag'
+        'insert_image',
       ]),
       app: z.string().optional(),
       script: z.string().optional(),
@@ -53,7 +48,7 @@ export const ChainActionsSchema = z.object({
       duration: z.number().optional(),
       query: z.string().optional(),
     })
-  ).describe('List of actions to execute in sequence. Types: activate, applescript, hotkey, type, key, click/left_click/right_click/middle_click/double_click/triple_click, mouse_move, scroll, wait, insert_image, screenshot, left_click_drag/drag. Use app for activate, script for applescript. Use x+y or coordinate for points; start/end coordinate or start_x/start_y/end_x/end_y for drag. direction/scroll_direction + amount/scroll_amount for scroll; amount/duration for wait.'),
+  ).describe('List of actions to execute in sequence. Types: activate, applescript, click, right_click, double_click, type, key, mouse_move, scroll, drag, wait, screenshot, insert_image. Use app for activate, script for applescript. Use x+y or coordinate for points; start/end coordinate or start_x/start_y/end_x/end_y for drag. direction/scroll_direction + amount/scroll_amount for scroll; amount/duration for wait.'),
 });
 
 /**
@@ -108,7 +103,7 @@ const MIN_DELAYS = {
 };
 
 interface Action {
-  type: 'activate' | 'applescript' | 'hotkey' | 'type' | 'key' | 'click' | 'left_click' | 'right_click' | 'middle_click' | 'double_click' | 'triple_click' | 'mouse_move' | 'scroll' | 'wait' | 'insert_image' | 'screenshot' | 'left_click_drag' | 'drag';
+  type: 'activate' | 'applescript' | 'click' | 'right_click' | 'double_click' | 'type' | 'key' | 'mouse_move' | 'scroll' | 'drag' | 'wait' | 'screenshot' | 'insert_image';
   app?: string;           // For activate
   script?: string;        // For applescript
   modifiers?: string[];   // For hotkey (cmd, ctrl, alt, shift)
@@ -190,7 +185,7 @@ export function createChainActionsTool(context: ToolContext): DynamicStructuredT
     },
     {
       name: 'computer_actions',
-      description: 'Execute a sequence of UI actions with automatic timing (works for single or multi-step tasks). Actions: activate, applescript, hotkey, type, key, click/left_click/right_click/middle_click/double_click/triple_click, mouse_move, scroll, wait, insert_image, screenshot, left_click_drag/drag.',
+      description: 'Execute a sequence of UI actions with automatic timing (works for single or multi-step tasks). Actions: activate, applescript, click, right_click, double_click, type, key, mouse_move, scroll, drag, wait, screenshot, insert_image.',
       schema: ChainActionsSchema,
     }
   );
@@ -251,56 +246,6 @@ async function executeAction(
       if (!action.script) throw new Error('Script required for applescript');
       await runAppleScript(action.script);
       return { message: 'Ran AppleScript' };
-    }
-    
-    case 'hotkey': {
-      const modifiers = action.modifiers || [];
-      const key = action.key || '';
-      
-      const modMap: Record<string, string> = {
-        'cmd': 'command down',
-        'command': 'command down',
-        'ctrl': 'control down',
-        'control': 'control down',
-        'alt': 'option down',
-        'option': 'option down',
-        'shift': 'shift down',
-      };
-      
-      // Key code map for special keys
-      const keyCodeMap: Record<string, number> = {
-        'return': 36, 'enter': 36,
-        'tab': 48,
-        'space': 49,
-        'delete': 51, 'backspace': 51,
-        'escape': 53, 'esc': 53,
-        'up': 126, 'down': 125, 'left': 123, 'right': 124,
-      };
-      
-      const asModifiers = modifiers
-        .map(m => modMap[m.toLowerCase()])
-        .filter(Boolean)
-        .join(', ');
-      
-      // Check if this is a special key that needs key code
-      const keyCode = keyCodeMap[key.toLowerCase()];
-      let script: string;
-      
-      if (keyCode !== undefined) {
-        // Use key code for special keys
-        script = asModifiers 
-          ? `tell application "System Events" to key code ${keyCode} using {${asModifiers}}`
-          : `tell application "System Events" to key code ${keyCode}`;
-      } else {
-        // Use keystroke for regular character keys
-        script = asModifiers 
-          ? `tell application "System Events" to keystroke "${key}" using {${asModifiers}}`
-          : `tell application "System Events" to keystroke "${key}"`;
-      }
-      
-      console.log(`[Faria] Executing hotkey script: ${script}`);
-      await runAppleScript(script);
-      return { message: `Pressed ${modifiers.length ? modifiers.join('+') + '+' : ''}${key}` };
     }
     
     case 'type': {
@@ -380,14 +325,6 @@ async function executeAction(
       return { message: `Clicked (${x}, ${y})` };
     }
 
-    case 'left_click': {
-      const point = resolvePoint(action, context);
-      if (!point) throw new Error('Coordinates required for left_click');
-      const { x, y } = point;
-      await cliclick.click(x, y);
-      return { message: `Left-clicked (${x}, ${y})` };
-    }
-
     case 'right_click': {
       const point = resolvePoint(action, context);
       if (!point) throw new Error('Coordinates required for right_click');
@@ -396,30 +333,12 @@ async function executeAction(
       return { message: `Right-clicked (${x}, ${y})` };
     }
 
-    case 'middle_click': {
-      const point = resolvePoint(action, context);
-      if (!point) throw new Error('Coordinates required for middle_click');
-      const { x, y } = point;
-      await cliclick.click(x, y);
-      return { message: `Middle-clicked (${x}, ${y})` };
-    }
-
     case 'double_click': {
       const point = resolvePoint(action, context);
       if (!point) throw new Error('Coordinates required for double_click');
       const { x, y } = point;
       await cliclick.doubleClick(x, y);
       return { message: `Double-clicked (${x}, ${y})` };
-    }
-
-    case 'triple_click': {
-      const point = resolvePoint(action, context);
-      if (!point) throw new Error('Coordinates required for triple_click');
-      const { x, y } = point;
-      await cliclick.click(x, y);
-      await cliclick.click(x, y);
-      await cliclick.click(x, y);
-      return { message: `Triple-clicked (${x}, ${y})` };
     }
 
     case 'mouse_move': {
@@ -489,7 +408,6 @@ async function executeAction(
       return { message: 'Screenshot captured', image: base64Data };
     }
 
-    case 'left_click_drag':
     case 'drag': {
       const drag = resolveDrag(action, context);
       if (!drag) throw new Error('Start and end coordinates required for drag');
@@ -566,21 +484,6 @@ async function waitForActionComplete(
       break;
     }
     
-    case 'hotkey': {
-      // If this is a search/dialog hotkey, wait for window count to change or UI to settle
-      const isSearchHotkey = current.modifiers?.includes('cmd') && 
-        ['k', 'p', 'f', 'o', 'space', 't', 'n', 'l', 'g'].includes(current.key?.toLowerCase() || '');
-      
-      if (isSearchHotkey) {
-        // Wait for UI to settle (window/dialog to appear)
-        await waitForUISettle(TIMEOUTS.windowAppear);
-      } else {
-        // Small delay for regular hotkeys
-        await sleep(MIN_DELAYS.afterKey);
-      }
-      break;
-    }
-    
     case 'type': {
       // If next action is Enter/Return, wait longer for search results to populate
       if (next.type === 'key' && ['return', 'enter'].includes(next.key?.toLowerCase() || '')) {
@@ -607,11 +510,8 @@ async function waitForActionComplete(
       break;
     }
 
-    case 'left_click':
     case 'right_click':
-    case 'middle_click':
-    case 'double_click':
-    case 'triple_click': {
+    case 'double_click': {
       await sleep(MIN_DELAYS.afterClick);
       break;
     }
@@ -622,7 +522,6 @@ async function waitForActionComplete(
     }
 
     case 'mouse_move':
-    case 'left_click_drag':
     case 'drag': {
       await sleep(MIN_DELAYS.afterClick);
       break;

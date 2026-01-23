@@ -9,7 +9,6 @@ export type { ToolContext } from './types';
 import { createGetStateTool } from './get-state';
 import { createChainActionsTool } from './computer-actions';
 import { createWebSearchTool } from './web-search';
-import { createInsertImageTool } from './insert-image';
 import { createReplaceSelectedTextTool } from './replace-text';
 import { createExecutePythonTool } from './execute-python';
 
@@ -78,7 +77,6 @@ export class ToolExecutor {
       createGetStateTool(context),
       createChainActionsTool(context),
       createWebSearchTool(),
-      createInsertImageTool(context),
       createReplaceSelectedTextTool(context),
       createExecutePythonTool(),
     ];
