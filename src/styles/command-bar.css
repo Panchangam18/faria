@@ -22,7 +22,7 @@ html, body, #root {
   height: 100%;
   display: flex;
   flex-direction: column;
-  background: rgba(39, 41, 50, 0.92);
+  background: rgba(39, 41, 50, 0.7);
   backdrop-filter: blur(20px);
   -webkit-backdrop-filter: blur(20px);
   border-radius: var(--radius-lg);
@@ -32,23 +32,23 @@ html, body, #root {
 }
 
 [data-theme="midnight"] .command-bar {
-  background: rgba(13, 17, 23, 0.92);
+  background: rgba(13, 17, 23, 0.7);
 }
 
 [data-theme="forest"] .command-bar {
-  background: rgba(26, 47, 26, 0.92);
+  background: rgba(26, 47, 26, 0.7);
 }
 
 [data-theme="aurora"] .command-bar {
-  background: rgba(26, 26, 46, 0.92);
+  background: rgba(26, 26, 46, 0.7);
 }
 
 [data-theme="obsidian"] .command-bar {
-  background: rgba(30, 30, 30, 0.92);
+  background: rgba(30, 30, 30, 0.7);
 }
 
 [data-theme="ocean"] .command-bar {
-  background: rgba(15, 32, 39, 0.92);
+  background: rgba(15, 32, 39, 0.7);
 }
 
 /* Input Area */

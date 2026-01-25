@@ -314,6 +314,7 @@ function SettingsPanel({ currentTheme, onThemeChange }: SettingsPanelProps) {
     accent: '#C6AC8F',
   });
   const [selectedFont, setSelectedFont] = useState(AVAILABLE_FONTS[0].value);
+  const [commandBarOpacity, setCommandBarOpacity] = useState(0.7);
 
   const [hasLoadedSettings, setHasLoadedSettings] = useState(false);
   const [hoverAgentModel, setHoverAgentModel] = useState(false);
@@ -445,6 +446,13 @@ function SettingsPanel({ currentTheme, onThemeChange }: SettingsPanelProps) {
     } else {
       // Apply default font
       document.documentElement.style.setProperty('--font-family', AVAILABLE_FONTS[0].value);
+    }
+
+    // Load command bar opacity
+    const savedOpacity = await window.faria.settings.get('commandBarOpacity');
+    if (savedOpacity) {
+      const opacity = parseFloat(savedOpacity);
+      setCommandBarOpacity(opacity);
     }
 
     // Load keyboard shortcuts
@@ -1294,6 +1302,57 @@ function SettingsPanel({ currentTheme, onThemeChange }: SettingsPanelProps) {
                   </div>
                 )}
               </div>
+
+        {/* Command Bar Opacity */}
+        <div style={{
+          background: 'var(--color-surface)',
+          borderRadius: 'var(--radius-lg)',
+          border: '1px solid var(--color-border)',
+          padding: 'var(--spacing-lg)',
+          marginTop: 'var(--spacing-lg)',
+        }}>
+          <div style={{
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'space-between',
+            marginBottom: 'var(--spacing-md)',
+          }}>
+            <div>
+              <div style={{ fontWeight: 600, marginBottom: 2 }}>Command Bar Opacity</div>
+              <div style={{ fontSize: 'var(--font-size-xs)', color: 'var(--color-text-muted)' }}>
+                Adjust the transparency of the command bar
+              </div>
+            </div>
+            <div style={{
+              fontSize: 'var(--font-size-sm)',
+              color: 'var(--color-accent)',
+              fontWeight: 500,
+              minWidth: 40,
+              textAlign: 'right',
+            }}>
+              {Math.round(commandBarOpacity * 100)}%
+            </div>
+          </div>
+          <input
+            type="range"
+            min="0.1"
+            max="1"
+            step="0.05"
+            value={commandBarOpacity}
+            onChange={(e) => {
+              const opacity = parseFloat(e.target.value);
+              setCommandBarOpacity(opacity);
+              saveSettings('commandBarOpacity', opacity.toString());
+              // Notify command bar of opacity change
+              window.faria.settings.notifyOpacityChange(opacity);
+            }}
+            style={{
+              width: '100%',
+              cursor: 'pointer',
+              accentColor: 'var(--color-accent)',
+            }}
+          />
+        </div>
       </section>
 
       {/* Typography Section - Separate from colors */}

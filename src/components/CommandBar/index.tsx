@@ -120,6 +120,7 @@ function CommandBar() {
   const [pendingAuth, setPendingAuth] = useState<{ toolkit: string; redirectUrl: string } | null>(null);
   const [pendingToolApproval, setPendingToolApproval] = useState<{ toolName: string; toolDescription: string; args: Record<string, unknown>; isComposio: boolean; displayName?: string; details?: Record<string, string> } | null>(null);
   const [toolApprovalExpanded, setToolApprovalExpanded] = useState(false);
+  const [opacity, setOpacity] = useState(0.7);
   const inputRef = useRef<HTMLTextAreaElement>(null);
   const responseRef = useRef<HTMLDivElement>(null);
   const toolApprovalRef = useRef<HTMLDivElement>(null);
@@ -202,6 +203,12 @@ function CommandBar() {
         }
 
         applyTheme(theme, customColors, font);
+
+        // Load opacity setting
+        const savedOpacity = await window.faria.settings.get('commandBarOpacity');
+        if (savedOpacity) {
+          setOpacity(parseFloat(savedOpacity));
+        }
       } catch (e) {
         console.error('[CommandBar] Error loading settings:', e);
       }
@@ -214,8 +221,14 @@ function CommandBar() {
       applyTheme(themeData.theme, themeData.customColors, themeData.font);
     });
 
+    // Listen for opacity changes
+    const cleanupOpacity = window.faria.settings.onOpacityChange((newOpacity) => {
+      setOpacity(newOpacity);
+    });
+
     return () => {
       cleanupTheme();
+      cleanupOpacity();
     };
   }, []);
 
@@ -438,8 +451,19 @@ function CommandBar() {
     }
   }, [handleSubmit, pendingToolApproval]);
 
+  // Get background color with opacity from current theme
+  const getBackgroundWithOpacity = () => {
+    const bgColor = getComputedStyle(document.documentElement).getPropertyValue('--color-background').trim() || '#272932';
+    // Convert hex to rgba
+    const hex = bgColor.replace('#', '');
+    const r = parseInt(hex.substring(0, 2), 16);
+    const g = parseInt(hex.substring(2, 4), 16);
+    const b = parseInt(hex.substring(4, 6), 16);
+    return `rgba(${r}, ${g}, ${b}, ${opacity})`;
+  };
+
   return (
-    <div className="command-bar">
+    <div className="command-bar" style={{ background: getBackgroundWithOpacity() }}>
       <div className="command-bar-input-area">
         <textarea
           ref={inputRef}

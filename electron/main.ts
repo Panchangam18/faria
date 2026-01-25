@@ -119,8 +119,6 @@ function createCommandBarWindow() {
     resizable: false,
     movable: true,
     show: false,
-    vibrancy: 'under-window',
-    visualEffectState: 'active',
     hasShadow: false,
     // Critical for overlay behavior - don't take focus from other apps
     focusable: true,
@@ -196,6 +194,13 @@ async function broadcastThemeChange() {
     commandBarWindow.webContents.send('settings:theme-change', themeData);
   }
 }
+
+// Handle opacity change from settings panel
+ipcMain.on('settings:opacity-change', (_event, opacity: number) => {
+  if (commandBarWindow) {
+    commandBarWindow.webContents.send('settings:opacity-change', opacity);
+  }
+});
 
 function getCommandBarSettings() {
   const db = initDatabase();
