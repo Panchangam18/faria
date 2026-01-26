@@ -181,7 +181,8 @@ function HistoryPanel() {
       {Object.entries(grouped).map(([date, items]) => (
         <div key={date} className="date-group">
           <div className="date-group-title">{date}</div>
-            {items.map((item) => {
+            {items.map((item, index) => {
+              const isLastItem = index === items.length - 1;
               const userQuery = parseQuery(item.query);
               const contextText = item.context_text;
               
@@ -192,7 +193,7 @@ function HistoryPanel() {
                 <div
                   key={item.id}
                   className="list-item"
-                  style={{ marginLeft: 'var(--spacing-md)' }}
+                  style={{ marginLeft: 'var(--spacing-md)', borderBottom: 'none', paddingBottom: 0 }}
                   onClick={() => setExpandedId(isExpanded ? null : item.id)}
                   onMouseEnter={() => setHoveredId(item.id)}
                   onMouseLeave={() => setHoveredId(null)}
@@ -244,7 +245,7 @@ function HistoryPanel() {
                       })}
                     </span>
                   </div>
-                  
+
                   {/* Expanded content */}
                   {isExpanded && (
                     <div
@@ -258,7 +259,7 @@ function HistoryPanel() {
                     >
                       {/* Selected text (if any) */}
                       {contextText && (
-                        <div style={{ 
+                        <div style={{
                           fontSize: 'var(--font-size-xs)',
                           fontStyle: 'italic',
                           color: 'var(--color-text-muted)',
@@ -269,7 +270,7 @@ function HistoryPanel() {
                           {contextText}
                         </div>
                       )}
-                      
+
                       {/* Agent trace - human readable actions */}
                       {item.actions && item.actions.length > 0 && (
                         <div style={{
@@ -298,6 +299,14 @@ function HistoryPanel() {
                         </div>
                       )}
                     </div>
+                  )}
+                  {/* Separator line aligned with content */}
+                  {!isLastItem && (
+                    <div style={{
+                      height: '1px',
+                      backgroundColor: 'var(--color-border)',
+                      marginTop: 'var(--spacing-md)'
+                    }} />
                   )}
                 </div>
               );

@@ -8,6 +8,8 @@ interface SettingsPanelProps {
 // Default shortcuts
 const DEFAULT_COMMAND_BAR_SHORTCUT = 'CommandOrControl+Enter';
 const DEFAULT_RESET_COMMAND_BAR_SHORTCUT = 'CommandOrControl+Shift+Enter';
+const DEFAULT_MOVE_PREFIX = 'CommandOrControl+Alt';
+const DEFAULT_TRANSPARENCY_PREFIX = 'CommandOrControl+Control';
 
 // Convert Electron accelerator to display format
 const shortcutToDisplay = (accelerator: string): string => {
@@ -65,6 +67,48 @@ const eventToAccelerator = (e: KeyboardEvent): string | null => {
   parts.push(key);
 
   return parts.join('+');
+};
+
+// Convert keyboard event to modifier prefix only (for move/transparency shortcuts)
+const eventToModifierPrefix = (e: KeyboardEvent): string | null => {
+  // Only capture when a non-modifier key is pressed to confirm the prefix
+  if (['Meta', 'Control', 'Shift', 'Alt'].includes(e.key)) {
+    return null;
+  }
+
+  const parts: string[] = [];
+
+  if (e.metaKey) {
+    parts.push('Command');
+  }
+  if (e.ctrlKey) {
+    parts.push('Control');
+  }
+  if (e.shiftKey) {
+    parts.push('Shift');
+  }
+  if (e.altKey) {
+    parts.push('Alt');
+  }
+
+  // Need at least one modifier
+  if (parts.length === 0) {
+    return null;
+  }
+
+  return parts.join('+');
+};
+
+// Convert modifier prefix to display format
+const prefixToDisplay = (prefix: string): string => {
+  return prefix
+    .replace('CommandOrControl', '⌘')
+    .replace('Command', '⌘')
+    .replace('Control', '⌃')
+    .replace('Shift', '⇧')
+    .replace('Alt', '⌥')
+    .replace('Option', '⌥')
+    .replace(/\+/g, '');
 };
 
 interface CustomPalette {
@@ -241,7 +285,9 @@ function SettingsPanel({ currentTheme, onThemeChange }: SettingsPanelProps) {
   // Keyboard shortcuts
   const [commandBarShortcut, setCommandBarShortcut] = useState(DEFAULT_COMMAND_BAR_SHORTCUT);
   const [resetCommandBarShortcut, setResetCommandBarShortcut] = useState(DEFAULT_RESET_COMMAND_BAR_SHORTCUT);
-  const [recordingShortcut, setRecordingShortcut] = useState<'commandBar' | 'resetCommandBar' | null>(null);
+  const [movePrefix, setMovePrefix] = useState(DEFAULT_MOVE_PREFIX);
+  const [transparencyPrefix, setTransparencyPrefix] = useState(DEFAULT_TRANSPARENCY_PREFIX);
+  const [recordingShortcut, setRecordingShortcut] = useState<'commandBar' | 'resetCommandBar' | 'movePrefix' | 'transparencyPrefix' | null>(null);
 
   // Integrations state
   const [connections, setConnections] = useState<Array<{
@@ -361,6 +407,12 @@ function SettingsPanel({ currentTheme, onThemeChange }: SettingsPanelProps) {
 
     const savedResetCommandBarShortcut = await window.faria.settings.get('resetCommandBarShortcut');
     if (savedResetCommandBarShortcut) setResetCommandBarShortcut(savedResetCommandBarShortcut);
+
+    const savedMovePrefix = await window.faria.settings.get('moveShortcutPrefix');
+    if (savedMovePrefix) setMovePrefix(savedMovePrefix);
+
+    const savedTransparencyPrefix = await window.faria.settings.get('transparencyShortcutPrefix');
+    if (savedTransparencyPrefix) setTransparencyPrefix(savedTransparencyPrefix);
   };
 
   // Keyboard shortcut recording
@@ -370,6 +422,29 @@ function SettingsPanel({ currentTheme, onThemeChange }: SettingsPanelProps) {
     const handleKeyDown = (e: KeyboardEvent) => {
       e.preventDefault();
       e.stopPropagation();
+
+      // For prefix shortcuts, capture just the modifiers
+      if (recordingShortcut === 'movePrefix' || recordingShortcut === 'transparencyPrefix') {
+        const prefix = eventToModifierPrefix(e);
+        if (!prefix) return; // Modifier-only press, keep recording
+
+        if (recordingShortcut === 'movePrefix') {
+          setMovePrefix(prefix);
+          saveSettings('moveShortcutPrefix', prefix);
+          window.faria.settings.set('moveShortcutPrefix', prefix).then(() => {
+            window.faria.shortcuts?.reregister();
+          });
+        } else if (recordingShortcut === 'transparencyPrefix') {
+          setTransparencyPrefix(prefix);
+          saveSettings('transparencyShortcutPrefix', prefix);
+          window.faria.settings.set('transparencyShortcutPrefix', prefix).then(() => {
+            window.faria.shortcuts?.reregister();
+          });
+        }
+
+        setRecordingShortcut(null);
+        return;
+      }
 
       const accelerator = eventToAccelerator(e);
       if (!accelerator) return; // Modifier-only press, keep recording
@@ -748,6 +823,72 @@ function SettingsPanel({ currentTheme, onThemeChange }: SettingsPanelProps) {
               }}
             >
               {recordingShortcut === 'resetCommandBar' ? 'Press keys...' : shortcutToDisplay(resetCommandBarShortcut)}
+            </button>
+          </div>
+
+          {/* Move Faria Bar */}
+          <div style={{
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'space-between',
+            padding: 'var(--spacing-md)',
+            background: 'var(--color-surface)',
+            borderRadius: 'var(--radius-md)',
+            border: '1px solid var(--color-border)',
+          }}>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
+              <span style={{ fontSize: 'var(--font-size-sm)' }}>Move Faria</span>
+              <span style={{ fontSize: 'var(--font-size-xs)', color: 'var(--color-text-muted)' }}>+ Arrow Keys</span>
+            </div>
+            <button
+              onClick={() => setRecordingShortcut('movePrefix')}
+              style={{
+                padding: 'var(--spacing-xs) var(--spacing-md)',
+                fontSize: 'var(--font-size-sm)',
+                fontFamily: 'system-ui',
+                background: recordingShortcut === 'movePrefix' ? 'var(--color-accent)' : 'var(--color-background)',
+                color: recordingShortcut === 'movePrefix' ? 'var(--color-background)' : 'var(--color-text)',
+                border: '1px solid var(--color-border)',
+                borderRadius: 'var(--radius-sm)',
+                cursor: 'pointer',
+                minWidth: 80,
+                transition: 'all 0.15s ease',
+              }}
+            >
+              {recordingShortcut === 'movePrefix' ? 'Press keys...' : prefixToDisplay(movePrefix)}
+            </button>
+          </div>
+
+          {/* Transparency */}
+          <div style={{
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'space-between',
+            padding: 'var(--spacing-md)',
+            background: 'var(--color-surface)',
+            borderRadius: 'var(--radius-md)',
+            border: '1px solid var(--color-border)',
+          }}>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
+              <span style={{ fontSize: 'var(--font-size-sm)' }}>Transparency</span>
+              <span style={{ fontSize: 'var(--font-size-xs)', color: 'var(--color-text-muted)' }}>+ Up/Down Arrows</span>
+            </div>
+            <button
+              onClick={() => setRecordingShortcut('transparencyPrefix')}
+              style={{
+                padding: 'var(--spacing-xs) var(--spacing-md)',
+                fontSize: 'var(--font-size-sm)',
+                fontFamily: 'system-ui',
+                background: recordingShortcut === 'transparencyPrefix' ? 'var(--color-accent)' : 'var(--color-background)',
+                color: recordingShortcut === 'transparencyPrefix' ? 'var(--color-background)' : 'var(--color-text)',
+                border: '1px solid var(--color-border)',
+                borderRadius: 'var(--radius-sm)',
+                cursor: 'pointer',
+                minWidth: 80,
+                transition: 'all 0.15s ease',
+              }}
+            >
+              {recordingShortcut === 'transparencyPrefix' ? 'Press keys...' : prefixToDisplay(transparencyPrefix)}
             </button>
           </div>
         </div>

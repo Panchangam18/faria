@@ -57,6 +57,13 @@ const DEFAULT_COMMAND_BAR_HEIGHT = 67; // Single line: 46 (base) + 21 (one line)
 // Default keyboard shortcuts
 const DEFAULT_COMMAND_BAR_SHORTCUT = 'CommandOrControl+Enter';
 const DEFAULT_RESET_COMMAND_BAR_SHORTCUT = 'CommandOrControl+Shift+Enter';
+const DEFAULT_MOVE_PREFIX = 'Command+Alt';
+const DEFAULT_TRANSPARENCY_PREFIX = 'Command+Control';
+
+// Movement step in pixels
+const MOVE_STEP = 50;
+// Opacity step (0-100 scale, will be converted to 0-1)
+const OPACITY_STEP = 5;
 
 function createMainWindow() {
   mainWindow = new BrowserWindow({
@@ -492,6 +499,108 @@ async function resetCommandBar() {
   });
 }
 
+// Current opacity value (0-100 scale)
+let currentOpacity = 70;
+
+// Debounce timers for saving settings (allows smooth key repeat without DB thrashing)
+let savePositionTimer: NodeJS.Timeout | null = null;
+let saveOpacityTimer: NodeJS.Timeout | null = null;
+
+// Timer to detect when held key is released (no more repeat events)
+let repeatStopTimer: NodeJS.Timeout | null = null;
+const REPEAT_STOP_DELAY = 200; // ms after last shortcut fire to consider key released
+
+// Schedule cleanup after key release - resets timer each time shortcut fires
+// When key is held, macOS sends repeated key events; when released, events stop
+// and this timer fires to perform any cleanup (like debounced saves)
+function scheduleRepeatStop() {
+  if (repeatStopTimer) {
+    clearTimeout(repeatStopTimer);
+  }
+  repeatStopTimer = setTimeout(() => {
+    repeatStopTimer = null;
+    // Any cleanup needed after key release can go here
+  }, REPEAT_STOP_DELAY);
+}
+
+// Move command bar in a direction
+function moveCommandBar(direction: 'up' | 'down' | 'left' | 'right') {
+  if (!commandBarWindow) return;
+
+  const [x, y] = commandBarWindow.getPosition();
+  const display = screen.getPrimaryDisplay();
+  const { width: screenWidth, height: screenHeight } = display.workAreaSize;
+  const [winWidth, winHeight] = commandBarWindow.getSize();
+
+  let newX = x;
+  let newY = y;
+
+  switch (direction) {
+    case 'up':
+      newY = Math.max(0, y - MOVE_STEP);
+      break;
+    case 'down':
+      newY = Math.min(screenHeight - winHeight, y + MOVE_STEP);
+      break;
+    case 'left':
+      newX = Math.max(0, x - MOVE_STEP);
+      break;
+    case 'right':
+      newX = Math.min(screenWidth - winWidth, x + MOVE_STEP);
+      break;
+  }
+
+  commandBarWindow.setPosition(newX, newY);
+
+  // Update cached position
+  cachedCommandBarPosition = { x: newX, y: newY };
+
+  // Debounce save to database (saves 300ms after last move, allows smooth key repeat)
+  if (savePositionTimer) clearTimeout(savePositionTimer);
+  savePositionTimer = setTimeout(() => {
+    const db = initDatabase();
+    db.prepare('INSERT OR REPLACE INTO settings (key, value) VALUES (?, ?)').run(
+      'commandBarPosition',
+      JSON.stringify({ x: newX, y: newY, width: DEFAULT_COMMAND_BAR_WIDTH })
+    );
+    savePositionTimer = null;
+  }, 300);
+}
+
+// Change command bar transparency
+function changeTransparency(increase: boolean) {
+  if (increase) {
+    currentOpacity = Math.min(100, currentOpacity + OPACITY_STEP);
+  } else {
+    currentOpacity = Math.max(10, currentOpacity - OPACITY_STEP);
+  }
+
+  // Notify command bar window of opacity change immediately (smooth visual feedback)
+  if (commandBarWindow) {
+    commandBarWindow.webContents.send('settings:opacity-change', currentOpacity / 100);
+  }
+
+  // Debounce save to database (saves 300ms after last change, allows smooth key repeat)
+  if (saveOpacityTimer) clearTimeout(saveOpacityTimer);
+  saveOpacityTimer = setTimeout(() => {
+    const db = initDatabase();
+    db.prepare('INSERT OR REPLACE INTO settings (key, value) VALUES (?, ?)').run(
+      'commandBarOpacity',
+      (currentOpacity / 100).toString()
+    );
+    saveOpacityTimer = null;
+  }, 300);
+}
+
+// Load saved opacity on startup
+async function loadSavedOpacity() {
+  const db = initDatabase();
+  const row = db.prepare('SELECT value FROM settings WHERE key = ?').get('commandBarOpacity') as { value: string } | undefined;
+  if (row?.value) {
+    currentOpacity = Math.round(parseFloat(row.value) * 100);
+  }
+}
+
 function registerGlobalShortcuts() {
   // Unregister all existing shortcuts first
   globalShortcut.unregisterAll();
@@ -504,8 +613,16 @@ function registerGlobalShortcuts() {
   const resetShortcutRow = db.prepare('SELECT value FROM settings WHERE key = ?').get('resetCommandBarShortcut') as { value: string } | undefined;
   const resetShortcut = resetShortcutRow?.value || DEFAULT_RESET_COMMAND_BAR_SHORTCUT;
 
+  const movePrefixRow = db.prepare('SELECT value FROM settings WHERE key = ?').get('moveShortcutPrefix') as { value: string } | undefined;
+  const movePrefix = movePrefixRow?.value || DEFAULT_MOVE_PREFIX;
+
+  const transparencyPrefixRow = db.prepare('SELECT value FROM settings WHERE key = ?').get('transparencyShortcutPrefix') as { value: string } | undefined;
+  const transparencyPrefix = transparencyPrefixRow?.value || DEFAULT_TRANSPARENCY_PREFIX;
+
   console.log('[Faria] Registering shortcut:', commandBarShortcut);
   console.log('[Faria] Registering reset shortcut:', resetShortcut);
+  console.log('[Faria] Registering move prefix:', movePrefix);
+  console.log('[Faria] Registering transparency prefix:', transparencyPrefix);
 
   // Register command bar toggle shortcut with lock to prevent queued toggles
   const ret = globalShortcut.register(commandBarShortcut, () => {
@@ -527,6 +644,47 @@ function registerGlobalShortcuts() {
 
   if (!retReset) {
     console.error('[Faria] Failed to register global shortcut for reset:', resetShortcut);
+  }
+
+  // Register move shortcuts (prefix + arrow keys)
+  // macOS sends repeated key events when holding a key (based on System Preferences > Keyboard settings)
+  // globalShortcut receives these repeats, so we just execute the action on each fire
+  // and use scheduleRepeatStop to detect when the key is released (no more events)
+  const moveDirections: Array<{ key: string; direction: 'up' | 'down' | 'left' | 'right' }> = [
+    { key: 'Up', direction: 'up' },
+    { key: 'Down', direction: 'down' },
+    { key: 'Left', direction: 'left' },
+    { key: 'Right', direction: 'right' },
+  ];
+
+  for (const { key, direction } of moveDirections) {
+    const shortcut = `${movePrefix}+${key}`;
+    const retMove = globalShortcut.register(shortcut, () => {
+      // Execute the move
+      moveCommandBar(direction);
+      // Reset stop timer - if key is held, this will be called again before timer fires
+      scheduleRepeatStop();
+    });
+    if (!retMove) {
+      console.error('[Faria] Failed to register move shortcut:', shortcut);
+    }
+  }
+
+  // Register transparency shortcuts (prefix + up/down)
+  const retTransUp = globalShortcut.register(`${transparencyPrefix}+Up`, () => {
+    changeTransparency(true);
+    scheduleRepeatStop();
+  });
+  if (!retTransUp) {
+    console.error('[Faria] Failed to register transparency up shortcut');
+  }
+
+  const retTransDown = globalShortcut.register(`${transparencyPrefix}+Down`, () => {
+    changeTransparency(false);
+    scheduleRepeatStop();
+  });
+  if (!retTransDown) {
+    console.error('[Faria] Failed to register transparency down shortcut');
   }
 }
 
@@ -783,6 +941,7 @@ app.whenReady().then(async () => {
   await initializeServices();
   createMainWindow();
   cacheCommandBarPosition(); // Cache position before creating window
+  loadSavedOpacity(); // Load saved opacity before creating window
   createCommandBarWindow();
   positionCommandBar(); // Position once at startup
   registerGlobalShortcuts();
