@@ -125,7 +125,8 @@ function CommandBar() {
   const responseRef = useRef<HTMLDivElement>(null);
   const toolApprovalRef = useRef<HTMLDivElement>(null);
 
-  // Resize window based on textarea content - runs synchronously after DOM updates
+  // Resize window based on textarea content - debounced to avoid blocking rapid toggles
+  const lastResizeRef = useRef<number>(0);
   useLayoutEffect(() => {
     const textarea = inputRef.current;
     if (!textarea) return;
@@ -167,9 +168,12 @@ function CommandBar() {
       toolApprovalHeight = toolApprovalRef.current.scrollHeight;
     }
 
-    // Calculate and set window height
+    // Calculate and set window height - debounce to avoid IPC spam during rapid toggle
     const totalHeight = BASE_HEIGHT + contentHeight + responseHeight + toolApprovalHeight;
-    window.faria.commandBar.resize(totalHeight);
+    if (totalHeight !== lastResizeRef.current) {
+      lastResizeRef.current = totalHeight;
+      window.faria.commandBar.resize(totalHeight);
+    }
   }, [query, response, streamingResponse, pendingToolApproval, toolApprovalExpanded]);
 
   // Load theme on mount
