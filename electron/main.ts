@@ -126,6 +126,7 @@ function createCommandBarWindow() {
     movable: true,
     show: false,
     hasShadow: false,
+    roundedCorners: false,
     // Critical for overlay behavior - don't take focus from other apps
     focusable: true,
     // macOS specific: float above full-screen apps

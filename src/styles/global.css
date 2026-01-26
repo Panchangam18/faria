@@ -55,7 +55,7 @@ html, body {
   display: flex;
   align-items: center;
   justify-content: center;
-  border-radius: var(--radius-md);
+  border-radius: var(--radius-lg);
   background: transparent;
   border: none;
   color: var(--color-text-muted);
