@@ -141,7 +141,7 @@ const PRESET_THEMES = [
 
 
 // Mini command bar preview component for theme cards
-const ThemePreview = ({ colors, isSelected, name, noShadow }: { colors: { background: string; text: string; accent: string }, isSelected: boolean, name?: string, noShadow?: boolean }) => {
+const ThemePreview = ({ colors, isSelected, name }: { colors: { background: string; text: string; accent: string }, isSelected: boolean, name?: string }) => {
   return (
     <div style={{
       width: '100%',
@@ -150,7 +150,7 @@ const ThemePreview = ({ colors, isSelected, name, noShadow }: { colors: { backgr
       overflow: 'hidden',
       background: colors.background,
       position: 'relative',
-      boxShadow: noShadow ? 'none' : (isSelected ? `0 0 0 2px ${colors.accent}, 0 8px 24px rgba(0,0,0,0.4)` : '0 4px 12px rgba(0,0,0,0.3)'),
+      boxShadow: isSelected ? `0 0 0 2px ${colors.accent}` : 'none',
       transition: 'all 0.3s cubic-bezier(0.4, 0, 0.2, 1)',
       border: `1px solid ${colors.text}26`,
       display: 'flex',
@@ -1371,7 +1371,6 @@ function SettingsPanel({ currentTheme, onThemeChange }: SettingsPanelProps) {
                 colors={{ background: newPalette.background, text: newPalette.text, accent: newPalette.accent }}
                 isSelected={false}
                 name={newPalette.name || 'Preview'}
-                noShadow
               />
             </div>
 
