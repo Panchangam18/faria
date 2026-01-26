@@ -180,7 +180,6 @@ function HistoryPanel() {
       {Object.entries(grouped).map(([date, items]) => (
         <div key={date} className="date-group">
           <div className="date-group-title">{date}</div>
-          <div className="card">
             {items.map((item) => {
               const userQuery = parseQuery(item.query);
               const contextText = item.context_text;
@@ -283,7 +282,6 @@ function HistoryPanel() {
                 </div>
               );
             })}
-          </div>
         </div>
       ))}
     </div>
