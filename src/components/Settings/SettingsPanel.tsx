@@ -138,21 +138,10 @@ const PRESET_THEMES = [
   },
 ];
 
-// Accent color presets for quick selection
-const ACCENT_PRESETS = [
-  { color: '#C6AC8F', name: 'Khaki' },
-  { color: '#58A6FF', name: 'Blue' },
-  { color: '#7CB342', name: 'Green' },
-  { color: '#e94560', name: 'Rose' },
-  { color: '#daa520', name: 'Gold' },
-  { color: '#00b4d8', name: 'Cyan' },
-  { color: '#9d4edd', name: 'Purple' },
-  { color: '#ff6b6b', name: 'Coral' },
-];
 
 
 // Mini command bar preview component for theme cards
-const ThemePreview = ({ colors, isSelected, name }: { colors: { background: string; text: string; accent: string }, isSelected: boolean, name?: string }) => {
+const ThemePreview = ({ colors, isSelected, name, noShadow }: { colors: { background: string; text: string; accent: string }, isSelected: boolean, name?: string, noShadow?: boolean }) => {
   return (
     <div style={{
       width: '100%',
@@ -161,7 +150,7 @@ const ThemePreview = ({ colors, isSelected, name }: { colors: { background: stri
       overflow: 'hidden',
       background: colors.background,
       position: 'relative',
-      boxShadow: isSelected ? `0 0 0 2px ${colors.accent}, 0 8px 24px rgba(0,0,0,0.4)` : '0 4px 12px rgba(0,0,0,0.3)',
+      boxShadow: noShadow ? 'none' : (isSelected ? `0 0 0 2px ${colors.accent}, 0 8px 24px rgba(0,0,0,0.4)` : '0 4px 12px rgba(0,0,0,0.3)'),
       transition: 'all 0.3s cubic-bezier(0.4, 0, 0.2, 1)',
       border: `1px solid ${colors.text}26`,
       display: 'flex',
@@ -244,7 +233,6 @@ function SettingsPanel({ currentTheme, onThemeChange }: SettingsPanelProps) {
     text: '#EAE0D5',
     accent: '#C6AC8F',
   });
-  const [commandBarOpacity, setCommandBarOpacity] = useState(0.7);
 
   const [hasLoadedSettings, setHasLoadedSettings] = useState(false);
   const [hoverAgentModel, setHoverAgentModel] = useState(false);
@@ -367,14 +355,6 @@ function SettingsPanel({ currentTheme, onThemeChange }: SettingsPanelProps) {
         }
       }
     }
-    
-    // Load command bar opacity
-    const savedOpacity = await window.faria.settings.get('commandBarOpacity');
-    if (savedOpacity) {
-      const opacity = parseFloat(savedOpacity);
-      setCommandBarOpacity(opacity);
-    }
-
     // Load keyboard shortcuts
     const savedCommandBarShortcut = await window.faria.settings.get('commandBarShortcut');
     if (savedCommandBarShortcut) setCommandBarShortcut(savedCommandBarShortcut);
@@ -693,15 +673,16 @@ function SettingsPanel({ currentTheme, onThemeChange }: SettingsPanelProps) {
 
       {/* Keyboard Shortcuts Section */}
       <section style={{ marginBottom: 'var(--spacing-xl)' }}>
-        <h3 style={{
-          fontSize: 'var(--font-size-lg)',
-          margin: 0,
-          marginBottom: 'var(--spacing-lg)',
-          fontWeight: 600,
-          letterSpacing: '-0.01em'
+        <div style={{
+          fontSize: 'var(--font-size-sm)',
+          color: 'var(--color-text-muted)',
+          marginBottom: 'var(--spacing-md)',
+          textTransform: 'uppercase',
+          letterSpacing: '0.05em',
+          fontWeight: 500
         }}>
           Shortcuts
-        </h3>
+        </div>
 
         <div style={{
           display: 'flex',
@@ -774,21 +755,7 @@ function SettingsPanel({ currentTheme, onThemeChange }: SettingsPanelProps) {
 
       {/* Theme Section - Redesigned */}
       <section style={{ marginBottom: 'var(--spacing-xl)' }}>
-          <div style={{ 
-            display: 'flex',
-            alignItems: 'center',
-          justifyContent: 'space-between',
-          marginBottom: 'var(--spacing-lg)'
-          }}>
-          <h3 style={{ 
-                fontSize: 'var(--font-size-lg)',
-            margin: 0,
-            fontWeight: 600,
-            letterSpacing: '-0.01em'
-          }}>
-            Appearance
-          </h3>
-        </div>
+
 
         {/* Preset Themes Grid */}
         <div style={{ marginBottom: 'var(--spacing-lg)' }}>
@@ -906,7 +873,7 @@ function SettingsPanel({ currentTheme, onThemeChange }: SettingsPanelProps) {
                 width: 'calc((100% - 4 * var(--spacing-sm)) / 5)',
                 height: 52,
                 borderRadius: 6,
-                border: '1px dashed var(--color-border)',
+                border: '1px solid var(--color-border)',
                 display: 'flex',
                 alignItems: 'center',
                 justifyContent: 'center',
@@ -924,306 +891,21 @@ function SettingsPanel({ currentTheme, onThemeChange }: SettingsPanelProps) {
           </div>
         </div>
 
-        {/* Create Custom Theme Form */}
-        {showCustomForm && (
-          <div style={{
-            background: 'var(--color-surface)',
-            borderRadius: 'var(--radius-lg)',
-            border: '1px solid var(--color-border)',
-            overflow: 'hidden',
-            padding: 'var(--spacing-lg)',
-          }}>
-                    <div style={{ 
-                      display: 'flex',
-                      justifyContent: 'space-between',
-                      alignItems: 'center',
-                marginBottom: 'var(--spacing-lg)'
-                    }}>
-                <div style={{ fontWeight: 600, fontSize: 'var(--font-size-md)' }}>New Theme</div>
-                      <button
-                  onClick={() => setShowCustomForm(false)}
-                  style={{
-                    background: 'transparent',
-                    border: 'none',
-                    color: 'var(--color-text-muted)',
-                    fontSize: 20,
-                    cursor: 'pointer',
-                    padding: 4,
-                    lineHeight: 1,
-                  }}
-                >
-                  ×
-                      </button>
-                    </div>
-                    
-              {/* Live Preview */}
-              <div style={{ marginBottom: 'var(--spacing-lg)' }}>
-                <div style={{ 
-                  fontSize: 'var(--font-size-xs)', 
-                  color: 'var(--color-text-muted)',
-                  marginBottom: 'var(--spacing-sm)',
-                  textTransform: 'uppercase',
-                  letterSpacing: '0.05em'
-                }}>
-                  Preview
-                </div>
-                <ThemePreview
-                  colors={{ background: newPalette.background, text: newPalette.text, accent: newPalette.accent }}
-                  isSelected={false}
-                  name={newPalette.name || 'Preview'}
-                />
-              </div>
 
-              {/* Theme Name */}
-                    <div style={{ marginBottom: 'var(--spacing-md)' }}>
-                      <label style={{ 
-                        display: 'block', 
-                  fontSize: 'var(--font-size-xs)', 
-                        marginBottom: 'var(--spacing-xs)',
-                  color: 'var(--color-text-muted)',
-                  textTransform: 'uppercase',
-                  letterSpacing: '0.05em'
-                      }}>
-                        Name
-                      </label>
-                      <input
-                        type="text"
-                        value={newPalette.name}
-                        onChange={(e) => setNewPalette({ ...newPalette, name: e.target.value })}
-                  placeholder="My Custom Theme"
-                  style={{
-                    width: '100%',
-                    padding: 'var(--spacing-sm) var(--spacing-md)',
-                    fontSize: 'var(--font-size-sm)',
-                    borderRadius: 'var(--radius-md)',
-                    border: '1px solid var(--color-border)',
-                    backgroundColor: 'var(--color-background)',
-                    color: 'var(--color-text)',
-                  }}
-                      />
-                    </div>
-
-              {/* Color Pickers Row */}
-                    <div style={{ 
-                      display: 'grid', 
-                      gridTemplateColumns: '1fr 1fr 1fr', 
-                      gap: 'var(--spacing-md)',
-                      marginBottom: 'var(--spacing-md)'
-                    }}>
-                      <div>
-                        <label style={{ 
-                          display: 'block', 
-                    fontSize: 'var(--font-size-xs)', 
-                          marginBottom: 'var(--spacing-xs)',
-                    color: 'var(--color-text-muted)',
-                    textTransform: 'uppercase',
-                    letterSpacing: '0.05em'
-                        }}>
-                          Background
-                        </label>
-                  <div style={{ position: 'relative' }}>
-                        <input
-                          type="color"
-                          value={newPalette.background}
-                          onChange={(e) => setNewPalette({ ...newPalette, background: e.target.value })}
-                      style={{ 
-                        width: '100%', 
-                        height: 44, 
-                        padding: 0, 
-                        cursor: 'pointer',
-                        borderRadius: 'var(--radius-md)',
-                        border: '2px solid var(--color-border)',
-                      }}
-                    />
-                  </div>
-                      </div>
-                      <div>
-                        <label style={{ 
-                          display: 'block', 
-                    fontSize: 'var(--font-size-xs)', 
-                          marginBottom: 'var(--spacing-xs)',
-                    color: 'var(--color-text-muted)',
-                    textTransform: 'uppercase',
-                    letterSpacing: '0.05em'
-                        }}>
-                          Text
-                        </label>
-                        <input
-                          type="color"
-                          value={newPalette.text}
-                          onChange={(e) => setNewPalette({ ...newPalette, text: e.target.value })}
-                    style={{ 
-                      width: '100%', 
-                      height: 44, 
-                      padding: 0, 
-                      cursor: 'pointer',
-                      borderRadius: 'var(--radius-md)',
-                      border: '2px solid var(--color-border)',
-                    }}
-                        />
-                      </div>
-                      <div>
-                        <label style={{ 
-                          display: 'block', 
-                    fontSize: 'var(--font-size-xs)', 
-                          marginBottom: 'var(--spacing-xs)',
-                    color: 'var(--color-text-muted)',
-                    textTransform: 'uppercase',
-                    letterSpacing: '0.05em'
-                        }}>
-                          Accent
-                        </label>
-                        <input
-                          type="color"
-                          value={newPalette.accent}
-                          onChange={(e) => setNewPalette({ ...newPalette, accent: e.target.value })}
-                    style={{ 
-                      width: '100%', 
-                      height: 44, 
-                      padding: 0, 
-                      cursor: 'pointer',
-                      borderRadius: 'var(--radius-md)',
-                      border: '2px solid var(--color-border)',
-                    }}
-                        />
-                      </div>
-                    </div>
-
-              {/* Accent Presets */}
-                    <div style={{ marginBottom: 'var(--spacing-md)' }}>
-                      <label style={{ 
-                        display: 'block', 
-                  fontSize: 'var(--font-size-xs)', 
-                  marginBottom: 'var(--spacing-sm)',
-                  color: 'var(--color-text-muted)',
-                  textTransform: 'uppercase',
-                  letterSpacing: '0.05em'
-                }}>
-                  Accent Presets
-                      </label>
-                <div style={{ display: 'flex', gap: 'var(--spacing-xs)', flexWrap: 'wrap' }}>
-                  {ACCENT_PRESETS.map((preset) => (
-                    <button
-                      key={preset.color}
-                      onClick={() => setNewPalette({ ...newPalette, accent: preset.color })}
-                      title={preset.name}
-                        style={{
-                        width: 28,
-                        height: 28,
-                        borderRadius: '50%',
-                        background: preset.color,
-                        border: newPalette.accent === preset.color 
-                          ? '2px solid var(--color-text)' 
-                          : '2px solid transparent',
-                        cursor: 'pointer',
-                        transition: 'transform 0.15s ease, border-color 0.15s ease',
-                        boxShadow: '0 2px 4px rgba(0,0,0,0.2)',
-                      }}
-                      onMouseEnter={(e) => e.currentTarget.style.transform = 'scale(1.1)'}
-                      onMouseLeave={(e) => e.currentTarget.style.transform = 'scale(1)'}
-                    />
-                  ))}
-                </div>
-                    </div>
-
-              {/* Action Buttons */}
-                    <div style={{ display: 'flex', gap: 'var(--spacing-sm)', justifyContent: 'flex-end' }}>
-                <button 
-                  className="btn btn-secondary" 
-                  onClick={() => {
-                    setShowCustomForm(false);
-                        const currentValues = getCurrentThemeValues();
-                        setNewPalette({
-                          name: '',
-                          background: currentValues.background,
-                          text: currentValues.text,
-                          accent: currentValues.accent,
-                    });
-                  }}
-                  style={{
-                    padding: 'var(--spacing-sm) var(--spacing-lg)',
-                    borderRadius: 'var(--radius-md)',
-                  }}
-                >
-                        Cancel
-                      </button>
-                <button 
-                  className="btn" 
-                  onClick={handleAddCustomPalette}
-                  disabled={!newPalette.name.trim()}
-                  style={{
-                    padding: 'var(--spacing-sm) var(--spacing-lg)',
-                    borderRadius: 'var(--radius-md)',
-                    opacity: !newPalette.name.trim() ? 0.5 : 1,
-                  }}
-                >
-                        Create Theme
-                      </button>
-                    </div>
-          </div>
-        )}
-
-        {/* Command Bar Opacity */}
-        <div style={{
-          background: 'var(--color-surface)',
-          borderRadius: 'var(--radius-lg)',
-          border: '1px solid var(--color-border)',
-          padding: 'var(--spacing-lg)',
-          marginTop: 'var(--spacing-lg)',
-        }}>
-          <div style={{
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'space-between',
-            marginBottom: 'var(--spacing-md)',
-          }}>
-            <div>
-              <div style={{ fontWeight: 600, marginBottom: 2 }}>Command Bar Opacity</div>
-              <div style={{ fontSize: 'var(--font-size-xs)', color: 'var(--color-text-muted)' }}>
-                Adjust the transparency of the command bar
-              </div>
-            </div>
-            <div style={{
-              fontSize: 'var(--font-size-sm)',
-              color: 'var(--color-accent)',
-              fontWeight: 500,
-              minWidth: 40,
-              textAlign: 'right',
-            }}>
-              {Math.round(commandBarOpacity * 100)}%
-            </div>
-          </div>
-          <input
-            type="range"
-            min="0.1"
-            max="1"
-            step="0.05"
-            value={commandBarOpacity}
-            onChange={(e) => {
-              const opacity = parseFloat(e.target.value);
-              setCommandBarOpacity(opacity);
-              saveSettings('commandBarOpacity', opacity.toString());
-              // Notify command bar of opacity change
-              window.faria.settings.notifyOpacityChange(opacity);
-            }}
-            style={{
-              width: '100%',
-              cursor: 'pointer',
-              accentColor: 'var(--color-accent)',
-            }}
-          />
-        </div>
       </section>
 
       {/* Model Section */}
       <section style={{ marginBottom: 'var(--spacing-xl)' }}>
-        <h3 style={{
-          fontSize: 'var(--font-size-md)',
+        <div style={{
+          fontSize: 'var(--font-size-sm)',
+          color: 'var(--color-text-muted)',
           marginBottom: 'var(--spacing-md)',
-          color: 'var(--color-text-muted)'
+          textTransform: 'uppercase',
+          letterSpacing: '0.05em',
+          fontWeight: 500
         }}>
           Model
-        </h3>
+        </div>
 
         <div className="card">
           <div style={{ padding: 'var(--spacing-md)' }}>
@@ -1273,13 +955,16 @@ function SettingsPanel({ currentTheme, onThemeChange }: SettingsPanelProps) {
 
       {/* API Keys Section */}
       <section style={{ marginBottom: 'var(--spacing-xl)' }}>
-        <h3 style={{ 
-          fontSize: 'var(--font-size-md)', 
+        <div style={{
+          fontSize: 'var(--font-size-sm)',
+          color: 'var(--color-text-muted)',
           marginBottom: 'var(--spacing-md)',
-          color: 'var(--color-text-muted)'
+          textTransform: 'uppercase',
+          letterSpacing: '0.05em',
+          fontWeight: 500
         }}>
           API Keys
-        </h3>
+        </div>
         
         <div className="card">
           <div style={{ padding: 'var(--spacing-md)' }}>
@@ -1352,13 +1037,15 @@ function SettingsPanel({ currentTheme, onThemeChange }: SettingsPanelProps) {
           justifyContent: 'space-between',
           marginBottom: 'var(--spacing-md)'
         }}>
-          <h3 style={{
-            fontSize: 'var(--font-size-md)',
-            margin: 0,
-            color: 'var(--color-text-muted)'
+          <div style={{
+            fontSize: 'var(--font-size-sm)',
+            color: 'var(--color-text-muted)',
+            textTransform: 'uppercase',
+            letterSpacing: '0.05em',
+            fontWeight: 500
           }}>
             Integrations
-          </h3>
+          </div>
           <button
             className="btn btn-secondary"
             onClick={() => setShowAddIntegrationModal(true)}
@@ -1630,15 +1317,243 @@ function SettingsPanel({ currentTheme, onThemeChange }: SettingsPanelProps) {
         </div>
       )}
 
+      {/* Create Custom Theme Modal */}
+      {showCustomForm && (
+        <div
+          style={{
+            position: 'fixed',
+            top: 0,
+            left: 0,
+            right: 0,
+            bottom: 0,
+            background: 'rgba(0, 0, 0, 0.6)',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            zIndex: 1000,
+            cursor: 'pointer',
+          }}
+          onClick={() => {
+            setShowCustomForm(false);
+            const currentValues = getCurrentThemeValues();
+            setNewPalette({
+              name: '',
+              background: currentValues.background,
+              text: currentValues.text,
+              accent: currentValues.accent,
+            });
+          }}
+        >
+          <div
+            style={{
+              background: 'var(--color-primary)',
+              borderRadius: 'var(--radius-lg)',
+              border: '1px solid var(--color-border)',
+              width: '90%',
+              maxWidth: 400,
+              padding: 'var(--spacing-lg)',
+              cursor: 'default',
+            }}
+            onClick={e => e.stopPropagation()}
+          >
+            {/* Live Preview */}
+            <div style={{ marginBottom: 'var(--spacing-lg)' }}>
+              <div style={{
+                fontSize: 'var(--font-size-xs)',
+                color: 'var(--color-text-muted)',
+                marginBottom: 'var(--spacing-sm)',
+                textTransform: 'uppercase',
+                letterSpacing: '0.05em'
+              }}>
+                Preview
+              </div>
+              <ThemePreview
+                colors={{ background: newPalette.background, text: newPalette.text, accent: newPalette.accent }}
+                isSelected={false}
+                name={newPalette.name || 'Preview'}
+                noShadow
+              />
+            </div>
+
+            {/* Theme Name */}
+            <div style={{ marginBottom: 'var(--spacing-md)' }}>
+              <label style={{
+                display: 'block',
+                fontSize: 'var(--font-size-xs)',
+                marginBottom: 'var(--spacing-xs)',
+                color: 'var(--color-text-muted)',
+                textTransform: 'uppercase',
+                letterSpacing: '0.05em'
+              }}>
+                Name
+              </label>
+              <input
+                type="text"
+                value={newPalette.name}
+                onChange={(e) => setNewPalette({ ...newPalette, name: e.target.value })}
+                placeholder="My Custom Theme"
+                autoFocus
+                style={{
+                  width: '100%',
+                  padding: 'var(--spacing-sm) var(--spacing-md)',
+                  fontSize: 'var(--font-size-sm)',
+                  borderRadius: 'var(--radius-md)',
+                  border: '1px solid var(--color-border)',
+                  backgroundColor: 'var(--color-surface)',
+                  color: 'var(--color-text)',
+                }}
+              />
+            </div>
+
+            {/* Color Pickers Row */}
+            <div style={{
+              display: 'grid',
+              gridTemplateColumns: '1fr 1fr 1fr',
+              gap: 'var(--spacing-md)',
+              marginBottom: 'var(--spacing-md)'
+            }}>
+              <div>
+                <label style={{
+                  display: 'block',
+                  fontSize: 'var(--font-size-xs)',
+                  marginBottom: 'var(--spacing-xs)',
+                  color: 'var(--color-text-muted)',
+                  textTransform: 'uppercase',
+                  letterSpacing: '0.05em'
+                }}>
+                  Background
+                </label>
+                <input
+                  type="color"
+                  value={newPalette.background}
+                  onChange={(e) => setNewPalette({ ...newPalette, background: e.target.value })}
+                  style={{
+                    width: '100%',
+                    height: 44,
+                    padding: 0,
+                    cursor: 'pointer',
+                    borderRadius: 'var(--radius-md)',
+                    border: 'none',
+                    outline: 'none',
+                    WebkitAppearance: 'none',
+                    appearance: 'none',
+                    backgroundColor: 'transparent',
+                    colorScheme: 'dark',
+                  }}
+                />
+              </div>
+              <div>
+                <label style={{
+                  display: 'block',
+                  fontSize: 'var(--font-size-xs)',
+                  marginBottom: 'var(--spacing-xs)',
+                  color: 'var(--color-text-muted)',
+                  textTransform: 'uppercase',
+                  letterSpacing: '0.05em'
+                }}>
+                  Text
+                </label>
+                <input
+                  type="color"
+                  value={newPalette.text}
+                  onChange={(e) => setNewPalette({ ...newPalette, text: e.target.value })}
+                  style={{
+                    width: '100%',
+                    height: 44,
+                    padding: 0,
+                    cursor: 'pointer',
+                    borderRadius: 'var(--radius-md)',
+                    border: 'none',
+                    outline: 'none',
+                    WebkitAppearance: 'none',
+                    appearance: 'none',
+                    backgroundColor: 'transparent',
+                    colorScheme: 'dark',
+                  }}
+                />
+              </div>
+              <div>
+                <label style={{
+                  display: 'block',
+                  fontSize: 'var(--font-size-xs)',
+                  marginBottom: 'var(--spacing-xs)',
+                  color: 'var(--color-text-muted)',
+                  textTransform: 'uppercase',
+                  letterSpacing: '0.05em'
+                }}>
+                  Accent
+                </label>
+                <input
+                  type="color"
+                  value={newPalette.accent}
+                  onChange={(e) => setNewPalette({ ...newPalette, accent: e.target.value })}
+                  style={{
+                    width: '100%',
+                    height: 44,
+                    padding: 0,
+                    cursor: 'pointer',
+                    borderRadius: 'var(--radius-md)',
+                    border: 'none',
+                    outline: 'none',
+                    WebkitAppearance: 'none',
+                    appearance: 'none',
+                    backgroundColor: 'transparent',
+                    colorScheme: 'dark',
+                  }}
+                />
+              </div>
+            </div>
+
+            {/* Action Buttons */}
+            <div style={{ display: 'flex', gap: 'var(--spacing-sm)', justifyContent: 'flex-end' }}>
+              <button
+                className="btn btn-secondary"
+                onClick={() => {
+                  setShowCustomForm(false);
+                  const currentValues = getCurrentThemeValues();
+                  setNewPalette({
+                    name: '',
+                    background: currentValues.background,
+                    text: currentValues.text,
+                    accent: currentValues.accent,
+                  });
+                }}
+                style={{
+                  padding: 'var(--spacing-sm) var(--spacing-lg)',
+                  borderRadius: 'var(--radius-md)',
+                }}
+              >
+                Cancel
+              </button>
+              <button
+                className="btn"
+                onClick={handleAddCustomPalette}
+                disabled={!newPalette.name.trim()}
+                style={{
+                  padding: 'var(--spacing-sm) var(--spacing-lg)',
+                  borderRadius: 'var(--radius-md)',
+                  opacity: !newPalette.name.trim() ? 0.5 : 1,
+                }}
+              >
+                Create Theme
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* System Prompt Section */}
       <section style={{ marginBottom: 'var(--spacing-xl)' }}>
-        <h3 style={{
-          fontSize: 'var(--font-size-md)',
+        <div style={{
+          fontSize: 'var(--font-size-sm)',
+          color: 'var(--color-text-muted)',
           marginBottom: 'var(--spacing-md)',
-          color: 'var(--color-text-muted)'
+          textTransform: 'uppercase',
+          letterSpacing: '0.05em',
+          fontWeight: 500
         }}>
           System Prompt
-        </h3>
+        </div>
 
         <div className="card">
           <div style={{ padding: 'var(--spacing-md)' }}>
