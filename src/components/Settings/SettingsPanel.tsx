@@ -763,6 +763,7 @@ function SettingsPanel({ currentTheme, onThemeChange }: SettingsPanelProps) {
           display: 'flex',
           flexDirection: 'column',
           gap: 'var(--spacing-sm)',
+          marginLeft: 'var(--spacing-md)',
         }}>
           {/* Command Bar Toggle */}
           <div style={{
@@ -910,11 +911,12 @@ function SettingsPanel({ currentTheme, onThemeChange }: SettingsPanelProps) {
           }}>
             Themes
               </div>
-              
+
                   <div style={{
                     display: 'flex',
                     gap: 'var(--spacing-sm)',
                     flexWrap: 'wrap',
+                    marginLeft: 'var(--spacing-md)',
                   }}>
             {PRESET_THEMES.map((theme) => {
               const isSelected = currentTheme === theme.id;
@@ -1048,7 +1050,7 @@ function SettingsPanel({ currentTheme, onThemeChange }: SettingsPanelProps) {
           Model
         </div>
 
-        <div className="card">
+        <div className="card" style={{ marginLeft: 'var(--spacing-md)' }}>
           <div style={{ padding: 'var(--spacing-md)' }}>
             <div>
               <label style={{
@@ -1107,12 +1109,12 @@ function SettingsPanel({ currentTheme, onThemeChange }: SettingsPanelProps) {
           API Keys
         </div>
         
-        <div className="card">
+        <div className="card" style={{ marginLeft: 'var(--spacing-md)' }}>
           <div style={{ padding: 'var(--spacing-md)' }}>
             <div style={{ marginBottom: 'var(--spacing-md)' }}>
-              <label style={{ 
-                display: 'block', 
-                fontSize: 'var(--font-size-sm)', 
+              <label style={{
+                display: 'block',
+                fontSize: 'var(--font-size-sm)',
                 marginBottom: 'var(--spacing-xs)',
                 color: 'var(--color-text-muted)'
               }}>
@@ -1196,7 +1198,7 @@ function SettingsPanel({ currentTheme, onThemeChange }: SettingsPanelProps) {
           </button>
         </div>
 
-        <div className="card">
+        <div className="card" style={{ marginLeft: 'var(--spacing-md)' }}>
           <div style={{ padding: 'var(--spacing-md)' }}>
             {integrationsLoading ? (
               <div style={{
@@ -1695,7 +1697,7 @@ function SettingsPanel({ currentTheme, onThemeChange }: SettingsPanelProps) {
           System Prompt
         </div>
 
-        <div className="card">
+        <div className="card" style={{ marginLeft: 'var(--spacing-md)' }}>
           <div style={{ padding: 'var(--spacing-md)' }}>
             <div>
               <label style={{
