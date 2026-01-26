@@ -106,15 +106,6 @@ const deriveAccentColors = (accent: string): { hover: string; active: string } =
   };
 };
 
-// Helper to lighten a color
-const lightenColor = (hex: string, factor: number): string => {
-  const h = hex.replace('#', '');
-  const r = Math.min(255, Math.round(parseInt(h.substring(0, 2), 16) * factor));
-  const g = Math.min(255, Math.round(parseInt(h.substring(2, 4), 16) * factor));
-  const b = Math.min(255, Math.round(parseInt(h.substring(4, 6), 16) * factor));
-  return `#${r.toString(16).padStart(2, '0')}${g.toString(16).padStart(2, '0')}${b.toString(16).padStart(2, '0')}`;
-};
-
 const MODELS = [
   { id: 'claude-sonnet-4-20250514', name: 'Claude Sonnet 4', provider: 'anthropic' },
   { id: 'claude-3-5-sonnet-20241022', name: 'Claude 3.5 Sonnet', provider: 'anthropic' },
@@ -125,35 +116,25 @@ const MODELS = [
 ];
 
 const PRESET_THEMES = [
-  { 
-    id: 'default', 
-    name: 'Default', 
+  {
+    id: 'default',
+    name: 'Default',
     colors: { background: '#272932', text: '#EAE0D5', accent: '#C6AC8F' },
   },
-  { 
-    id: 'midnight', 
-    name: 'Midnight', 
+  {
+    id: 'midnight',
+    name: 'Midnight',
     colors: { background: '#0D1117', text: '#C9D1D9', accent: '#58A6FF' },
   },
-  { 
-    id: 'forest', 
-    name: 'Forest', 
-    colors: { background: '#1A2F1A', text: '#E8F5E8', accent: '#7CB342' },
-  },
-  { 
-    id: 'aurora', 
-    name: 'Aurora', 
+  {
+    id: 'aurora',
+    name: 'Aurora',
     colors: { background: '#1a1a2e', text: '#eaeaea', accent: '#e94560' },
   },
-  { 
-    id: 'obsidian', 
-    name: 'Obsidian', 
+  {
+    id: 'obsidian',
+    name: 'Obsidian',
     colors: { background: '#1e1e1e', text: '#d4d4d4', accent: '#daa520' },
-  },
-  { 
-    id: 'ocean', 
-    name: 'Ocean', 
-    colors: { background: '#0f2027', text: '#a8dadc', accent: '#00b4d8' },
   },
 ];
 
@@ -169,118 +150,68 @@ const ACCENT_PRESETS = [
   { color: '#ff6b6b', name: 'Coral' },
 ];
 
-const AVAILABLE_FONTS = [
-  { value: "'SF Pro Display', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif", label: 'SF Pro Display' },
-  { value: "'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif", label: 'Inter' },
-  { value: "'Roboto', sans-serif", label: 'Roboto' },
-  { value: "'Open Sans', sans-serif", label: 'Open Sans' },
-  { value: "'Lato', sans-serif", label: 'Lato' },
-  { value: "'Montserrat', sans-serif", label: 'Montserrat' },
-  { value: "'Poppins', sans-serif", label: 'Poppins' },
-  { value: "'Raleway', sans-serif", label: 'Raleway' },
-  { value: "'Nunito', sans-serif", label: 'Nunito' },
-  { value: "'Source Sans Pro', sans-serif", label: 'Source Sans Pro' },
-];
 
-// Mini app preview component for theme cards
-const ThemePreview = ({ colors, isSelected }: { colors: { background: string; text: string; accent: string }, isSelected: boolean }) => {
-  const surface = lightenColor(colors.background, 1.2);
-  
+// Mini command bar preview component for theme cards
+const ThemePreview = ({ colors, isSelected, name }: { colors: { background: string; text: string; accent: string }, isSelected: boolean, name?: string }) => {
   return (
     <div style={{
       width: '100%',
-      height: 120,
-      borderRadius: 8,
+      height: 52,
+      borderRadius: 6,
       overflow: 'hidden',
       background: colors.background,
       position: 'relative',
       boxShadow: isSelected ? `0 0 0 2px ${colors.accent}, 0 8px 24px rgba(0,0,0,0.4)` : '0 4px 12px rgba(0,0,0,0.3)',
       transition: 'all 0.3s cubic-bezier(0.4, 0, 0.2, 1)',
+      border: `1px solid ${colors.text}26`,
+      display: 'flex',
+      flexDirection: 'column',
     }}>
-      {/* Mini sidebar */}
+      {/* Command bar input area */}
       <div style={{
-        position: 'absolute',
-        left: 0,
-        top: 0,
-        bottom: 0,
-        width: 32,
-        background: surface,
-        borderRight: `1px solid ${colors.text}15`,
+        flex: 1,
+        padding: '8px 12px 4px 12px',
         display: 'flex',
-        flexDirection: 'column',
         alignItems: 'center',
-        paddingTop: 8,
-        gap: 6,
       }}>
-        <div style={{ width: 12, height: 12, borderRadius: 4, background: colors.accent, opacity: 0.9 }} />
-        <div style={{ width: 12, height: 12, borderRadius: 4, background: colors.text, opacity: 0.2 }} />
-        <div style={{ width: 12, height: 12, borderRadius: 4, background: colors.text, opacity: 0.2 }} />
-      </div>
-      
-      {/* Mini content area */}
-      <div style={{ marginLeft: 32, padding: 10 }}>
-        {/* Mini header */}
-        <div style={{ 
-          display: 'flex', 
-          gap: 4, 
-          marginBottom: 8,
-          alignItems: 'center'
+        <span style={{
+          fontSize: 11,
+          color: colors.text,
         }}>
-          <div style={{ 
-            width: 40, 
-            height: 6, 
-            borderRadius: 3, 
-            background: colors.text,
-            opacity: 0.7
-          }} />
-          <div style={{ flex: 1 }} />
-          <div style={{ 
-            width: 20, 
-            height: 6, 
-            borderRadius: 3, 
-            background: colors.accent,
-          }} />
-        </div>
-        
-        {/* Mini content blocks */}
-        <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
-          <div style={{ 
-            height: 24, 
-            borderRadius: 4, 
-            background: surface,
-            display: 'flex',
-            alignItems: 'center',
-            padding: '0 6px',
-            gap: 4
-          }}>
-            <div style={{ width: 8, height: 8, borderRadius: 2, background: colors.accent }} />
-            <div style={{ width: 30, height: 4, borderRadius: 2, background: colors.text, opacity: 0.5 }} />
-          </div>
-          <div style={{ display: 'flex', gap: 4 }}>
-            <div style={{ 
-              flex: 1, 
-              height: 32, 
-              borderRadius: 4, 
-              background: surface,
-            }} />
-            <div style={{ 
-              flex: 1, 
-              height: 32, 
-              borderRadius: 4, 
-              background: surface,
-            }} />
-          </div>
+          {name || 'Preview'}
+        </span>
+      </div>
+
+      {/* Command bar footer */}
+      <div style={{
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'flex-end',
+        padding: '2px 8px 6px 8px',
+      }}>
+        {/* Send button icon */}
+        <div style={{
+          width: 14,
+          height: 14,
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+          color: colors.accent,
+        }}>
+          <svg width="12" height="12" viewBox="0 0 24 24" fill="currentColor">
+            <path d="M2.01 21L23 12 2.01 3 2 10l15 2-15 2z" />
+          </svg>
         </div>
       </div>
-      
+
       {/* Selection indicator */}
       {isSelected && (
         <div style={{
           position: 'absolute',
-          top: 6,
-          right: 6,
-          width: 18,
-          height: 18,
+          top: 4,
+          right: 4,
+          width: 16,
+          height: 16,
           borderRadius: '50%',
           background: colors.accent,
           display: 'flex',
@@ -288,7 +219,7 @@ const ThemePreview = ({ colors, isSelected }: { colors: { background: string; te
           justifyContent: 'center',
           boxShadow: '0 2px 4px rgba(0,0,0,0.3)',
         }}>
-          <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke={colors.background} strokeWidth="3" strokeLinecap="round" strokeLinejoin="round">
+          <svg width="8" height="8" viewBox="0 0 24 24" fill="none" stroke={colors.background} strokeWidth="3" strokeLinecap="round" strokeLinejoin="round">
             <polyline points="20 6 9 17 4 12" />
           </svg>
         </div>
@@ -313,7 +244,6 @@ function SettingsPanel({ currentTheme, onThemeChange }: SettingsPanelProps) {
     text: '#EAE0D5',
     accent: '#C6AC8F',
   });
-  const [selectedFont, setSelectedFont] = useState(AVAILABLE_FONTS[0].value);
   const [commandBarOpacity, setCommandBarOpacity] = useState(0.7);
 
   const [hasLoadedSettings, setHasLoadedSettings] = useState(false);
@@ -438,16 +368,6 @@ function SettingsPanel({ currentTheme, onThemeChange }: SettingsPanelProps) {
       }
     }
     
-    // Load font separately (independent of theme)
-    const savedFont = await window.faria.settings.get('selectedFont');
-    if (savedFont) {
-      setSelectedFont(savedFont);
-      document.documentElement.style.setProperty('--font-family', savedFont);
-    } else {
-      // Apply default font
-      document.documentElement.style.setProperty('--font-family', AVAILABLE_FONTS[0].value);
-    }
-
     // Load command bar opacity
     const savedOpacity = await window.faria.settings.get('commandBarOpacity');
     if (savedOpacity) {
@@ -655,12 +575,6 @@ function SettingsPanel({ currentTheme, onThemeChange }: SettingsPanelProps) {
     onThemeChange(themeId);
   };
   
-  const handleFontChange = async (fontValue: string) => {
-    setSelectedFont(fontValue);
-    document.documentElement.style.setProperty('--font-family', fontValue);
-    await saveSettings('selectedFont', fontValue);
-  };
-
   const applyCustomTheme = async (palette: CustomPalette) => {
     const accentColors = deriveAccentColors(palette.accent);
     
@@ -889,190 +803,136 @@ function SettingsPanel({ currentTheme, onThemeChange }: SettingsPanelProps) {
             Themes
               </div>
               
-                  <div style={{ 
-                    display: 'grid', 
-            gridTemplateColumns: 'repeat(3, 1fr)', 
-                    gap: 'var(--spacing-md)'
+                  <div style={{
+                    display: 'flex',
+                    gap: 'var(--spacing-sm)',
+                    flexWrap: 'wrap',
                   }}>
             {PRESET_THEMES.map((theme) => {
               const isSelected = currentTheme === theme.id;
               const isHovered = hoveredTheme === theme.id;
-              
+
               return (
                       <div
                         key={theme.id}
                   onClick={() => applyPresetTheme(theme.id)}
                   onMouseEnter={() => setHoveredTheme(theme.id)}
                   onMouseLeave={() => setHoveredTheme(null)}
-                        style={{ 
+                        style={{
+                          width: 'calc((100% - 4 * var(--spacing-sm)) / 5)',
                           cursor: 'pointer',
                     transform: isHovered ? 'translateY(-2px)' : 'translateY(0)',
                     transition: 'transform 0.2s cubic-bezier(0.4, 0, 0.2, 1)',
                   }}
                 >
-                  <ThemePreview colors={theme.colors} isSelected={isSelected} />
-                  <div style={{ 
-                    marginTop: 'var(--spacing-sm)',
-                    display: 'flex',
-                    flexDirection: 'column',
-                    gap: 2
-                  }}>
-                          <div style={{ 
-                            fontWeight: 600, 
-                      fontSize: 'var(--font-size-sm)',
-                      color: isSelected ? 'var(--color-accent)' : 'var(--color-text)'
-                          }}>
-                            {theme.name}
-                          </div>
-                  </div>
+                  <ThemePreview colors={theme.colors} isSelected={isSelected} name={theme.name} />
                 </div>
               );
             })}
-          </div>
-        </div>
+            {/* Custom Themes */}
+            {customPalettes.map((palette, index) => {
+              const isSelected = currentTheme === 'custom' && getActiveCustomPaletteName() === palette.name;
+              const isHovered = hoveredTheme === `custom-${index}`;
 
-        {/* Custom Themes Section */}
-        {(customPalettes.length > 0 || showCustomForm) && (
-          <div style={{ marginBottom: 'var(--spacing-lg)' }}>
-                          <div style={{
-              fontSize: 'var(--font-size-sm)', 
-                            color: 'var(--color-text-muted)',
-              marginBottom: 'var(--spacing-md)',
-              textTransform: 'uppercase',
-              letterSpacing: '0.05em',
-              fontWeight: 500
-                          }}>
-              Custom Themes
-                          </div>
-            
-            <div style={{ 
-              display: 'grid', 
-              gridTemplateColumns: 'repeat(3, 1fr)', 
-              gap: 'var(--spacing-md)'
-            }}>
-              {customPalettes.map((palette, index) => {
-                const isSelected = currentTheme === 'custom' && getActiveCustomPaletteName() === palette.name;
-                const isHovered = hoveredTheme === `custom-${index}`;
-                
-                return (
-                      <div
-                        key={index}
-                    style={{ position: 'relative' }}
-                    onMouseEnter={() => setHoveredTheme(`custom-${index}`)}
-                    onMouseLeave={() => setHoveredTheme(null)}
+              return (
+                <div
+                  key={`custom-${index}`}
+                  style={{
+                    width: 'calc((100% - 4 * var(--spacing-sm)) / 5)',
+                    position: 'relative',
+                  }}
+                  onMouseEnter={() => setHoveredTheme(`custom-${index}`)}
+                  onMouseLeave={() => setHoveredTheme(null)}
+                >
+                  <div
+                    onClick={() => applyCustomTheme(palette)}
+                    style={{
+                      cursor: 'pointer',
+                      transform: isHovered ? 'translateY(-2px)' : 'translateY(0)',
+                      transition: 'transform 0.2s cubic-bezier(0.4, 0, 0.2, 1)',
+                    }}
                   >
-                    <div
-                      onClick={() => applyCustomTheme(palette)}
-                        style={{ 
-                          cursor: 'pointer',
-                        transform: isHovered ? 'translateY(-2px)' : 'translateY(0)',
-                        transition: 'transform 0.2s cubic-bezier(0.4, 0, 0.2, 1)',
-                      }}
-                    >
-                      <ThemePreview 
-                        colors={{ background: palette.background, text: palette.text, accent: palette.accent }} 
-                        isSelected={isSelected} 
-                      />
-                          <div style={{ 
-                        marginTop: 'var(--spacing-sm)',
-                            display: 'flex',
-                        alignItems: 'center',
-                        justifyContent: 'space-between'
-                          }}>
-                            <div style={{ 
-                          fontWeight: 600, 
-                          fontSize: 'var(--font-size-sm)',
-                          color: isSelected ? 'var(--color-accent)' : 'var(--color-text)'
-                            }}>
-                              {palette.name}
-                            </div>
-                      </div>
-                    </div>
-                    
-                    {/* Delete button */}
-                            <button
-                              onClick={(e) => handleDeleteCustomPalette(index, e)}
-                              style={{
-                        position: 'absolute',
-                        top: 6,
-                        left: 6,
-                        width: 22,
-                        height: 22,
-                        borderRadius: '50%',
-                        background: 'rgba(0,0,0,0.6)',
-                        border: 'none',
-                        color: '#fff',
-                        fontSize: 14,
-                        cursor: 'pointer',
-                        display: 'flex',
-                        alignItems: 'center',
-                        justifyContent: 'center',
-                        opacity: isHovered ? 1 : 0,
-                        transition: 'opacity 0.2s ease',
-                        backdropFilter: 'blur(4px)',
-                              }}
-                              title="Delete theme"
-                            >
-                              ×
-                            </button>
-                          </div>
-                );
-              })}
-                          </div>
-                            </div>
-                          )}
+                    <ThemePreview
+                      colors={{ background: palette.background, text: palette.text, accent: palette.accent }}
+                      isSelected={isSelected}
+                      name={palette.name}
+                    />
+                  </div>
 
-        {/* Create Custom Theme / Customization Section */}
-        <div style={{
-          background: 'var(--color-surface)',
-          borderRadius: 'var(--radius-lg)',
-          border: '1px solid var(--color-border)',
-          overflow: 'hidden',
-        }}>
-          {!showCustomForm ? (
+                  {/* Delete button */}
+                  <button
+                    onClick={(e) => handleDeleteCustomPalette(index, e)}
+                    style={{
+                      position: 'absolute',
+                      top: 6,
+                      left: 6,
+                      width: 22,
+                      height: 22,
+                      borderRadius: '50%',
+                      background: 'rgba(0,0,0,0.6)',
+                      border: 'none',
+                      color: '#fff',
+                      fontSize: 14,
+                      cursor: 'pointer',
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      opacity: isHovered ? 1 : 0,
+                      transition: 'opacity 0.2s ease',
+                      backdropFilter: 'blur(4px)',
+                    }}
+                    title="Delete theme"
+                  >
+                    ×
+                  </button>
+                </div>
+              );
+            })}
+            {/* Create Custom Theme Button */}
             <div
-                      onClick={() => {
-                        const currentValues = getCurrentThemeValues();
-                        setNewPalette({
-                          name: '',
-                          background: currentValues.background,
-                          text: currentValues.text,
-                          accent: currentValues.accent,
-                        });
-                        setShowCustomForm(true);
-                      }}
-                      style={{ 
-                padding: 'var(--spacing-lg)',
-                        cursor: 'pointer',
-                        display: 'flex',
-                        alignItems: 'center',
-                gap: 'var(--spacing-md)',
-                transition: 'background 0.2s ease',
+              onClick={() => {
+                const currentValues = getCurrentThemeValues();
+                setNewPalette({
+                  name: '',
+                  background: currentValues.background,
+                  text: currentValues.text,
+                  accent: currentValues.accent,
+                });
+                setShowCustomForm(true);
               }}
-              onMouseEnter={(e) => e.currentTarget.style.background = 'var(--color-hover)'}
-              onMouseLeave={(e) => e.currentTarget.style.background = 'transparent'}
-            >
-              <div style={{
-                width: 40,
-                height: 40,
-                borderRadius: 'var(--radius-md)',
-                background: 'linear-gradient(135deg, var(--color-accent) 0%, var(--color-primary) 100%)',
+              onMouseEnter={() => setHoveredTheme('create-custom')}
+              onMouseLeave={() => setHoveredTheme(null)}
+              style={{
+                width: 'calc((100% - 4 * var(--spacing-sm)) / 5)',
+                height: 52,
+                borderRadius: 6,
+                border: '1px dashed var(--color-border)',
                 display: 'flex',
                 alignItems: 'center',
                 justifyContent: 'center',
-                fontSize: 20,
-              }}>
-                +
-              </div>
-              <div>
-                <div style={{ fontWeight: 600, marginBottom: 2 }}>Create Custom Theme</div>
-                <div style={{ fontSize: 'var(--font-size-xs)', color: 'var(--color-text-muted)' }}>
-                  Design your own color scheme
-                </div>
-                    </div>
-                  </div>
-                ) : (
-            <div style={{ padding: 'var(--spacing-lg)' }}>
+                cursor: 'pointer',
+                transform: hoveredTheme === 'create-custom' ? 'translateY(-2px)' : 'translateY(0)',
+                transition: 'all 0.2s cubic-bezier(0.4, 0, 0.2, 1)',
+                opacity: hoveredTheme === 'create-custom' ? 1 : 0.6,
+              }}
+            >
+              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="var(--color-text-muted)" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                <line x1="12" y1="5" x2="12" y2="19" />
+                <line x1="5" y1="12" x2="19" y2="12" />
+              </svg>
+            </div>
+          </div>
+        </div>
+
+        {/* Create Custom Theme Form */}
+        {showCustomForm && (
+          <div style={{
+            background: 'var(--color-surface)',
+            borderRadius: 'var(--radius-lg)',
+            border: '1px solid var(--color-border)',
+            overflow: 'hidden',
+            padding: 'var(--spacing-lg)',
+          }}>
                     <div style={{ 
                       display: 'flex',
                       justifyContent: 'space-between',
@@ -1107,9 +967,10 @@ function SettingsPanel({ currentTheme, onThemeChange }: SettingsPanelProps) {
                 }}>
                   Preview
                 </div>
-                <ThemePreview 
-                  colors={{ background: newPalette.background, text: newPalette.text, accent: newPalette.accent }} 
-                  isSelected={false} 
+                <ThemePreview
+                  colors={{ background: newPalette.background, text: newPalette.text, accent: newPalette.accent }}
+                  isSelected={false}
+                  name={newPalette.name || 'Preview'}
                 />
               </div>
 
@@ -1299,9 +1160,8 @@ function SettingsPanel({ currentTheme, onThemeChange }: SettingsPanelProps) {
                         Create Theme
                       </button>
                     </div>
-                  </div>
-                )}
-              </div>
+          </div>
+        )}
 
         {/* Command Bar Opacity */}
         <div style={{
@@ -1352,147 +1212,6 @@ function SettingsPanel({ currentTheme, onThemeChange }: SettingsPanelProps) {
               accentColor: 'var(--color-accent)',
             }}
           />
-        </div>
-      </section>
-
-      {/* Typography Section - Separate from colors */}
-      <section style={{ marginBottom: 'var(--spacing-xl)' }}>
-        <div style={{ 
-          display: 'flex',
-          alignItems: 'center',
-          justifyContent: 'space-between',
-          marginBottom: 'var(--spacing-lg)'
-        }}>
-          <h3 style={{ 
-            fontSize: 'var(--font-size-lg)', 
-            margin: 0,
-            fontWeight: 600,
-            letterSpacing: '-0.01em'
-          }}>
-            Typography
-          </h3>
-            </div>
-
-        <div style={{
-          background: 'var(--color-surface)',
-          borderRadius: 'var(--radius-lg)',
-          border: '1px solid var(--color-border)',
-          padding: 'var(--spacing-lg)',
-        }}>
-          <div style={{ 
-            fontSize: 'var(--font-size-xs)', 
-            color: 'var(--color-text-muted)',
-            marginBottom: 'var(--spacing-md)',
-            textTransform: 'uppercase',
-            letterSpacing: '0.05em',
-            fontWeight: 500
-          }}>
-            Font Family
-          </div>
-          
-          <div style={{ 
-            display: 'grid', 
-            gridTemplateColumns: 'repeat(2, 1fr)', 
-            gap: 'var(--spacing-sm)'
-          }}>
-            {AVAILABLE_FONTS.map((font) => {
-              const isSelected = selectedFont === font.value;
-              
-              return (
-                <div
-                  key={font.value}
-                  onClick={() => handleFontChange(font.value)}
-                  style={{
-                    padding: 'var(--spacing-md)',
-                    borderRadius: 'var(--radius-md)',
-                    border: isSelected 
-                      ? '2px solid var(--color-accent)' 
-                      : '1px solid var(--color-border)',
-                    cursor: 'pointer',
-                    background: isSelected ? 'var(--color-hover)' : 'transparent',
-                    transition: 'all 0.2s ease',
-                    display: 'flex',
-                    alignItems: 'center',
-                    gap: 'var(--spacing-sm)',
-                  }}
-                  onMouseEnter={(e) => {
-                    if (!isSelected) {
-                      e.currentTarget.style.background = 'var(--color-hover)';
-                      e.currentTarget.style.borderColor = 'var(--color-text-muted)';
-                    }
-                  }}
-                  onMouseLeave={(e) => {
-                    if (!isSelected) {
-                      e.currentTarget.style.background = 'transparent';
-                      e.currentTarget.style.borderColor = 'var(--color-border)';
-                    }
-                  }}
-                >
-                  {/* Selection indicator */}
-                  <div style={{
-                    width: 16,
-                    height: 16,
-                    borderRadius: '50%',
-                    border: isSelected ? 'none' : '2px solid var(--color-border)',
-                    background: isSelected ? 'var(--color-accent)' : 'transparent',
-                    display: 'flex',
-                    alignItems: 'center',
-                    justifyContent: 'center',
-                    flexShrink: 0,
-                  }}>
-                    {isSelected && (
-                      <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="var(--color-background)" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round">
-                        <polyline points="20 6 9 17 4 12" />
-                      </svg>
-                    )}
-                  </div>
-                  
-                  <div style={{ 
-                    fontFamily: font.value,
-                    fontSize: 'var(--font-size-sm)',
-                    fontWeight: isSelected ? 600 : 400,
-                    color: isSelected ? 'var(--color-text)' : 'var(--color-text-muted)',
-                  }}>
-                    {font.label}
-                  </div>
-                </div>
-              );
-            })}
-          </div>
-
-          {/* Font Preview */}
-          <div style={{ 
-            marginTop: 'var(--spacing-lg)',
-            padding: 'var(--spacing-md)',
-            background: 'var(--color-background)',
-            borderRadius: 'var(--radius-md)',
-            border: '1px solid var(--color-border)',
-          }}>
-            <div style={{ 
-              fontSize: 'var(--font-size-xs)', 
-              color: 'var(--color-text-muted)',
-              marginBottom: 'var(--spacing-sm)',
-              textTransform: 'uppercase',
-              letterSpacing: '0.05em'
-            }}>
-              Preview
-            </div>
-            <div style={{ 
-              fontFamily: selectedFont,
-              fontSize: 'var(--font-size-lg)',
-              lineHeight: 1.4,
-            }}>
-              The quick brown fox jumps over the lazy dog.
-            </div>
-            <div style={{ 
-              fontFamily: selectedFont,
-              fontSize: 'var(--font-size-sm)',
-              color: 'var(--color-text-muted)',
-              marginTop: 'var(--spacing-xs)',
-            }}>
-              0123456789 • ABCDEFGHIJKLMNOPQRSTUVWXYZ
-            </div>
-          </div>
         </div>
       </section>
 
