@@ -65,13 +65,13 @@ html, body {
 }
 
 .sidebar-tab:hover {
-  background: var(--color-hover);
+  background: transparent;
   color: var(--color-text);
 }
 
 .sidebar-tab.active {
-  background: var(--color-accent);
-  color: var(--color-primary);
+  background: transparent;
+  color: var(--color-accent);
 }
 
 /* Main Panel */
