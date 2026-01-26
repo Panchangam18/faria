@@ -31,7 +31,12 @@ const isDev = process.env.NODE_ENV === 'development' || !app.isPackaged;
 
 // Native window helper for reliable window visibility on macOS
 // Falls back gracefully if addon fails to load
-let windowHelper: { forceShow: (handle: Buffer) => boolean; isVisible: (handle: Buffer) => boolean } | null = null;
+let windowHelper: {
+  forceShow: (handle: Buffer) => boolean;
+  isVisible: (handle: Buffer) => boolean;
+  makeNonActivating: (handle: Buffer) => boolean;
+  stealKeyFocus: (handle: Buffer) => boolean;
+} | null = null;
 try {
   const addonPath = isDev
     ? join(process.cwd(), 'native/build/Release/window_helper.node')
@@ -139,6 +144,16 @@ function createCommandBarWindow() {
   // Show on all workspaces/spaces
   commandBarWindow.setVisibleOnAllWorkspaces(true);
 
+  // Make the window non-activating so clicking it doesn't steal focus from other apps
+  // This keeps Safari/Chrome selection blue instead of turning grey
+  if (windowHelper) {
+    const handle = commandBarWindow.getNativeWindowHandle();
+    if (handle) {
+      const success = windowHelper.makeNonActivating(handle);
+      console.log('[Faria] makeNonActivating result:', success);
+    }
+  }
+
   if (isDev) {
     commandBarWindow.loadURL('http://localhost:5173/command-bar.html');
   } else {
@@ -147,6 +162,13 @@ function createCommandBarWindow() {
 
   commandBarWindow.on('blur', () => {
     // Don't hide on blur - only hide via hotkey
+  });
+
+  commandBarWindow.on('focus', () => {
+    // When command bar window regains focus, notify renderer to refresh selection
+    if (isCommandBarVisible) {
+      commandBarWindow?.webContents.send('command-bar:focus');
+    }
   });
 
   commandBarWindow.on('closed', () => {
@@ -402,9 +424,14 @@ function showCommandBar() {
 
   isCommandBarVisible = true;
 
-  // Focus the webContents to receive keyboard input without fully activating the app
-  // This allows typing in the command bar while Chrome stays visually "in front"
-  commandBarWindow?.webContents.focus();
+  // Use native stealKeyFocus to make the window receive keyboard input
+  // without activating the Electron app (keeps Safari selection blue)
+  if (windowHelper && commandBarWindow && typeof windowHelper.stealKeyFocus === 'function') {
+    const handle = commandBarWindow.getNativeWindowHandle();
+    if (handle) {
+      windowHelper.stealKeyFocus(handle);
+    }
+  }
 
   // Send focus event in next tick to not block
   setImmediate(() => {
@@ -632,6 +659,29 @@ function setupIPC() {
       commandBarWindow.hide();
       isCommandBarVisible = false;
       currentSelectedText = null;
+    }
+  });
+
+  // Refresh selected text while command bar is open
+  ipcMain.handle('command-bar:refresh-selection', async () => {
+    if (!isCommandBarVisible || !targetAppName) {
+      return { hasSelectedText: false, selectedTextLength: 0 };
+    }
+
+    try {
+      const selectedText = await getSelectedText(targetAppName);
+      if (selectedText) {
+        console.log('[Faria] Selection refreshed. Length:', selectedText.length);
+        currentSelectedText = selectedText;
+        return { hasSelectedText: true, selectedTextLength: selectedText.length };
+      } else {
+        console.log('[Faria] No text selected on refresh');
+        currentSelectedText = null;
+        return { hasSelectedText: false, selectedTextLength: 0 };
+      }
+    } catch (e) {
+      console.error('[Faria] Failed to refresh selected text:', e);
+      return { hasSelectedText: false, selectedTextLength: 0 };
     }
   });
 

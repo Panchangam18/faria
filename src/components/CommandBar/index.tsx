@@ -269,10 +269,17 @@ function CommandBar() {
       // Don't clear isProcessing, status, or pendingAuth - keep them when command bar reopens
     });
 
-    // Focus input when command bar becomes visible
+    // Focus input when command bar becomes visible and refresh selection
     const cleanupFocus = window.faria.commandBar.onFocus(() => {
       setPlaceholder(PLACEHOLDER_TEXTS[Math.floor(Math.random() * PLACEHOLDER_TEXTS.length)]);
       inputRef.current?.focus();
+
+      // Refresh selected text in case user selected new text after opening command bar
+      window.faria.commandBar.refreshSelection().then((data) => {
+        setSelectedTextLength(data.selectedTextLength);
+      }).catch((e) => {
+        console.error('[CommandBar] Failed to refresh selection:', e);
+      });
     });
 
     // Listen for ready state (detection complete) - just update selected text length
@@ -481,6 +488,15 @@ function CommandBar() {
     }
   }, [handleSubmit, pendingToolApproval]);
 
+  // Refresh selection when clicking in the command bar (in case user selected new text)
+  const handleCommandBarClick = useCallback(() => {
+    window.faria.commandBar.refreshSelection().then((data) => {
+      setSelectedTextLength(data.selectedTextLength);
+    }).catch((e) => {
+      console.error('[CommandBar] Failed to refresh selection on click:', e);
+    });
+  }, []);
+
   // Get background color with opacity from current theme
   const getBackgroundWithOpacity = () => {
     const bgColor = getComputedStyle(document.documentElement).getPropertyValue('--color-background').trim() || '#272932';
@@ -493,7 +509,7 @@ function CommandBar() {
   };
 
   return (
-    <div className="command-bar" style={{ background: getBackgroundWithOpacity() }}>
+    <div className="command-bar" style={{ background: getBackgroundWithOpacity() }} onClick={handleCommandBarClick}>
       <div className="command-bar-input-area">
         <textarea
           ref={inputRef}

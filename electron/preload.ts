@@ -88,6 +88,7 @@ contextBridge.exposeInMainWorld('faria', {
     hide: () => ipcRenderer.send('command-bar:hide'),
     resize: (height: number) => ipcRenderer.send('command-bar:resize', height),
     setDropdownVisible: (visible: boolean) => ipcRenderer.send('command-bar:dropdown-visible', visible),
+    refreshSelection: () => ipcRenderer.invoke('command-bar:refresh-selection') as Promise<{ hasSelectedText: boolean; selectedTextLength: number }>,
     onFocus: (callback: () => void) => {
       const handler = () => callback();
       ipcRenderer.on('command-bar:focus', handler);
@@ -182,6 +183,7 @@ export interface FariaAPI {
     hide: () => void;
     resize: (height: number) => void;
     setDropdownVisible: (visible: boolean) => void;
+    refreshSelection: () => Promise<{ hasSelectedText: boolean; selectedTextLength: number }>;
     onFocus: (callback: () => void) => () => void;
     onDetecting: (callback: () => void) => () => void;
     onReady: (callback: (data: { hasSelectedText: boolean; selectedTextLength: number }) => void) => () => void;
