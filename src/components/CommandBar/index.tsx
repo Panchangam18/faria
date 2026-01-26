@@ -55,6 +55,30 @@ const MAX_TEXTAREA_HEIGHT = LINE_HEIGHT * MAX_LINES; // 115px for 5 lines
 const BASE_HEIGHT = 46; // Footer + padding (8px top input + 2px bottom input + 4px top footer + 8px bottom footer + ~24px footer content)
 const MAX_RESPONSE_HEIGHT = 200; // Max height before scrolling kicks in
 
+// Placeholder texts
+const PLACEHOLDER_TEXTS = [
+  "What do you seek?",
+  "What weighs upon your mind?",
+  "The present is but a bridge...",
+  "In what direction shall we proceed?",
+  "Time reveals all things...",
+  "What truth shall we uncover?",
+  "What hidden thing seeks light?",
+  "Life is a tempest, one must learn to sail...",
+  "What door shall we open?",
+  "In what cavern of thought shall we dwell?",
+  "What sleeping thing shall we awaken?",
+  "To wait and to hope...",
+  "What treasure lies buried in your mind?",
+  "What revenge upon ignorance shall we take?",
+  "The slow unraveling of all things...",
+  "One must have lived to know...",
+  "What shadows dance at the edge of understanding?",
+  "What song does solitude sing?",
+  "What melody does the wind play?",
+  "What shadow does the sun cast?",
+];
+
 // Preset themes colors (must match SettingsPanel)
 const PRESET_THEMES: Record<string, { background: string; text: string; accent: string }> = {
   default: { background: '#272932', text: '#EAE0D5', accent: '#C6AC8F' },
@@ -111,6 +135,7 @@ function applyTheme(theme: string, customColors?: { background: string; text: st
 
 function CommandBar() {
   const [query, setQuery] = useState('');
+  const [placeholder, setPlaceholder] = useState(() => PLACEHOLDER_TEXTS[Math.floor(Math.random() * PLACEHOLDER_TEXTS.length)]);
   const [response, setResponse] = useState('');
   const [streamingResponse, setStreamingResponse] = useState('');
   const [status, setStatus] = useState('');
@@ -246,6 +271,7 @@ function CommandBar() {
 
     // Focus input when command bar becomes visible
     const cleanupFocus = window.faria.commandBar.onFocus(() => {
+      setPlaceholder(PLACEHOLDER_TEXTS[Math.floor(Math.random() * PLACEHOLDER_TEXTS.length)]);
       inputRef.current?.focus();
     });
 
@@ -472,7 +498,7 @@ function CommandBar() {
         <textarea
           ref={inputRef}
           className="command-bar-input"
-          placeholder="What do you seek?"
+          placeholder={placeholder}
           value={query}
           onChange={handleInputChange}
           onKeyDown={handleKeyDown}
