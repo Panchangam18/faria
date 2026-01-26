@@ -19,7 +19,7 @@ let targetAppName: string | null = null; // The app that was focused when comman
 let currentSelectedText: string | null = null; // User-selected text when command bar was invoked
 let cachedCommandBarPosition: { x: number; y: number } | null = null; // Cached position for instant toggle
 let commandBarSessionId = 0; // Incremented on each open to cancel stale async operations
-let lastToggleTime = 0; // Timestamp of last toggle to throttle rapid keypresses
+let toggleInProgress = false; // Prevents queued toggles while window is animating
 
 // Services
 let stateExtractor: StateExtractor;
@@ -479,12 +479,13 @@ function registerGlobalShortcuts() {
   console.log('[Faria] Registering shortcut:', commandBarShortcut);
   console.log('[Faria] Registering reset shortcut:', resetShortcut);
 
-  // Register command bar toggle shortcut with throttling to prevent queued toggles
+  // Register command bar toggle shortcut with lock to prevent queued toggles
   const ret = globalShortcut.register(commandBarShortcut, () => {
-    const now = Date.now();
-    if (now - lastToggleTime < 100) return; // Ignore keypresses faster than 100ms apart
-    lastToggleTime = now;
+    if (toggleInProgress) return; // Ignore if toggle is still in progress
+    toggleInProgress = true;
     toggleCommandBar();
+    // Release lock after window state has settled (native show/hide is async)
+    setTimeout(() => { toggleInProgress = false; }, 50);
   });
 
   if (!ret) {
