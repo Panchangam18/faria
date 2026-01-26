@@ -192,6 +192,7 @@ function HistoryPanel() {
                 <div
                   key={item.id}
                   className="list-item"
+                  style={{ marginLeft: 'var(--spacing-md)' }}
                   onClick={() => setExpandedId(isExpanded ? null : item.id)}
                   onMouseEnter={() => setHoveredId(item.id)}
                   onMouseLeave={() => setHoveredId(null)}
