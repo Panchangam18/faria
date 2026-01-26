@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { MdDescription } from 'react-icons/md';
+import { MdDescription, MdChevronRight, MdExpandMore } from 'react-icons/md';
 
 interface ActionData {
   tool: string;
@@ -91,6 +91,7 @@ function parseQuery(queryString: string): string {
 function HistoryPanel() {
   const [history, setHistory] = useState<HistoryItem[]>([]);
   const [expandedId, setExpandedId] = useState<number | null>(null);
+  const [hoveredId, setHoveredId] = useState<number | null>(null);
   const [loading, setLoading] = useState<boolean>(true);
 
   useEffect(() => {
@@ -184,37 +185,55 @@ function HistoryPanel() {
               const userQuery = parseQuery(item.query);
               const contextText = item.context_text;
               
+              const isExpanded = expandedId === item.id;
+              const isHovered = hoveredId === item.id;
+
               return (
                 <div
                   key={item.id}
                   className="list-item"
-                  onClick={() => setExpandedId(expandedId === item.id ? null : item.id)}
+                  onClick={() => setExpandedId(isExpanded ? null : item.id)}
+                  onMouseEnter={() => setHoveredId(item.id)}
+                  onMouseLeave={() => setHoveredId(null)}
                 >
                   {/* Collapsed header */}
-                  <div style={{ 
-                    display: 'flex', 
-                    alignItems: 'center', 
-                    justifyContent: 'space-between' 
+                  <div style={{
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'space-between'
                   }}>
                     <span style={{
+                      display: 'flex',
+                      alignItems: 'center',
                       overflow: 'hidden',
-                      textOverflow: 'ellipsis',
-                      whiteSpace: 'nowrap',
                       flex: 1
                     }}>
                       <span
-                        style={{ cursor: 'text' }}
+                        style={{
+                          cursor: 'text',
+                          overflow: 'hidden',
+                          textOverflow: 'ellipsis',
+                          whiteSpace: 'nowrap'
+                        }}
                         onClick={(e) => e.stopPropagation()}
                       >
                         {userQuery}
                       </span>
+                      {(isHovered || isExpanded) && (
+                        isExpanded ? (
+                          <MdExpandMore size={16} style={{ flexShrink: 0, marginLeft: '4px' }} />
+                        ) : (
+                          <MdChevronRight size={16} style={{ flexShrink: 0, marginLeft: '4px' }} />
+                        )
+                      )}
                     </span>
                     <span
                       style={{
                         fontSize: 'var(--font-size-xs)',
                         color: 'var(--color-text-muted)',
                         marginLeft: 'var(--spacing-md)',
-                        cursor: 'text'
+                        cursor: 'text',
+                        flexShrink: 0
                       }}
                       onClick={(e) => e.stopPropagation()}
                     >
@@ -226,7 +245,7 @@ function HistoryPanel() {
                   </div>
                   
                   {/* Expanded content */}
-                  {expandedId === item.id && (
+                  {isExpanded && (
                     <div
                       style={{
                         marginTop: 'var(--spacing-sm)',
