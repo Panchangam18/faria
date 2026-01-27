@@ -5,39 +5,101 @@ import SettingsPanel from './components/Settings/SettingsPanel';
 
 type Tab = 'history' | 'settings';
 
+const PRESET_THEMES = [
+  {
+    id: 'default',
+    name: 'Chateau',
+    colors: { background: '#272932', text: '#EAE0D5', accent: '#C6AC8F' },
+  },
+  {
+    id: 'comte',
+    name: 'Comte',
+    colors: { background: '#07020D', text: '#FBFFFE', accent: '#3C91E6' },
+  },
+  {
+    id: 'mercedes',
+    name: 'Mercédès',
+    colors: { background: '#46494C', text: '#DCDCDD', accent: '#9883E5' },
+  },
+  {
+    id: 'carnival',
+    name: 'Carnival',
+    colors: { background: '#001011', text: '#6CCFF6', accent: '#E94560' },
+  },
+];
+
+const deriveAccentColors = (accent: string): { hover: string; active: string } => {
+  const hex = accent.replace('#', '');
+  const r = parseInt(hex.substring(0, 2), 16);
+  const g = parseInt(hex.substring(2, 4), 16);
+  const b = parseInt(hex.substring(4, 6), 16);
+  const brightness = (r * 299 + g * 587 + b * 114) / 1000;
+  const hoverFactor = brightness > 128 ? 0.85 : 1.15;
+  const activeFactor = brightness > 128 ? 0.75 : 1.25;
+  const hoverR = Math.min(255, Math.max(0, Math.round(r * hoverFactor)));
+  const hoverG = Math.min(255, Math.max(0, Math.round(g * hoverFactor)));
+  const hoverB = Math.min(255, Math.max(0, Math.round(b * hoverFactor)));
+  const activeR = Math.min(255, Math.max(0, Math.round(r * activeFactor)));
+  const activeG = Math.min(255, Math.max(0, Math.round(g * activeFactor)));
+  const activeB = Math.min(255, Math.max(0, Math.round(b * activeFactor)));
+  const toHex = (n: number) => n.toString(16).padStart(2, '0');
+  return {
+    hover: `#${toHex(hoverR)}${toHex(hoverG)}${toHex(hoverB)}`,
+    active: `#${toHex(activeR)}${toHex(activeG)}${toHex(activeB)}`
+  };
+};
+
+const applyThemeColors = (colors: { background: string; text: string; accent: string }, themeId: string) => {
+  const accentColors = deriveAccentColors(colors.accent);
+  const bgHex = colors.background.replace('#', '');
+  const bgR = parseInt(bgHex.substring(0, 2), 16);
+  const bgG = parseInt(bgHex.substring(2, 4), 16);
+  const bgB = parseInt(bgHex.substring(4, 6), 16);
+  const lightR = Math.min(255, Math.round(bgR * 1.2));
+  const lightG = Math.min(255, Math.round(bgG * 1.2));
+  const lightB = Math.min(255, Math.round(bgB * 1.2));
+  const darkR = Math.max(0, Math.round(bgR * 0.7));
+  const darkG = Math.max(0, Math.round(bgG * 0.7));
+  const darkB = Math.max(0, Math.round(bgB * 0.7));
+  const toHex = (n: number) => n.toString(16).padStart(2, '0');
+
+  document.documentElement.style.setProperty('--color-primary', colors.background);
+  document.documentElement.style.setProperty('--color-secondary', colors.text);
+  document.documentElement.style.setProperty('--color-accent', colors.accent);
+  document.documentElement.style.setProperty('--color-primary-light', `#${toHex(lightR)}${toHex(lightG)}${toHex(lightB)}`);
+  document.documentElement.style.setProperty('--color-primary-dark', `#${toHex(darkR)}${toHex(darkG)}${toHex(darkB)}`);
+  document.documentElement.style.setProperty('--color-secondary-muted', colors.text + 'B3');
+  document.documentElement.style.setProperty('--color-accent-hover', accentColors.hover);
+  document.documentElement.style.setProperty('--color-accent-active', accentColors.active);
+  document.documentElement.style.setProperty('--color-background', colors.background);
+  document.documentElement.style.setProperty('--color-surface', `#${toHex(lightR)}${toHex(lightG)}${toHex(lightB)}`);
+  document.documentElement.style.setProperty('--color-text', colors.text);
+  document.documentElement.style.setProperty('--color-text-muted', colors.text + 'B3');
+  document.documentElement.style.setProperty('--color-border', colors.text + '26');
+  document.documentElement.style.setProperty('--color-hover', colors.text + '14');
+  document.documentElement.setAttribute('data-theme', themeId);
+};
+
 function App() {
   const [activeTab, setActiveTab] = useState<Tab>('history');
   const [theme, setTheme] = useState<string>('default');
 
   useEffect(() => {
-    // Load theme from settings
     const loadTheme = async () => {
       const savedTheme = await window.faria.settings.get('theme');
       if (savedTheme) {
         setTheme(savedTheme);
-        document.documentElement.setAttribute('data-theme', savedTheme);
-        
-        // Apply preset theme font if not custom
-        if (savedTheme !== 'custom') {
-          const PRESET_THEMES = [
-            { 
-              id: 'default', 
-              font: "'SF Pro Display', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif"
-            },
-            { 
-              id: 'midnight', 
-              font: "'SF Pro Display', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif"
-            },
-            { 
-              id: 'forest', 
-              font: "'SF Pro Display', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif"
-            },
-          ];
-          const presetTheme = PRESET_THEMES.find(t => t.id === savedTheme);
-          if (presetTheme?.font) {
-            document.documentElement.style.setProperty('--font-family', presetTheme.font);
-          }
+        const presetTheme = PRESET_THEMES.find(t => t.id === savedTheme);
+        if (presetTheme) {
+          applyThemeColors(presetTheme.colors, savedTheme);
+        } else {
+          // Custom theme - colors will be applied by SettingsPanel
+          document.documentElement.setAttribute('data-theme', savedTheme);
         }
+      } else {
+        // Apply default theme
+        const defaultTheme = PRESET_THEMES[0];
+        applyThemeColors(defaultTheme.colors, 'default');
       }
     };
     loadTheme();
@@ -45,46 +107,6 @@ function App() {
 
   const handleThemeChange = async (newTheme: string) => {
     setTheme(newTheme);
-    document.documentElement.setAttribute('data-theme', newTheme);
-    
-    // Clear custom CSS variables if switching to a preset theme
-    if (newTheme !== 'custom') {
-      document.documentElement.style.removeProperty('--color-primary');
-      document.documentElement.style.removeProperty('--color-secondary');
-      document.documentElement.style.removeProperty('--color-accent');
-      document.documentElement.style.removeProperty('--color-primary-light');
-      document.documentElement.style.removeProperty('--color-primary-dark');
-      document.documentElement.style.removeProperty('--color-secondary-muted');
-      document.documentElement.style.removeProperty('--color-accent-hover');
-      document.documentElement.style.removeProperty('--color-accent-active');
-      document.documentElement.style.removeProperty('--color-background');
-      document.documentElement.style.removeProperty('--color-surface');
-      document.documentElement.style.removeProperty('--color-text');
-      document.documentElement.style.removeProperty('--color-text-muted');
-      document.documentElement.style.removeProperty('--color-border');
-      document.documentElement.style.removeProperty('--color-hover');
-      
-      // Apply preset theme font
-      const PRESET_THEMES = [
-        { 
-          id: 'default', 
-          font: "'SF Pro Display', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif"
-        },
-        { 
-          id: 'midnight', 
-          font: "'SF Pro Display', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif"
-        },
-        { 
-          id: 'forest', 
-          font: "'SF Pro Display', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif"
-        },
-      ];
-      const presetTheme = PRESET_THEMES.find(t => t.id === newTheme);
-      if (presetTheme?.font) {
-        document.documentElement.style.setProperty('--font-family', presetTheme.font);
-      }
-    }
-    
     await window.faria.settings.set('theme', newTheme);
   };
 

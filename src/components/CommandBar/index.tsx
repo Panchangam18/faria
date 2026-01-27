@@ -79,19 +79,12 @@ const PLACEHOLDER_TEXTS = [
   "What shadow does the sun cast?",
 ];
 
-// Preset themes colors (must match SettingsPanel)
-const PRESET_THEMES: Record<string, { background: string; text: string; accent: string }> = {
-  default: { background: '#272932', text: '#EAE0D5', accent: '#C6AC8F' },
-  midnight: { background: '#0D1117', text: '#C9D1D9', accent: '#58A6FF' },
-  forest: { background: '#1A2F1A', text: '#E8F5E8', accent: '#7CB342' },
-  aurora: { background: '#1a1a2e', text: '#eaeaea', accent: '#e94560' },
-  obsidian: { background: '#1e1e1e', text: '#d4d4d4', accent: '#daa520' },
-  ocean: { background: '#0f2027', text: '#a8dadc', accent: '#00b4d8' },
-};
+// Default theme colors (fallback only)
+const DEFAULT_COLORS = { background: '#272932', text: '#EAE0D5', accent: '#C6AC8F' };
 
 // Apply theme CSS variables to document
-function applyTheme(theme: string, customColors?: { background: string; text: string; accent: string }, font?: string) {
-  const colors = customColors || PRESET_THEMES[theme] || PRESET_THEMES.default;
+function applyTheme(theme: string, colors?: { background: string; text: string; accent: string }, font?: string) {
+  const c = colors || DEFAULT_COLORS;
 
   // Helper to lighten/darken colors
   const adjustColor = (hex: string, factor: number): string => {
@@ -105,24 +98,24 @@ function applyTheme(theme: string, customColors?: { background: string; text: st
   const doc = document.documentElement;
 
   // Set base colors
-  doc.style.setProperty('--color-primary', colors.background);
-  doc.style.setProperty('--color-secondary', colors.text);
-  doc.style.setProperty('--color-accent', colors.accent);
+  doc.style.setProperty('--color-primary', c.background);
+  doc.style.setProperty('--color-secondary', c.text);
+  doc.style.setProperty('--color-accent', c.accent);
 
   // Derive additional colors
-  doc.style.setProperty('--color-primary-light', adjustColor(colors.background, 1.2));
-  doc.style.setProperty('--color-primary-dark', adjustColor(colors.background, 0.7));
-  doc.style.setProperty('--color-secondary-muted', colors.text + 'B3');
-  doc.style.setProperty('--color-accent-hover', adjustColor(colors.accent, 1.15));
-  doc.style.setProperty('--color-accent-active', adjustColor(colors.accent, 0.85));
+  doc.style.setProperty('--color-primary-light', adjustColor(c.background, 1.2));
+  doc.style.setProperty('--color-primary-dark', adjustColor(c.background, 0.7));
+  doc.style.setProperty('--color-secondary-muted', c.text + 'B3');
+  doc.style.setProperty('--color-accent-hover', adjustColor(c.accent, 1.15));
+  doc.style.setProperty('--color-accent-active', adjustColor(c.accent, 0.85));
 
   // UI colors
-  doc.style.setProperty('--color-background', colors.background);
-  doc.style.setProperty('--color-surface', adjustColor(colors.background, 1.2));
-  doc.style.setProperty('--color-text', colors.text);
-  doc.style.setProperty('--color-text-muted', colors.text + 'B3');
-  doc.style.setProperty('--color-border', colors.text + '26');
-  doc.style.setProperty('--color-hover', colors.text + '14');
+  doc.style.setProperty('--color-background', c.background);
+  doc.style.setProperty('--color-surface', adjustColor(c.background, 1.2));
+  doc.style.setProperty('--color-text', c.text);
+  doc.style.setProperty('--color-text-muted', c.text + 'B3');
+  doc.style.setProperty('--color-border', c.text + '26');
+  doc.style.setProperty('--color-hover', c.text + '14');
 
   // Font
   if (font) {
@@ -135,7 +128,7 @@ function applyTheme(theme: string, customColors?: { background: string; text: st
 
 function CommandBar() {
   const [query, setQuery] = useState('');
-  const [placeholder, setPlaceholder] = useState(() => PLACEHOLDER_TEXTS[Math.floor(Math.random() * PLACEHOLDER_TEXTS.length)]);
+  const [placeholder, setPlaceholder] = useState('...');
   const [response, setResponse] = useState('');
   const [streamingResponse, setStreamingResponse] = useState('');
   const [status, setStatus] = useState('');
@@ -146,6 +139,7 @@ function CommandBar() {
   const [pendingToolApproval, setPendingToolApproval] = useState<{ toolName: string; toolDescription: string; args: Record<string, unknown>; isComposio: boolean; displayName?: string; details?: Record<string, string> } | null>(null);
   const [toolApprovalExpanded, setToolApprovalExpanded] = useState(false);
   const [opacity, setOpacity] = useState(0.7);
+  const [isVisible, setIsVisible] = useState(false); // Controls content visibility to prevent flash of old content
   const inputRef = useRef<HTMLTextAreaElement>(null);
   const responseRef = useRef<HTMLDivElement>(null);
   const toolApprovalRef = useRef<HTMLDivElement>(null);
@@ -245,9 +239,9 @@ function CommandBar() {
 
     loadSettings();
 
-    // Listen for theme changes
+    // Listen for theme changes - colors are always provided by main process
     const cleanupTheme = window.faria.settings.onThemeChange((themeData) => {
-      applyTheme(themeData.theme, themeData.customColors, themeData.font);
+      applyTheme(themeData.theme, themeData.colors, themeData.font);
     });
 
     // Listen for opacity changes
@@ -264,14 +258,22 @@ function CommandBar() {
   useEffect(() => {
     // Reset state when command bar is about to hide (but keep processing state for persistence)
     const cleanupWillHide = window.faria.commandBar.onWillHide(() => {
+      // Hide content immediately to prevent flash of old content on reopen
+      setIsVisible(false);
       setSelectedTextLength(0);
       setErrorMessage(null);
+      // Clear response and placeholder
+      setResponse('');
+      setStreamingResponse('');
+      setPlaceholder('...');
       // Don't clear isProcessing, status, or pendingAuth - keep them when command bar reopens
     });
 
     // Focus input when command bar becomes visible and refresh selection
     const cleanupFocus = window.faria.commandBar.onFocus(() => {
       setPlaceholder(PLACEHOLDER_TEXTS[Math.floor(Math.random() * PLACEHOLDER_TEXTS.length)]);
+      // Show content now that state is fresh
+      setIsVisible(true);
       inputRef.current?.focus();
 
       // Refresh selected text in case user selected new text after opening command bar
@@ -514,7 +516,7 @@ function CommandBar() {
   };
 
   return (
-    <div className="command-bar" style={{ background: getBackgroundWithOpacity() }} onClick={handleCommandBarClick}>
+    <div className="command-bar" style={{ background: getBackgroundWithOpacity(), visibility: isVisible ? 'visible' : 'hidden' }} onClick={handleCommandBarClick}>
       <div className="command-bar-input-area">
         <textarea
           ref={inputRef}

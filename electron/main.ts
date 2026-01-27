@@ -124,7 +124,7 @@ function createCommandBarWindow() {
     width: DEFAULT_COMMAND_BAR_WIDTH,
     height: DEFAULT_COMMAND_BAR_HEIGHT,
     x: Math.round((screenWidth - DEFAULT_COMMAND_BAR_WIDTH) / 2),
-    y: Math.round(screenHeight - 300),
+    y: Math.round(screenHeight - 200),
     frame: false,
     transparent: true,
     alwaysOnTop: true,
@@ -184,39 +184,54 @@ function createCommandBarWindow() {
   });
 }
 
+// Preset themes - single source of truth
+const PRESET_THEMES: Record<string, { background: string; text: string; accent: string }> = {
+  default: { background: '#272932', text: '#EAE0D5', accent: '#C6AC8F' },
+  comte: { background: '#07020D', text: '#FBFFFE', accent: '#3C91E6' },
+  mercedes: { background: '#46494C', text: '#DCDCDD', accent: '#9883E5' },
+  carnival: { background: '#001011', text: '#6CCFF6', accent: '#E94560' },
+};
+
 // Broadcast theme changes to all windows
 async function broadcastThemeChange() {
   const db = initDatabase();
-  
+
   // Get current theme settings
   const themeRow = db.prepare('SELECT value FROM settings WHERE key = ?').get('theme') as { value: string } | undefined;
   const fontRow = db.prepare('SELECT value FROM settings WHERE key = ?').get('selectedFont') as { value: string } | undefined;
   const customPalettesRow = db.prepare('SELECT value FROM settings WHERE key = ?').get('customPalettes') as { value: string } | undefined;
   const activeCustomPaletteRow = db.prepare('SELECT value FROM settings WHERE key = ?').get('activeCustomPalette') as { value: string } | undefined;
-  
+
   const theme = themeRow?.value || 'default';
   const font = fontRow?.value || "'SF Pro Display', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif";
-  
-  let customColors: { background: string; text: string; accent: string } | undefined;
-  
+
+  // Always send colors - either from preset or custom palette
+  let colors: { background: string; text: string; accent: string };
+
   if (theme === 'custom' && customPalettesRow?.value && activeCustomPaletteRow?.value) {
     try {
       const palettes = JSON.parse(customPalettesRow.value);
       const activePalette = palettes.find((p: any) => p.name === activeCustomPaletteRow.value);
       if (activePalette) {
-        customColors = {
+        colors = {
           background: activePalette.background,
           text: activePalette.text,
           accent: activePalette.accent
         };
+      } else {
+        colors = PRESET_THEMES.default;
       }
     } catch (e) {
       console.error('[Faria] Error parsing custom palettes:', e);
+      colors = PRESET_THEMES.default;
     }
+  } else {
+    // Use preset theme colors
+    colors = PRESET_THEMES[theme] || PRESET_THEMES.default;
   }
-  
-  const themeData = { theme, font, customColors };
-  
+
+  const themeData = { theme, font, colors };
+
   // Send to all windows
   if (mainWindow) {
     mainWindow.webContents.send('settings:theme-change', themeData);
@@ -263,7 +278,7 @@ function cacheCommandBarPosition() {
     // Default: center horizontally, near bottom of screen
     cachedCommandBarPosition = {
       x: Math.round((screenWidth - DEFAULT_COMMAND_BAR_WIDTH) / 2),
-      y: Math.round(screenHeight - 300)
+      y: Math.round(screenHeight - 200)
     };
   }
 }
@@ -289,7 +304,7 @@ async function toggleCommandBar() {
     console.log('[Faria] Hiding command bar (toggle), agent isRunning:', agentLoop['isRunning']);
     // Increment session ID to cancel any pending async operations
     commandBarSessionId++;
-    // Send hide event BEFORE hiding so renderer can reset state synchronously
+    // Send hide event BEFORE hiding so renderer can reset state
     commandBarWindow?.webContents.send('command-bar:will-hide');
     commandBarWindow?.hide();
     isCommandBarVisible = false;
@@ -465,7 +480,7 @@ async function resetCommandBar() {
   const { height: screenHeight } = display.workAreaSize;
   cachedCommandBarPosition = {
     x: Math.round((screenWidth - DEFAULT_COMMAND_BAR_WIDTH) / 2),
-    y: Math.round(screenHeight - 300)
+    y: Math.round(screenHeight - 200)
   };
 
   // Clear any saved position in the database
@@ -813,7 +828,7 @@ function setupIPC() {
   // Window control IPC
   ipcMain.on('command-bar:hide', () => {
     if (commandBarWindow && isCommandBarVisible) {
-      // Send hide event BEFORE hiding so renderer can reset state synchronously
+      // Send hide event BEFORE hiding so renderer can reset state
       commandBarWindow.webContents.send('command-bar:will-hide');
       commandBarWindow.hide();
       isCommandBarVisible = false;

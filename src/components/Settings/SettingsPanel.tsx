@@ -162,23 +162,23 @@ const MODELS = [
 const PRESET_THEMES = [
   {
     id: 'default',
-    name: 'Default',
+    name: 'Chateau',
     colors: { background: '#272932', text: '#EAE0D5', accent: '#C6AC8F' },
   },
   {
-    id: 'midnight',
-    name: 'Midnight',
-    colors: { background: '#0D1117', text: '#C9D1D9', accent: '#58A6FF' },
+    id: 'comte',
+    name: 'Comte',
+    colors: { background: '#07020D', text: '#FBFFFE', accent: '#3C91E6' },
   },
   {
-    id: 'aurora',
-    name: 'Aurora',
-    colors: { background: '#1a1a2e', text: '#eaeaea', accent: '#e94560' },
+    id: 'mercedes',
+    name: 'Mercédès',
+    colors: { background: '#46494C', text: '#DCDCDD', accent: '#9883E5' },
   },
   {
-    id: 'obsidian',
-    name: 'Obsidian',
-    colors: { background: '#1e1e1e', text: '#d4d4d4', accent: '#daa520' },
+    id: 'carnival',
+    name: 'Carnival',
+    colors: { background: '#001011', text: '#6CCFF6', accent: '#E94560' },
   },
 ];
 
@@ -649,7 +649,46 @@ function SettingsPanel({ currentTheme, onThemeChange }: SettingsPanelProps) {
   const applyPresetTheme = async (themeId: string) => {
     const theme = PRESET_THEMES.find(t => t.id === themeId);
     if (!theme) return;
-    
+
+    const { colors } = theme;
+    const accentColors = deriveAccentColors(colors.accent);
+
+    // Set base colors
+    document.documentElement.style.setProperty('--color-primary', colors.background);
+    document.documentElement.style.setProperty('--color-secondary', colors.text);
+    document.documentElement.style.setProperty('--color-accent', colors.accent);
+
+    // Derive and set additional colors
+    const bgHex = colors.background.replace('#', '');
+    const bgR = parseInt(bgHex.substring(0, 2), 16);
+    const bgG = parseInt(bgHex.substring(2, 4), 16);
+    const bgB = parseInt(bgHex.substring(4, 6), 16);
+
+    const lightR = Math.min(255, Math.round(bgR * 1.2));
+    const lightG = Math.min(255, Math.round(bgG * 1.2));
+    const lightB = Math.min(255, Math.round(bgB * 1.2));
+    const darkR = Math.max(0, Math.round(bgR * 0.7));
+    const darkG = Math.max(0, Math.round(bgG * 0.7));
+    const darkB = Math.max(0, Math.round(bgB * 0.7));
+
+    const toHex = (n: number) => n.toString(16).padStart(2, '0');
+
+    document.documentElement.style.setProperty('--color-primary-light', `#${toHex(lightR)}${toHex(lightG)}${toHex(lightB)}`);
+    document.documentElement.style.setProperty('--color-primary-dark', `#${toHex(darkR)}${toHex(darkG)}${toHex(darkB)}`);
+    document.documentElement.style.setProperty('--color-secondary-muted', colors.text + 'B3');
+    document.documentElement.style.setProperty('--color-accent-hover', accentColors.hover);
+    document.documentElement.style.setProperty('--color-accent-active', accentColors.active);
+
+    // Set UI colors
+    document.documentElement.style.setProperty('--color-background', colors.background);
+    document.documentElement.style.setProperty('--color-surface', `#${toHex(lightR)}${toHex(lightG)}${toHex(lightB)}`);
+    document.documentElement.style.setProperty('--color-text', colors.text);
+    document.documentElement.style.setProperty('--color-text-muted', colors.text + 'B3');
+    document.documentElement.style.setProperty('--color-border', colors.text + '26');
+    document.documentElement.style.setProperty('--color-hover', colors.text + '14');
+
+    document.documentElement.setAttribute('data-theme', themeId);
+
     onThemeChange(themeId);
   };
   
