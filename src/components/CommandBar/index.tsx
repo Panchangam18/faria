@@ -398,6 +398,11 @@ function CommandBar() {
           setStatus('Executing...');
           window.faria.agent.toolApprovalResponse(true);
         }
+        // Shift+Tab to toggle expanded view (only when there are details to show)
+        if (e.key === 'Tab' && e.shiftKey && pendingToolApproval.details && Object.keys(pendingToolApproval.details).length > 0) {
+          e.preventDefault();
+          setToolApprovalExpanded(prev => !prev);
+        }
       }
     };
 
@@ -539,6 +544,7 @@ function CommandBar() {
                     className="tool-approval-toggle"
                     onClick={() => setToolApprovalExpanded(!toolApprovalExpanded)}
                   >
+                    <span className="tool-approval-shortcut">&#8679;&#8677;</span>
                     <span className="tool-approval-name">
                       {pendingToolApproval.displayName || (pendingToolApproval.isComposio
                         ? `Use ${formatToolkitName(pendingToolApproval.toolName.split('_')[0])}`

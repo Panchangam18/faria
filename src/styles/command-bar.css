@@ -507,6 +507,12 @@ html, body, #root {
   transform: rotate(180deg);
 }
 
+.tool-approval-shortcut {
+  font-size: 10px;
+  color: inherit;
+  margin-right: 2px;
+}
+
 .tool-approval-name {
   font-size: var(--font-size-xs);
   font-weight: 500;
