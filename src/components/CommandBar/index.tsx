@@ -241,11 +241,11 @@ function CommandBar() {
       setIsVisible(false);
       setSelectedTextLength(0);
       setErrorMessage(null);
-      // Clear response and placeholder
-      setResponse('');
+      // Clear streaming response (incomplete placeholder content) but keep final response
+      // Response persists so user can see agent's answer when they reopen
       setStreamingResponse('');
       setPlaceholder('...');
-      // Don't clear isProcessing, status, or pendingAuth - keep them when command bar reopens
+      // Don't clear isProcessing, status, response, or pendingAuth - keep them when command bar reopens
     });
 
     // Focus input when command bar becomes visible and refresh selection
@@ -357,8 +357,8 @@ function CommandBar() {
   // Global keyboard listener for Ctrl+C to cancel and tool approval shortcuts
   useEffect(() => {
     const handleGlobalKeyDown = (e: KeyboardEvent) => {
-      // Ctrl+C to cancel agent when processing
-      if (e.key === 'c' && (e.ctrlKey || e.metaKey) && isProcessing) {
+      // Ctrl+C to cancel agent when processing (not Cmd+C which is copy on macOS)
+      if (e.key === 'c' && e.ctrlKey && !e.metaKey && isProcessing) {
         e.preventDefault();
         setPendingToolApproval(null);
         setToolApprovalExpanded(false);
