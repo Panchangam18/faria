@@ -86,21 +86,10 @@ function App() {
 
   useEffect(() => {
     const loadTheme = async () => {
-      const savedTheme = await window.faria.settings.get('theme');
-      if (savedTheme) {
-        setTheme(savedTheme);
-        const presetTheme = PRESET_THEMES.find(t => t.id === savedTheme);
-        if (presetTheme) {
-          applyThemeColors(presetTheme.colors, savedTheme);
-        } else {
-          // Custom theme - colors will be applied by SettingsPanel
-          document.documentElement.setAttribute('data-theme', savedTheme);
-        }
-      } else {
-        // Apply default theme
-        const defaultTheme = PRESET_THEMES[0];
-        applyThemeColors(defaultTheme.colors, 'default');
-      }
+      // Get theme data from main process (single source of truth for colors)
+      const themeData = await window.faria.settings.getThemeData();
+      setTheme(themeData.theme);
+      applyThemeColors(themeData.colors, themeData.theme);
     };
     loadTheme();
   }, []);

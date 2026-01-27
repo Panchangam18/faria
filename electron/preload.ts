@@ -46,6 +46,7 @@ contextBridge.exposeInMainWorld('faria', {
     get: (key: string) => ipcRenderer.invoke('settings:get', key),
     set: (key: string, value: string) => ipcRenderer.invoke('settings:set', key, value),
     getDefaultPrompt: () => ipcRenderer.invoke('settings:getDefaultPrompt'),
+    getThemeData: () => ipcRenderer.invoke('settings:getThemeData') as Promise<{ theme: string; colors: { background: string; text: string; accent: string }; font: string }>,
     onThemeChange: (callback: (themeData: { theme: string; colors: { background: string; text: string; accent: string }; font: string }) => void) => {
       const handler = (_event: Electron.IpcRendererEvent, themeData: { theme: string; colors: { background: string; text: string; accent: string }; font: string }) => callback(themeData);
       ipcRenderer.on('settings:theme-change', handler);
@@ -142,6 +143,7 @@ export interface FariaAPI {
     get: (key: string) => Promise<string | null>;
     set: (key: string, value: string) => Promise<{ success: boolean }>;
     getDefaultPrompt: () => Promise<string>;
+    getThemeData: () => Promise<{ theme: string; colors: { background: string; text: string; accent: string }; font: string }>;
     onThemeChange: (callback: (themeData: { theme: string; colors: { background: string; text: string; accent: string }; font: string }) => void) => () => void;
     notifyOpacityChange: (opacity: number) => void;
     onOpacityChange: (callback: (opacity: number) => void) => () => void;

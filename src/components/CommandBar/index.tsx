@@ -139,6 +139,7 @@ function CommandBar() {
   const [pendingToolApproval, setPendingToolApproval] = useState<{ toolName: string; toolDescription: string; args: Record<string, unknown>; isComposio: boolean; displayName?: string; details?: Record<string, string> } | null>(null);
   const [toolApprovalExpanded, setToolApprovalExpanded] = useState(false);
   const [opacity, setOpacity] = useState(0.7);
+  const [backgroundColor, setBackgroundColor] = useState('#272932'); // Track background color for opacity
   const [isVisible, setIsVisible] = useState(false); // Controls content visibility to prevent flash of old content
   const inputRef = useRef<HTMLTextAreaElement>(null);
   const responseRef = useRef<HTMLDivElement>(null);
@@ -199,33 +200,10 @@ function CommandBar() {
   useEffect(() => {
     const loadSettings = async () => {
       try {
-        const theme = await window.faria.settings.get('theme') || 'default';
-        const font = await window.faria.settings.get('selectedFont') || "'SF Pro Display', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif";
-
-        let customColors: { background: string; text: string; accent: string } | undefined;
-
-        if (theme === 'custom') {
-          const customPalettes = await window.faria.settings.get('customPalettes');
-          const activeCustomPalette = await window.faria.settings.get('activeCustomPalette');
-
-          if (customPalettes && activeCustomPalette) {
-            try {
-              const palettes = JSON.parse(customPalettes);
-              const activePalette = palettes.find((p: any) => p.name === activeCustomPalette);
-              if (activePalette) {
-                customColors = {
-                  background: activePalette.background,
-                  text: activePalette.text,
-                  accent: activePalette.accent
-                };
-              }
-            } catch (e) {
-              console.error('[CommandBar] Error parsing custom palettes:', e);
-            }
-          }
-        }
-
-        applyTheme(theme, customColors, font);
+        // Get theme data from main process (single source of truth for colors)
+        const themeData = await window.faria.settings.getThemeData();
+        applyTheme(themeData.theme, themeData.colors, themeData.font);
+        setBackgroundColor(themeData.colors.background);
 
         // Load opacity setting
         const savedOpacity = await window.faria.settings.get('commandBarOpacity');
@@ -242,6 +220,7 @@ function CommandBar() {
     // Listen for theme changes - colors are always provided by main process
     const cleanupTheme = window.faria.settings.onThemeChange((themeData) => {
       applyTheme(themeData.theme, themeData.colors, themeData.font);
+      setBackgroundColor(themeData.colors.background);
     });
 
     // Listen for opacity changes
@@ -506,9 +485,7 @@ function CommandBar() {
 
   // Get background color with opacity from current theme
   const getBackgroundWithOpacity = () => {
-    const bgColor = getComputedStyle(document.documentElement).getPropertyValue('--color-background').trim() || '#272932';
-    // Convert hex to rgba
-    const hex = bgColor.replace('#', '');
+    const hex = backgroundColor.replace('#', '');
     const r = parseInt(hex.substring(0, 2), 16);
     const g = parseInt(hex.substring(2, 4), 16);
     const b = parseInt(hex.substring(4, 6), 16);

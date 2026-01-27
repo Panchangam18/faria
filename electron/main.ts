@@ -192,11 +192,10 @@ const PRESET_THEMES: Record<string, { background: string; text: string; accent: 
   carnival: { background: '#001011', text: '#6CCFF6', accent: '#E94560' },
 };
 
-// Broadcast theme changes to all windows
-async function broadcastThemeChange() {
+// Get current theme data (used by both broadcast and direct requests)
+function getThemeData(): { theme: string; font: string; colors: { background: string; text: string; accent: string } } {
   const db = initDatabase();
 
-  // Get current theme settings
   const themeRow = db.prepare('SELECT value FROM settings WHERE key = ?').get('theme') as { value: string } | undefined;
   const fontRow = db.prepare('SELECT value FROM settings WHERE key = ?').get('selectedFont') as { value: string } | undefined;
   const customPalettesRow = db.prepare('SELECT value FROM settings WHERE key = ?').get('customPalettes') as { value: string } | undefined;
@@ -205,7 +204,6 @@ async function broadcastThemeChange() {
   const theme = themeRow?.value || 'default';
   const font = fontRow?.value || "'SF Pro Display', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif";
 
-  // Always send colors - either from preset or custom palette
   let colors: { background: string; text: string; accent: string };
 
   if (theme === 'custom' && customPalettesRow?.value && activeCustomPaletteRow?.value) {
@@ -226,13 +224,16 @@ async function broadcastThemeChange() {
       colors = PRESET_THEMES.default;
     }
   } else {
-    // Use preset theme colors
     colors = PRESET_THEMES[theme] || PRESET_THEMES.default;
   }
 
-  const themeData = { theme, font, colors };
+  return { theme, font, colors };
+}
 
-  // Send to all windows
+// Broadcast theme changes to all windows
+function broadcastThemeChange() {
+  const themeData = getThemeData();
+
   if (mainWindow) {
     mainWindow.webContents.send('settings:theme-change', themeData);
   }
@@ -749,6 +750,11 @@ function setupIPC() {
     }
     
     return { success: true };
+  });
+
+  // Get current theme data (including colors)
+  ipcMain.handle('settings:getThemeData', () => {
+    return getThemeData();
   });
 
   // Get default prompt
