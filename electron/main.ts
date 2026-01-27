@@ -676,6 +676,8 @@ function registerGlobalShortcuts() {
   for (const { key, direction } of moveDirections) {
     const shortcut = `${movePrefix}+${key}`;
     const retMove = globalShortcut.register(shortcut, () => {
+      // Only allow movement when command bar is visible
+      if (!isCommandBarVisible) return;
       // Execute the move
       moveCommandBar(direction);
       // Reset stop timer - if key is held, this will be called again before timer fires
@@ -688,6 +690,8 @@ function registerGlobalShortcuts() {
 
   // Register transparency shortcuts (prefix + up/down)
   const retTransUp = globalShortcut.register(`${transparencyPrefix}+Up`, () => {
+    // Only allow opacity change when command bar is visible
+    if (!isCommandBarVisible) return;
     changeTransparency(true);
     scheduleRepeatStop();
   });
@@ -696,6 +700,8 @@ function registerGlobalShortcuts() {
   }
 
   const retTransDown = globalShortcut.register(`${transparencyPrefix}+Down`, () => {
+    // Only allow opacity change when command bar is visible
+    if (!isCommandBarVisible) return;
     changeTransparency(false);
     scheduleRepeatStop();
   });
