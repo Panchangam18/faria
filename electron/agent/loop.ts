@@ -12,6 +12,8 @@ import {
   getMissingKeyError,
   getToolDisplayName,
   getProviderName,
+  getToolSettings,
+  ToolSettings,
   BoundModel
 } from '../services/models';
 import { searchMemories, getAllMemories, ContextManager, estimateTokens } from '../services/memory';
@@ -260,13 +262,22 @@ export class AgentLoop {
         providerName === 'anthropic' || providerName === 'google' ? providerName : null
       );
 
+      // Check tool settings
+      const toolSettings = getToolSettings();
+      console.log(`[Faria] Tool settings:`, toolSettings);
+
       // Get built-in tools (now DynamicStructuredTool instances like Composio)
-      const builtinTools = this.toolExecutor.getTools();
+      const builtinTools = this.toolExecutor.getTools(toolSettings);
       console.log(`[Faria] Loaded ${builtinTools.length} built-in tools`);
 
       // Get Composio tools (already in LangChain DynamicStructuredTool format)
-      const composioTools = await this.composioService.getTools();
-      console.log(`[Faria] Loaded ${composioTools.length} Composio tools`);
+      let composioTools: Awaited<ReturnType<typeof this.composioService.getTools>> = [];
+      if (toolSettings.integrations !== 'disabled') {
+        composioTools = await this.composioService.getTools();
+        console.log(`[Faria] Loaded ${composioTools.length} Composio tools`);
+      } else {
+        console.log(`[Faria] Integrations disabled, skipping Composio tools`);
+      }
 
       // Merge all tools - both built-in and Composio are now DynamicStructuredTools
       const allTools = [...builtinTools, ...composioTools];
@@ -465,15 +476,18 @@ export class AgentLoop {
               continue;
             }
 
-            // Check if approval is needed
+            // Check if this is a Composio tool
             const isComposioTool = !SAFE_TOOLS.has(toolCall.name) &&
                                     !['get_state', 'computer_actions', 'web_search',
                                       'insert_image', 'replace_selected_text', 'execute_python'].includes(toolCall.name);
 
-            // Determine if approval is needed
-            const needsApproval = isComposioTool
-              ? !SAFE_COMPOSIO_TOOLS.has(toolCall.name)
-              : !SAFE_TOOLS.has(toolCall.name) && (toolCall.name === 'replace_selected_text' || !this.computerUseApproved);
+            // Determine if approval is needed based on tool settings
+            const needsApproval = this.checkIfApprovalNeeded(
+              toolCall.name,
+              toolCall.args as Record<string, unknown>,
+              isComposioTool,
+              toolSettings
+            );
 
             if (needsApproval) {
               const toolDescription = toolToExecute.description || `Execute ${toolCall.name}`;
@@ -667,6 +681,108 @@ export class AgentLoop {
     return new Promise((resolve) => {
       this.pendingAuthResolve = resolve;
     });
+  }
+
+  /**
+   * Check if approval is needed for a tool based on settings
+   * @param toolName Name of the tool
+   * @param args The arguments being passed to the tool
+   * @param isComposio Whether this is a Composio tool
+   * @param toolSettings Current tool settings
+   * @returns true if approval is needed, false if auto-approved or safe
+   */
+  private checkIfApprovalNeeded(
+    toolName: string,
+    args: Record<string, unknown>,
+    isComposio: boolean,
+    toolSettings: ToolSettings
+  ): boolean {
+    // Safe tools never need approval
+    if (SAFE_TOOLS.has(toolName)) {
+      return false;
+    }
+
+    // For Composio tools, check integrations setting
+    if (isComposio) {
+      // Safe Composio tools (search/manage) don't need approval
+      if (SAFE_COMPOSIO_TOOLS.has(toolName)) {
+        return false;
+      }
+      // If integrations is auto-approve, no approval needed
+      if (toolSettings.integrations === 'auto-approve') {
+        return false;
+      }
+      // Otherwise needs approval
+      return true;
+    }
+
+    // For computer_actions, check what actions are being performed
+    if (toolName === 'computer_actions' && args.actions && Array.isArray(args.actions)) {
+      const actions = args.actions as Array<{ type: string }>;
+
+      for (const action of actions) {
+        const actionType = action.type;
+
+        // Check each action type against its setting
+        if (['click', 'right_click', 'double_click', 'mouse_move'].includes(actionType)) {
+          if (toolSettings.clicking === 'enabled') {
+            // Needs approval unless already approved this session
+            if (!this.computerUseApproved) return true;
+          } else if (toolSettings.clicking === 'auto-approve') {
+            // No approval needed
+            continue;
+          }
+        }
+
+        if (['scroll', 'drag'].includes(actionType)) {
+          if (toolSettings.scrolling === 'enabled') {
+            if (!this.computerUseApproved) return true;
+          } else if (toolSettings.scrolling === 'auto-approve') {
+            continue;
+          }
+        }
+
+        if (['type', 'key'].includes(actionType)) {
+          if (toolSettings.typing === 'enabled') {
+            if (!this.computerUseApproved) return true;
+          } else if (toolSettings.typing === 'auto-approve') {
+            continue;
+          }
+        }
+
+        if (actionType === 'screenshot') {
+          if (toolSettings.screenshot === 'enabled') {
+            if (!this.computerUseApproved) return true;
+          } else if (toolSettings.screenshot === 'auto-approve') {
+            continue;
+          }
+        }
+
+        if (actionType === 'insert_image') {
+          if (toolSettings.insertImage === 'enabled') {
+            if (!this.computerUseApproved) return true;
+          } else if (toolSettings.insertImage === 'auto-approve') {
+            continue;
+          }
+        }
+      }
+
+      return false;
+    }
+
+    // replace_selected_text - check replaceText setting
+    if (toolName === 'replace_selected_text') {
+      if (toolSettings.replaceText === 'auto-approve') {
+        return false;
+      }
+      if (toolSettings.replaceText === 'disabled') {
+        return false; // Will be blocked elsewhere
+      }
+      return true; // 'enabled' requires approval
+    }
+
+    // Default: needs approval if not already approved this session
+    return !this.computerUseApproved;
   }
 
   /**

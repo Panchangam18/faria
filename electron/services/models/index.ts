@@ -46,6 +46,66 @@ export function getSelectedModel(settingKey: string = 'selectedModel', defaultMo
 }
 
 /**
+ * Get a boolean setting value
+ */
+export function getBooleanSetting(settingKey: string, defaultValue: boolean = true): boolean {
+  const db = initDatabase();
+  const row = db.prepare('SELECT value FROM settings WHERE key = ?').get(settingKey) as { value: string } | undefined;
+  if (row?.value === undefined || row?.value === null) {
+    return defaultValue;
+  }
+  return row.value === 'true';
+}
+
+/**
+ * Tool setting type: 'enabled' | 'disabled' | 'auto-approve'
+ */
+export type ToolSetting = 'enabled' | 'disabled' | 'auto-approve';
+
+/**
+ * Tool settings configuration
+ */
+export interface ToolSettings {
+  screenshot: ToolSetting;
+  typing: ToolSetting;
+  replaceText: ToolSetting;
+  insertImage: ToolSetting;
+  clicking: ToolSetting;
+  scrolling: ToolSetting;
+  integrations: ToolSetting;
+}
+
+/**
+ * Default tool settings
+ */
+const DEFAULT_TOOL_SETTINGS: ToolSettings = {
+  screenshot: 'enabled',
+  typing: 'enabled',
+  replaceText: 'enabled',
+  insertImage: 'enabled',
+  clicking: 'enabled',
+  scrolling: 'enabled',
+  integrations: 'enabled',
+};
+
+/**
+ * Get tool settings from database
+ */
+export function getToolSettings(): ToolSettings {
+  const db = initDatabase();
+  const row = db.prepare('SELECT value FROM settings WHERE key = ?').get('toolSettings') as { value: string } | undefined;
+  if (!row?.value) {
+    return DEFAULT_TOOL_SETTINGS;
+  }
+  try {
+    const parsed = JSON.parse(row.value);
+    return { ...DEFAULT_TOOL_SETTINGS, ...parsed };
+  } catch {
+    return DEFAULT_TOOL_SETTINGS;
+  }
+}
+
+/**
  * Create a model instance from a model name
  * This is the simple interface - just pass a model name and get a model back
  */

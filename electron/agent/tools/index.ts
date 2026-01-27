@@ -1,6 +1,7 @@
 import { DynamicStructuredTool } from '@langchain/core/tools';
 import { StateExtractor, AppState } from '../../services/state-extractor';
 import type { ToolContext } from './types';
+import type { ToolSettings } from '../../services/models';
 
 // Types
 export type { ToolContext } from './types';
@@ -69,17 +70,24 @@ export class ToolExecutor {
   /**
    * Get all built-in tools as DynamicStructuredTool instances
    * This creates tools with context baked in via closure
+   * @param toolSettings - configuration for which tools are enabled/disabled
    */
-  getTools(): DynamicStructuredTool[] {
+  getTools(toolSettings: ToolSettings): DynamicStructuredTool[] {
     const context = this.getContext();
 
-    return [
+    const tools: DynamicStructuredTool[] = [
       createGetStateTool(context),
-      createChainActionsTool(context),
+      createChainActionsTool(context, toolSettings),
       createWebSearchTool(),
-      createReplaceSelectedTextTool(context),
       createExecutePythonTool(),
     ];
+
+    // Only include replace_selected_text if not disabled
+    if (toolSettings.replaceText !== 'disabled') {
+      tools.push(createReplaceSelectedTextTool(context));
+    }
+
+    return tools;
   }
 
   /**

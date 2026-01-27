@@ -282,6 +282,18 @@ function SettingsPanel({ currentTheme, onThemeChange }: SettingsPanelProps) {
   const [hoverAgentModel, setHoverAgentModel] = useState(false);
   const [agentPrompt, setAgentPrompt] = useState('');
 
+  // Tool settings - 'enabled' | 'disabled' | 'auto-approve'
+  type ToolSetting = 'enabled' | 'disabled' | 'auto-approve';
+  const [toolSettings, setToolSettings] = useState<Record<string, ToolSetting>>({
+    screenshot: 'enabled',
+    typing: 'enabled',
+    replaceText: 'enabled',
+    insertImage: 'enabled',
+    clicking: 'enabled',
+    scrolling: 'enabled',
+    integrations: 'enabled',
+  });
+
   // Keyboard shortcuts
   const [commandBarShortcut, setCommandBarShortcut] = useState(DEFAULT_COMMAND_BAR_SHORTCUT);
   const [resetCommandBarShortcut, setResetCommandBarShortcut] = useState(DEFAULT_RESET_COMMAND_BAR_SHORTCUT);
@@ -413,6 +425,17 @@ function SettingsPanel({ currentTheme, onThemeChange }: SettingsPanelProps) {
 
     const savedTransparencyPrefix = await window.faria.settings.get('transparencyShortcutPrefix');
     if (savedTransparencyPrefix) setTransparencyPrefix(savedTransparencyPrefix);
+
+    // Load tool settings
+    const savedToolSettings = await window.faria.settings.get('toolSettings');
+    if (savedToolSettings) {
+      try {
+        const parsed = JSON.parse(savedToolSettings);
+        setToolSettings(prev => ({ ...prev, ...parsed }));
+      } catch (e) {
+        console.error('Failed to parse tool settings:', e);
+      }
+    }
   };
 
   // Keyboard shortcut recording
@@ -1093,6 +1116,81 @@ function SettingsPanel({ currentTheme, onThemeChange }: SettingsPanelProps) {
               </select>
             </div>
           </div>
+        </div>
+      </section>
+
+      {/* Tools Section */}
+      <section style={{ marginBottom: 'var(--spacing-xl)' }}>
+        <div style={{
+          fontSize: 'var(--font-size-sm)',
+          color: 'var(--color-text-muted)',
+          marginBottom: 'var(--spacing-md)',
+          textTransform: 'uppercase',
+          letterSpacing: '0.05em',
+          fontWeight: 500
+        }}>
+          Tools
+        </div>
+
+        <div style={{
+          display: 'flex',
+          flexDirection: 'column',
+          gap: 'var(--spacing-sm)',
+          marginLeft: 'var(--spacing-md)',
+        }}>
+          {[
+            { key: 'screenshot', name: 'Screenshots', description: 'Capture screen images' },
+            { key: 'typing', name: 'Typing', description: 'Type text and press keys' },
+            { key: 'replaceText', name: 'Replace Text', description: 'Replace selected text in apps' },
+            { key: 'insertImage', name: 'Insert Image', description: 'Search and insert images' },
+            { key: 'clicking', name: 'Clicking', description: 'Click, double-click, and right-click' },
+            { key: 'scrolling', name: 'Scrolling & Dragging', description: 'Scroll and drag the mouse' },
+            { key: 'integrations', name: 'External Integrations', description: 'Gmail, Slack, GitHub, and other services' },
+          ].map(tool => (
+            <div
+              key={tool.key}
+              style={{
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'space-between',
+                padding: 'var(--spacing-md)',
+                background: 'var(--color-surface)',
+                borderRadius: 'var(--radius-md)',
+                border: '1px solid var(--color-border)',
+              }}
+            >
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
+                <span style={{ fontSize: 'var(--font-size-sm)' }}>{tool.name}</span>
+                <span style={{ fontSize: 'var(--font-size-xs)', color: 'var(--color-text-muted)' }}>{tool.description}</span>
+              </div>
+              <select
+                value={toolSettings[tool.key] || 'enabled'}
+                onChange={(e) => {
+                  const newSettings = { ...toolSettings, [tool.key]: e.target.value as 'enabled' | 'disabled' | 'auto-approve' };
+                  setToolSettings(newSettings);
+                  saveSettings('toolSettings', JSON.stringify(newSettings));
+                }}
+                style={{
+                  padding: 'var(--spacing-xs) var(--spacing-sm)',
+                  fontSize: 'var(--font-size-sm)',
+                  fontFamily: 'var(--font-family)',
+                  borderRadius: 'var(--radius-sm)',
+                  border: '1px solid var(--color-border)',
+                  backgroundColor: 'var(--color-primary)',
+                  color: 'var(--color-text)',
+                  cursor: 'pointer',
+                  minWidth: 110,
+                  appearance: 'none',
+                  WebkitAppearance: 'none',
+                  MozAppearance: 'none',
+                }}
+              >
+                <option value="enabled">Enabled</option>
+                <option value="disabled">Disabled</option>
+                <option value="auto-approve">Auto-approve</option>
+              </select>
+            </div>
+          ))}
         </div>
       </section>
 

@@ -7,26 +7,52 @@ import { insertImageFromUrl } from '../../services/text-extraction';
 import * as cliclick from '../../services/cliclick';
 import { takeScreenshot } from '../../services/screenshot';
 import { screen } from 'electron';
+import type { ToolSettings } from '../../services/models';
 
-// Zod schema for the tool
+// All possible action types
+const ALL_ACTION_TYPES = [
+  'activate',
+  'applescript',
+  'click',
+  'right_click',
+  'double_click',
+  'type',
+  'key',
+  'mouse_move',
+  'scroll',
+  'drag',
+  'wait',
+  'screenshot',
+  'insert_image',
+] as const;
+
+// Map tool settings to action types
+const CLICKING_ACTIONS = new Set(['click', 'right_click', 'double_click', 'mouse_move']);
+const SCROLLING_ACTIONS = new Set(['scroll', 'drag']);
+const TYPING_ACTIONS = new Set(['type', 'key']);
+const SCREENSHOT_ACTIONS = new Set(['screenshot']);
+const INSERT_IMAGE_ACTIONS = new Set(['insert_image']);
+
+// Helper to check if an action is disabled based on tool settings
+function isActionDisabled(actionType: string, toolSettings: ToolSettings): boolean {
+  if (CLICKING_ACTIONS.has(actionType) && toolSettings.clicking === 'disabled') return true;
+  if (SCROLLING_ACTIONS.has(actionType) && toolSettings.scrolling === 'disabled') return true;
+  if (TYPING_ACTIONS.has(actionType) && toolSettings.typing === 'disabled') return true;
+  if (SCREENSHOT_ACTIONS.has(actionType) && toolSettings.screenshot === 'disabled') return true;
+  if (INSERT_IMAGE_ACTIONS.has(actionType) && toolSettings.insertImage === 'disabled') return true;
+  return false;
+}
+
+// Get list of enabled action types based on settings
+function getEnabledActionTypes(toolSettings: ToolSettings): readonly string[] {
+  return ALL_ACTION_TYPES.filter(action => !isActionDisabled(action, toolSettings));
+}
+
+// Zod schema for the tool (full version with all actions)
 export const ChainActionsSchema = z.object({
   actions: z.array(
     z.object({
-      type: z.enum([
-        'activate',
-        'applescript',
-        'click',
-        'right_click',
-        'double_click',
-        'type',
-        'key',
-        'mouse_move',
-        'scroll',
-        'drag',
-        'wait',
-        'screenshot',
-        'insert_image',
-      ]),
+      type: z.enum(ALL_ACTION_TYPES),
       app: z.string().optional(),
       script: z.string().optional(),
       modifiers: z.array(z.string()).optional(),
@@ -131,9 +157,66 @@ export interface ChainActionsParams {
 }
 
 /**
- * Factory function that creates the chain actions tool with context injected
+ * Create a dynamic schema based on which actions are enabled
  */
-export function createChainActionsTool(context: ToolContext): DynamicStructuredTool {
+function createDynamicSchema(toolSettings: ToolSettings) {
+  const enabledActions = getEnabledActionTypes(toolSettings);
+
+  // Need at least one action type for a valid enum
+  if (enabledActions.length === 0) {
+    // Return schema with only 'wait' which is always safe
+    return z.object({
+      actions: z.array(
+        z.object({
+          type: z.enum(['wait', 'activate', 'applescript', 'insert_image']),
+          app: z.string().optional(),
+          script: z.string().optional(),
+          duration: z.number().optional(),
+          query: z.string().optional(),
+        })
+      ).describe('List of actions to execute. Most actions are currently disabled in settings.'),
+    });
+  }
+
+  return z.object({
+    actions: z.array(
+      z.object({
+        type: z.enum(enabledActions as [string, ...string[]]),
+        app: z.string().optional(),
+        script: z.string().optional(),
+        modifiers: z.array(z.string()).optional(),
+        key: z.string().optional(),
+        text: z.string().optional(),
+        x: z.number().optional(),
+        y: z.number().optional(),
+        coordinate: z.array(z.number()).length(2).optional(),
+        start_coordinate: z.array(z.number()).length(2).optional(),
+        end_coordinate: z.array(z.number()).length(2).optional(),
+        start_x: z.number().optional(),
+        start_y: z.number().optional(),
+        end_x: z.number().optional(),
+        end_y: z.number().optional(),
+        direction: z.enum(['up', 'down', 'left', 'right']).optional(),
+        amount: z.number().optional(),
+        scroll_direction: z.enum(['up', 'down', 'left', 'right']).optional(),
+        scroll_amount: z.number().optional(),
+        duration: z.number().optional(),
+        query: z.string().optional(),
+      })
+    ).describe(`List of actions to execute in sequence. Available actions: ${enabledActions.join(', ')}.`),
+  });
+}
+
+/**
+ * Factory function that creates the chain actions tool with context injected
+ * @param context - Tool context with state and app info
+ * @param toolSettings - Configuration for which tools are enabled/disabled
+ */
+export function createChainActionsTool(context: ToolContext, toolSettings: ToolSettings): DynamicStructuredTool {
+  const enabledActions = getEnabledActionTypes(toolSettings);
+  const schema = createDynamicSchema(toolSettings);
+  const description = `Execute a sequence of UI actions with automatic timing. Available actions: ${enabledActions.join(', ')}.`;
+
   return tool(
     async (input) => {
       const results: string[] = [];
@@ -143,6 +226,11 @@ export function createChainActionsTool(context: ToolContext): DynamicStructuredT
         for (let i = 0; i < input.actions.length; i++) {
           const action = input.actions[i];
           const nextAction = i < input.actions.length - 1 ? input.actions[i + 1] : null;
+
+          // Check if action is disabled at runtime as well
+          if (isActionDisabled(action.type, toolSettings)) {
+            throw new Error(`Action "${action.type}" is not allowed. It is disabled in settings.`);
+          }
 
           // Execute the action
           const result = await executeAction(action, context);
@@ -185,8 +273,8 @@ export function createChainActionsTool(context: ToolContext): DynamicStructuredT
     },
     {
       name: 'computer_actions',
-      description: 'Execute a sequence of UI actions with automatic timing (works for single or multi-step tasks). Actions: activate, applescript, click, right_click, double_click, type, key, mouse_move, scroll, drag, wait, screenshot, insert_image.',
-      schema: ChainActionsSchema,
+      description,
+      schema,
     }
   );
 }
