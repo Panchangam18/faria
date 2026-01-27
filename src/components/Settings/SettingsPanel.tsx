@@ -1148,7 +1148,7 @@ function SettingsPanel({ currentTheme, onThemeChange }: SettingsPanelProps) {
               marginBottom: 'var(--spacing-xs)',
               color: 'var(--color-text-muted)'
             }}>
-              Anthropic API Key
+              Anthropic
             </label>
             <div style={{ position: 'relative' }}>
               <input
@@ -1200,7 +1200,7 @@ function SettingsPanel({ currentTheme, onThemeChange }: SettingsPanelProps) {
               marginBottom: 'var(--spacing-xs)',
               color: 'var(--color-text-muted)'
             }}>
-              Google AI API Key
+              Google AI
             </label>
             <div style={{ position: 'relative' }}>
               <input
@@ -1301,7 +1301,7 @@ function SettingsPanel({ currentTheme, onThemeChange }: SettingsPanelProps) {
                   backgroundColor: 'var(--color-primary)',
                   color: 'var(--color-text)',
                   cursor: 'pointer',
-                  width: toolSettings[tool.key] === 'auto-approve' ? 'auto' : toolSettings[tool.key] === 'disabled' ? 80 : 72,
+                  width: 88,
                 }}
               >
                 <option value="enabled">Enabled</option>
@@ -1373,6 +1373,7 @@ function SettingsPanel({ currentTheme, onThemeChange }: SettingsPanelProps) {
                     alignItems: 'center',
                     gap: 'var(--spacing-sm)',
                     padding: 'var(--spacing-sm) 0',
+                    width: 'fit-content',
                   }}
                 >
                   {conn.logo ? (

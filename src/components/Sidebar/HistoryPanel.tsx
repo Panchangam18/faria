@@ -198,24 +198,29 @@ function HistoryPanel() {
                   onMouseEnter={() => setHoveredId(item.id)}
                   onMouseLeave={() => setHoveredId(null)}
                 >
-                  {/* Collapsed header */}
+                  {/* Header */}
                   <div style={{
                     display: 'flex',
-                    alignItems: 'center',
+                    alignItems: 'flex-start',
                     justifyContent: 'space-between'
                   }}>
                     <span style={{
                       display: 'flex',
-                      alignItems: 'center',
-                      overflow: 'hidden',
+                      alignItems: 'flex-start',
+                      overflow: isExpanded ? 'visible' : 'hidden',
                       flex: 1
                     }}>
                       <span
                         style={{
                           cursor: 'text',
-                          overflow: 'hidden',
-                          textOverflow: 'ellipsis',
-                          whiteSpace: 'nowrap'
+                          ...(isExpanded ? {
+                            wordBreak: 'break-word',
+                            whiteSpace: 'pre-wrap'
+                          } : {
+                            overflow: 'hidden',
+                            textOverflow: 'ellipsis',
+                            whiteSpace: 'nowrap'
+                          })
                         }}
                         onClick={(e) => e.stopPropagation()}
                       >
