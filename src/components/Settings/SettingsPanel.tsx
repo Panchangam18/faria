@@ -185,7 +185,7 @@ const PRESET_THEMES = [
 
 
 // Mini command bar preview component for theme cards
-const ThemePreview = ({ colors, isSelected, name }: { colors: { background: string; text: string; accent: string }, isSelected: boolean, name?: string }) => {
+const ThemePreview = ({ colors, isSelected, name, onDelete, isHovered }: { colors: { background: string; text: string; accent: string }, isSelected: boolean, name?: string, onDelete?: (e: React.MouseEvent) => void, isHovered?: boolean }) => {
   return (
     <div style={{
       width: '100%',
@@ -237,7 +237,7 @@ const ThemePreview = ({ colors, isSelected, name }: { colors: { background: stri
         </div>
       </div>
 
-      {/* Selection indicator */}
+      {/* Selection indicator (checkmark) */}
       {isSelected && (
         <div style={{
           position: 'absolute',
@@ -250,12 +250,43 @@ const ThemePreview = ({ colors, isSelected, name }: { colors: { background: stri
           display: 'flex',
           alignItems: 'center',
           justifyContent: 'center',
-          boxShadow: '0 2px 4px rgba(0,0,0,0.3)',
         }}>
           <svg width="8" height="8" viewBox="0 0 24 24" fill="none" stroke={colors.background} strokeWidth="3" strokeLinecap="round" strokeLinejoin="round">
             <polyline points="20 6 9 17 4 12" />
           </svg>
         </div>
+      )}
+
+      {/* Delete button (X) - only shown for custom themes when not selected and hovered */}
+      {!isSelected && onDelete && isHovered && (
+        <button
+          onClick={onDelete}
+          onMouseEnter={(e) => { e.currentTarget.style.background = '#ff4444'; }}
+          onMouseLeave={(e) => { e.currentTarget.style.background = 'rgba(0,0,0,0.6)'; }}
+          style={{
+            position: 'absolute',
+            top: 4,
+            right: 4,
+            width: 16,
+            height: 16,
+            borderRadius: '50%',
+            background: 'rgba(0,0,0,0.6)',
+            border: 'none',
+            color: '#fff',
+            cursor: 'pointer',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            padding: 0,
+            transition: 'background 0.15s ease',
+          }}
+          title="Delete theme"
+        >
+          <svg width="8" height="8" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round">
+            <line x1="18" y1="6" x2="6" y2="18" />
+            <line x1="6" y1="6" x2="18" y2="18" />
+          </svg>
+        </button>
       )}
     </div>
   );
@@ -831,13 +862,9 @@ function SettingsPanel({ currentTheme, onThemeChange }: SettingsPanelProps) {
           <div style={{
             display: 'flex',
             alignItems: 'center',
-            justifyContent: 'space-between',
-            padding: 'var(--spacing-md)',
-            background: 'var(--color-surface)',
-            borderRadius: 'var(--radius-md)',
-            border: '1px solid var(--color-border)',
+            gap: 'var(--spacing-sm)',
+            padding: 'var(--spacing-sm) 0',
           }}>
-            <span style={{ fontSize: 'var(--font-size-sm)' }}>Open Faria</span>
             <button
               onClick={() => setRecordingShortcut('commandBar')}
               style={{
@@ -855,21 +882,16 @@ function SettingsPanel({ currentTheme, onThemeChange }: SettingsPanelProps) {
             >
               {recordingShortcut === 'commandBar' ? 'Press keys...' : shortcutToDisplay(commandBarShortcut)}
             </button>
+            <span style={{ fontSize: 'var(--font-size-sm)' }}>Open</span>
           </div>
 
           {/* Reset Command Bar */}
           <div style={{
             display: 'flex',
             alignItems: 'center',
-            justifyContent: 'space-between',
-            padding: 'var(--spacing-md)',
-            background: 'var(--color-surface)',
-            borderRadius: 'var(--radius-md)',
-            border: '1px solid var(--color-border)',
+            gap: 'var(--spacing-sm)',
+            padding: 'var(--spacing-sm) 0',
           }}>
-            <div style={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
-              <span style={{ fontSize: 'var(--font-size-sm)' }}>Reset Faria</span>
-            </div>
             <button
               onClick={() => setRecordingShortcut('resetCommandBar')}
               style={{
@@ -887,22 +909,16 @@ function SettingsPanel({ currentTheme, onThemeChange }: SettingsPanelProps) {
             >
               {recordingShortcut === 'resetCommandBar' ? 'Press keys...' : shortcutToDisplay(resetCommandBarShortcut)}
             </button>
+            <span style={{ fontSize: 'var(--font-size-sm)' }}>Reset</span>
           </div>
 
           {/* Move Faria Bar */}
           <div style={{
             display: 'flex',
             alignItems: 'center',
-            justifyContent: 'space-between',
-            padding: 'var(--spacing-md)',
-            background: 'var(--color-surface)',
-            borderRadius: 'var(--radius-md)',
-            border: '1px solid var(--color-border)',
+            gap: 'var(--spacing-sm)',
+            padding: 'var(--spacing-sm) 0',
           }}>
-            <div style={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
-              <span style={{ fontSize: 'var(--font-size-sm)' }}>Move Faria</span>
-              <span style={{ fontSize: 'var(--font-size-xs)', color: 'var(--color-text-muted)' }}>+ Arrow Keys</span>
-            </div>
             <button
               onClick={() => setRecordingShortcut('movePrefix')}
               style={{
@@ -920,22 +936,16 @@ function SettingsPanel({ currentTheme, onThemeChange }: SettingsPanelProps) {
             >
               {recordingShortcut === 'movePrefix' ? 'Press keys...' : prefixToDisplay(movePrefix)}
             </button>
+            <span style={{ fontSize: 'var(--font-size-sm)' }}>Move</span>
           </div>
 
           {/* Transparency */}
           <div style={{
             display: 'flex',
             alignItems: 'center',
-            justifyContent: 'space-between',
-            padding: 'var(--spacing-md)',
-            background: 'var(--color-surface)',
-            borderRadius: 'var(--radius-md)',
-            border: '1px solid var(--color-border)',
+            gap: 'var(--spacing-sm)',
+            padding: 'var(--spacing-sm) 0',
           }}>
-            <div style={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
-              <span style={{ fontSize: 'var(--font-size-sm)' }}>Transparency</span>
-              <span style={{ fontSize: 'var(--font-size-xs)', color: 'var(--color-text-muted)' }}>+ Up/Down Arrows</span>
-            </div>
             <button
               onClick={() => setRecordingShortcut('transparencyPrefix')}
               style={{
@@ -953,6 +963,7 @@ function SettingsPanel({ currentTheme, onThemeChange }: SettingsPanelProps) {
             >
               {recordingShortcut === 'transparencyPrefix' ? 'Press keys...' : prefixToDisplay(transparencyPrefix)}
             </button>
+            <span style={{ fontSize: 'var(--font-size-sm)' }}>Transparency</span>
           </div>
         </div>
       </section>
@@ -1009,54 +1020,23 @@ function SettingsPanel({ currentTheme, onThemeChange }: SettingsPanelProps) {
               return (
                 <div
                   key={`custom-${index}`}
-                  style={{
-                    width: 'calc((100% - 4 * var(--spacing-sm)) / 5)',
-                    position: 'relative',
-                  }}
+                  onClick={() => applyCustomTheme(palette)}
                   onMouseEnter={() => setHoveredTheme(`custom-${index}`)}
                   onMouseLeave={() => setHoveredTheme(null)}
+                  style={{
+                    width: 'calc((100% - 4 * var(--spacing-sm)) / 5)',
+                    cursor: 'pointer',
+                    transform: isHovered ? 'translateY(-2px)' : 'translateY(0)',
+                    transition: 'transform 0.2s cubic-bezier(0.4, 0, 0.2, 1)',
+                  }}
                 >
-                  <div
-                    onClick={() => applyCustomTheme(palette)}
-                    style={{
-                      cursor: 'pointer',
-                      transform: isHovered ? 'translateY(-2px)' : 'translateY(0)',
-                      transition: 'transform 0.2s cubic-bezier(0.4, 0, 0.2, 1)',
-                    }}
-                  >
-                    <ThemePreview
-                      colors={{ background: palette.background, text: palette.text, accent: palette.accent }}
-                      isSelected={isSelected}
-                      name={palette.name}
-                    />
-                  </div>
-
-                  {/* Delete button */}
-                  <button
-                    onClick={(e) => handleDeleteCustomPalette(index, e)}
-                    style={{
-                      position: 'absolute',
-                      top: 6,
-                      left: 6,
-                      width: 22,
-                      height: 22,
-                      borderRadius: '50%',
-                      background: 'rgba(0,0,0,0.6)',
-                      border: 'none',
-                      color: '#fff',
-                      fontSize: 14,
-                      cursor: 'pointer',
-                      display: 'flex',
-                      alignItems: 'center',
-                      justifyContent: 'center',
-                      opacity: isHovered ? 1 : 0,
-                      transition: 'opacity 0.2s ease',
-                      backdropFilter: 'blur(4px)',
-                    }}
-                    title="Delete theme"
-                  >
-                    ×
-                  </button>
+                  <ThemePreview
+                    colors={{ background: palette.background, text: palette.text, accent: palette.accent }}
+                    isSelected={isSelected}
+                    name={palette.name}
+                    onDelete={(e) => handleDeleteCustomPalette(index, e)}
+                    isHovered={isHovered}
+                  />
                 </div>
               );
             })}
@@ -1099,7 +1079,7 @@ function SettingsPanel({ currentTheme, onThemeChange }: SettingsPanelProps) {
 
       </section>
 
-      {/* Model Section */}
+      {/* Agent Model Section */}
       <section style={{ marginBottom: 'var(--spacing-xl)' }}>
         <div style={{
           fontSize: 'var(--font-size-sm)',
@@ -1109,50 +1089,159 @@ function SettingsPanel({ currentTheme, onThemeChange }: SettingsPanelProps) {
           letterSpacing: '0.05em',
           fontWeight: 500
         }}>
-          Model
+          Agent Model
         </div>
 
-        <div className="card" style={{ marginLeft: 'var(--spacing-md)' }}>
-          <div style={{ padding: 'var(--spacing-md)' }}>
-            <div>
-              <label style={{
-                display: 'block',
-                fontSize: 'var(--font-size-sm)',
-                marginBottom: 'var(--spacing-xs)',
-                color: 'var(--color-text-muted)'
-              }}>
-                Agent Model
-              </label>
-              <select
-                value={selectedModel}
+        <div style={{ marginLeft: 'var(--spacing-md)' }}>
+          <select
+            value={selectedModel}
+            onChange={(e) => {
+              setSelectedModel(e.target.value);
+              saveSettings('selectedModel', e.target.value);
+            }}
+            onMouseEnter={() => setHoverAgentModel(true)}
+            onMouseLeave={() => setHoverAgentModel(false)}
+            style={{
+              padding: 'var(--spacing-sm)',
+              fontSize: 'var(--font-size-sm)',
+              borderRadius: 'var(--radius-sm)',
+              border: `1px solid ${hoverAgentModel ? 'var(--color-accent)' : 'var(--color-border)'}`,
+              backgroundColor: hoverAgentModel ? 'var(--color-hover)' : 'var(--color-primary)',
+              color: 'var(--color-text)',
+              cursor: 'pointer',
+              transition: 'all var(--transition-fast)',
+            }}
+          >
+            <option value="none">None</option>
+            {getAvailableModels().map((model) => (
+              <option key={model.id} value={model.id}>
+                {model.name}
+              </option>
+            ))}
+          </select>
+        </div>
+      </section>
+
+      {/* API Keys Section */}
+      <section style={{ marginBottom: 'var(--spacing-xl)' }}>
+        <div style={{
+          fontSize: 'var(--font-size-sm)',
+          color: 'var(--color-text-muted)',
+          marginBottom: 'var(--spacing-md)',
+          textTransform: 'uppercase',
+          letterSpacing: '0.05em',
+          fontWeight: 500
+        }}>
+          API Keys
+        </div>
+
+        <div style={{
+          display: 'flex',
+          flexDirection: 'column',
+          gap: 'var(--spacing-md)',
+          marginLeft: 'var(--spacing-md)',
+        }}>
+          <div>
+            <label style={{
+              display: 'block',
+              fontSize: 'var(--font-size-sm)',
+              marginBottom: 'var(--spacing-xs)',
+              color: 'var(--color-text-muted)'
+            }}>
+              Anthropic API Key
+            </label>
+            <div style={{ position: 'relative' }}>
+              <input
+                type={showAnthropicKey ? 'text' : 'password'}
+                value={anthropicKey}
                 onChange={(e) => {
-                  setSelectedModel(e.target.value);
-                  saveSettings('selectedModel', e.target.value);
+                  setAnthropicKey(e.target.value);
+                  saveSettings('anthropicKey', e.target.value);
                 }}
-                onMouseEnter={() => setHoverAgentModel(true)}
-                onMouseLeave={() => setHoverAgentModel(false)}
+                placeholder="sk-ant-..."
+                style={{ width: '100%', paddingRight: 36 }}
+              />
+              <button
+                onClick={() => setShowAnthropicKey(!showAnthropicKey)}
                 style={{
-                  width: '100%',
-                  padding: 'var(--spacing-sm)',
-                  fontSize: 'var(--font-size-sm)',
-                  borderRadius: 'var(--radius-sm)',
-                  border: `1px solid ${hoverAgentModel ? 'var(--color-accent)' : 'var(--color-border)'}`,
-                  backgroundColor: hoverAgentModel ? 'var(--color-hover)' : 'var(--color-primary)',
-                  color: 'var(--color-text)',
-                  appearance: 'none',
-                  WebkitAppearance: 'none',
-                  MozAppearance: 'none',
+                  position: 'absolute',
+                  right: 8,
+                  top: '50%',
+                  transform: 'translateY(-50%)',
+                  background: 'none',
+                  border: 'none',
+                  padding: 4,
                   cursor: 'pointer',
-                  transition: 'all var(--transition-fast)',
+                  color: 'var(--color-text-muted)',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
                 }}
               >
-                <option value="none">None</option>
-                {getAvailableModels().map((model) => (
-                  <option key={model.id} value={model.id}>
-                    {model.name}
-                  </option>
-                ))}
-              </select>
+                {showAnthropicKey ? (
+                  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                    <path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19m-6.72-1.07a3 3 0 1 1-4.24-4.24" />
+                    <line x1="1" y1="1" x2="23" y2="23" />
+                  </svg>
+                ) : (
+                  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                    <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z" />
+                    <circle cx="12" cy="12" r="3" />
+                  </svg>
+                )}
+              </button>
+            </div>
+          </div>
+
+          <div>
+            <label style={{
+              display: 'block',
+              fontSize: 'var(--font-size-sm)',
+              marginBottom: 'var(--spacing-xs)',
+              color: 'var(--color-text-muted)'
+            }}>
+              Google AI API Key
+            </label>
+            <div style={{ position: 'relative' }}>
+              <input
+                type={showGoogleKey ? 'text' : 'password'}
+                value={googleKey}
+                onChange={(e) => {
+                  setGoogleKey(e.target.value);
+                  saveSettings('googleKey', e.target.value);
+                }}
+                placeholder="AIxxxx..."
+                style={{ width: '100%', paddingRight: 36 }}
+              />
+              <button
+                onClick={() => setShowGoogleKey(!showGoogleKey)}
+                style={{
+                  position: 'absolute',
+                  right: 8,
+                  top: '50%',
+                  transform: 'translateY(-50%)',
+                  background: 'none',
+                  border: 'none',
+                  padding: 4,
+                  cursor: 'pointer',
+                  color: 'var(--color-text-muted)',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                }}
+              >
+                {showGoogleKey ? (
+                  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                    <path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19m-6.72-1.07a3 3 0 1 1-4.24-4.24" />
+                    <line x1="1" y1="1" x2="23" y2="23" />
+                  </svg>
+                ) : (
+                  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                    <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z" />
+                    <circle cx="12" cy="12" r="3" />
+                  </svg>
+                )}
+              </button>
             </div>
           </div>
         </div>
@@ -1191,17 +1280,11 @@ function SettingsPanel({ currentTheme, onThemeChange }: SettingsPanelProps) {
               style={{
                 display: 'flex',
                 alignItems: 'center',
-                justifyContent: 'space-between',
-                padding: 'var(--spacing-md)',
-                background: 'var(--color-surface)',
-                borderRadius: 'var(--radius-md)',
-                border: '1px solid var(--color-border)',
+                gap: 'var(--spacing-sm)',
+                padding: 'var(--spacing-sm) 0',
               }}
             >
-              <div style={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
-                <span style={{ fontSize: 'var(--font-size-sm)' }}>{tool.name}</span>
-                <span style={{ fontSize: 'var(--font-size-xs)', color: 'var(--color-text-muted)' }}>{tool.description}</span>
-              </div>
+              <span style={{ fontSize: 'var(--font-size-sm)' }}>{tool.name}:</span>
               <select
                 value={toolSettings[tool.key] || 'enabled'}
                 onChange={(e) => {
@@ -1210,7 +1293,7 @@ function SettingsPanel({ currentTheme, onThemeChange }: SettingsPanelProps) {
                   saveSettings('toolSettings', JSON.stringify(newSettings));
                 }}
                 style={{
-                  padding: 'var(--spacing-xs) var(--spacing-sm)',
+                  padding: '2px 4px',
                   fontSize: 'var(--font-size-sm)',
                   fontFamily: 'var(--font-family)',
                   borderRadius: 'var(--radius-sm)',
@@ -1218,10 +1301,7 @@ function SettingsPanel({ currentTheme, onThemeChange }: SettingsPanelProps) {
                   backgroundColor: 'var(--color-primary)',
                   color: 'var(--color-text)',
                   cursor: 'pointer',
-                  minWidth: 110,
-                  appearance: 'none',
-                  WebkitAppearance: 'none',
-                  MozAppearance: 'none',
+                  width: toolSettings[tool.key] === 'auto-approve' ? 'auto' : toolSettings[tool.key] === 'disabled' ? 80 : 72,
                 }}
               >
                 <option value="enabled">Enabled</option>
@@ -1233,88 +1313,12 @@ function SettingsPanel({ currentTheme, onThemeChange }: SettingsPanelProps) {
         </div>
       </section>
 
-      {/* API Keys Section */}
-      <section style={{ marginBottom: 'var(--spacing-xl)' }}>
-        <div style={{
-          fontSize: 'var(--font-size-sm)',
-          color: 'var(--color-text-muted)',
-          marginBottom: 'var(--spacing-md)',
-          textTransform: 'uppercase',
-          letterSpacing: '0.05em',
-          fontWeight: 500
-        }}>
-          API Keys
-        </div>
-        
-        <div className="card" style={{ marginLeft: 'var(--spacing-md)' }}>
-          <div style={{ padding: 'var(--spacing-md)' }}>
-            <div style={{ marginBottom: 'var(--spacing-md)' }}>
-              <label style={{
-                display: 'block',
-                fontSize: 'var(--font-size-sm)',
-                marginBottom: 'var(--spacing-xs)',
-                color: 'var(--color-text-muted)'
-              }}>
-                Anthropic API Key
-              </label>
-              <div style={{ display: 'flex', gap: 'var(--spacing-sm)' }}>
-                <input
-                  type={showAnthropicKey ? 'text' : 'password'}
-                  value={anthropicKey}
-                  onChange={(e) => {
-                    setAnthropicKey(e.target.value);
-                    saveSettings('anthropicKey', e.target.value);
-                  }}
-                  placeholder="sk-ant-..."
-                  style={{ flex: 1 }}
-                />
-                <button
-                  className="btn btn-secondary"
-                  onClick={() => setShowAnthropicKey(!showAnthropicKey)}
-                >
-                  {showAnthropicKey ? 'Hide' : 'Show'}
-                </button>
-              </div>
-            </div>
-            
-            <div>
-              <label style={{ 
-                display: 'block', 
-                fontSize: 'var(--font-size-sm)', 
-                marginBottom: 'var(--spacing-xs)',
-                color: 'var(--color-text-muted)'
-              }}>
-                Google AI API Key
-              </label>
-              <div style={{ display: 'flex', gap: 'var(--spacing-sm)' }}>
-                <input
-                  type={showGoogleKey ? 'text' : 'password'}
-                  value={googleKey}
-                  onChange={(e) => {
-                    setGoogleKey(e.target.value);
-                    saveSettings('googleKey', e.target.value);
-                  }}
-                  placeholder="AIxxxx..."
-                  style={{ flex: 1 }}
-                />
-                <button
-                  className="btn btn-secondary"
-                  onClick={() => setShowGoogleKey(!showGoogleKey)}
-                >
-                  {showGoogleKey ? 'Hide' : 'Show'}
-                </button>
-              </div>
-            </div>
-          </div>
-        </div>
-      </section>
-
       {/* Integrations Section */}
       <section style={{ marginBottom: 'var(--spacing-xl)' }}>
         <div style={{
           display: 'flex',
           alignItems: 'center',
-          justifyContent: 'space-between',
+          gap: 'var(--spacing-sm)',
           marginBottom: 'var(--spacing-md)'
         }}>
           <div style={{
@@ -1326,105 +1330,98 @@ function SettingsPanel({ currentTheme, onThemeChange }: SettingsPanelProps) {
           }}>
             Integrations
           </div>
-          <button
-            className="btn btn-secondary"
+          <span
             onClick={() => setShowAddIntegrationModal(true)}
-            style={{ fontSize: 'var(--font-size-sm)' }}
+            style={{
+              fontSize: 'var(--font-size-sm)',
+              color: 'var(--color-text-muted)',
+              cursor: 'pointer',
+              transition: 'color 0.15s ease',
+            }}
+            onMouseEnter={(e) => { e.currentTarget.style.color = 'var(--color-accent)'; }}
+            onMouseLeave={(e) => { e.currentTarget.style.color = 'var(--color-text-muted)'; }}
           >
-            Add Integration
-          </button>
+            +
+          </span>
         </div>
 
-        <div className="card" style={{ marginLeft: 'var(--spacing-md)' }}>
-          <div style={{ padding: 'var(--spacing-md)' }}>
-            {integrationsLoading ? (
-              <div style={{
-                textAlign: 'center',
-                padding: 'var(--spacing-lg)',
-                color: 'var(--color-text-muted)'
-              }}>
-                Loading integrations...
-              </div>
-            ) : connections.length === 0 ? (
-              <div style={{
-                textAlign: 'center',
-                padding: 'var(--spacing-lg)',
-                color: 'var(--color-text-muted)'
-              }}>
-                No integrations connected yet
-              </div>
-            ) : (
-              <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--spacing-sm)' }}>
-                {connections.map(conn => (
-                  <div
-                    key={conn.id}
-                    style={{
+        <div style={{ marginLeft: 'var(--spacing-md)' }}>
+          {integrationsLoading ? (
+            <div style={{
+              padding: 'var(--spacing-sm) 0',
+              color: 'var(--color-text-muted)',
+              fontSize: 'var(--font-size-sm)',
+            }}>
+              Loading integrations...
+            </div>
+          ) : connections.length === 0 ? (
+            <div style={{
+              padding: 'var(--spacing-sm) 0',
+              color: 'var(--color-text-muted)',
+              fontSize: 'var(--font-size-sm)',
+            }}>
+              No integrations connected yet
+            </div>
+          ) : (
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--spacing-sm)' }}>
+              {connections.map(conn => (
+                <div
+                  key={conn.id}
+                  className="integration-row"
+                  style={{
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: 'var(--spacing-sm)',
+                    padding: 'var(--spacing-sm) 0',
+                  }}
+                >
+                  {conn.logo ? (
+                    <img
+                      src={conn.logo}
+                      alt={conn.displayName}
+                      style={{ width: 20, height: 20, objectFit: 'contain', borderRadius: 'var(--radius-sm)' }}
+                    />
+                  ) : (
+                    <div style={{
+                      width: 20,
+                      height: 20,
+                      borderRadius: 'var(--radius-sm)',
+                      background: 'var(--color-accent)',
                       display: 'flex',
                       alignItems: 'center',
-                      justifyContent: 'space-between',
-                      padding: 'var(--spacing-sm) var(--spacing-md)',
-                      background: 'var(--color-surface)',
-                      borderRadius: 'var(--radius-sm)',
-                      border: '1px solid var(--color-border)',
-                    }}
-                  >
-                    <div style={{ display: 'flex', alignItems: 'center', gap: 'var(--spacing-sm)' }}>
-                      {conn.logo ? (
-                        <img
-                          src={conn.logo}
-                          alt={conn.displayName}
-                          style={{ width: 28, height: 28, objectFit: 'contain', borderRadius: 'var(--radius-sm)' }}
-                        />
-                      ) : (
-                        <div style={{
-                          width: 28,
-                          height: 28,
-                          borderRadius: 'var(--radius-sm)',
-                          background: 'var(--color-accent)',
-                          display: 'flex',
-                          alignItems: 'center',
-                          justifyContent: 'center',
-                          fontSize: 'var(--font-size-sm)',
-                          color: 'var(--color-primary)',
-                          fontWeight: 600,
-                        }}>
-                          {conn.displayName.charAt(0).toUpperCase()}
-                        </div>
-                      )}
-                      <div style={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
-                        <span style={{
-                          fontSize: 'var(--font-size-sm)',
-                          fontWeight: 500,
-                        }}>
-                          {conn.displayName}
-                        </span>
-                        <span style={{
-                          fontSize: 'var(--font-size-xs)',
-                          color: 'var(--color-text-muted)'
-                        }}>
-                          Connected
-                        </span>
-                      </div>
+                      justifyContent: 'center',
+                      fontSize: 'var(--font-size-xs)',
+                      color: 'var(--color-primary)',
+                      fontWeight: 600,
+                    }}>
+                      {conn.displayName.charAt(0).toUpperCase()}
                     </div>
-                    <button
-                      className="btn btn-secondary"
-                      onClick={() => handleDisconnect(conn.id)}
-                      disabled={disconnectingId === conn.id}
-                      style={{
-                        fontSize: 'var(--font-size-xs)',
-                        padding: 'var(--spacing-xs) var(--spacing-sm)',
-                        color: 'var(--color-accent)',
-                        borderColor: 'var(--color-accent)',
-                        opacity: disconnectingId === conn.id ? 0.5 : 1
-                      }}
-                    >
-                      {disconnectingId === conn.id ? 'Disconnecting...' : 'Disconnect'}
-                    </button>
-                  </div>
-                ))}
-              </div>
-            )}
-          </div>
+                  )}
+                  <span style={{ fontSize: 'var(--font-size-sm)' }}>{conn.displayName}</span>
+                  <span
+                    className="integration-delete"
+                    onClick={() => handleDisconnect(conn.id)}
+                    style={{
+                      fontSize: 'var(--font-size-sm)',
+                      cursor: 'pointer',
+                      opacity: disconnectingId === conn.id ? 0.5 : 0,
+                      transition: 'opacity 0.15s ease, color 0.15s ease',
+                      color: 'var(--color-text)',
+                    }}
+                    onMouseEnter={(e) => { e.currentTarget.style.color = '#e53935'; }}
+                    onMouseLeave={(e) => { e.currentTarget.style.color = 'var(--color-text)'; }}
+                  >
+                    {disconnectingId === conn.id ? '...' : '×'}
+                  </span>
+                  <style>{`
+                    .integration-row:hover .integration-delete {
+                      opacity: 1 !important;
+                    }
+                  `}</style>
+                </div>
+              ))}
+            </div>
+          )}
         </div>
       </section>
 
@@ -1442,6 +1439,7 @@ function SettingsPanel({ currentTheme, onThemeChange }: SettingsPanelProps) {
             alignItems: 'center',
             justifyContent: 'center',
             zIndex: 1000,
+            cursor: 'pointer',
           }}
           onClick={() => {
             setShowAddIntegrationModal(false);
@@ -1459,38 +1457,12 @@ function SettingsPanel({ currentTheme, onThemeChange }: SettingsPanelProps) {
               display: 'flex',
               flexDirection: 'column',
               overflow: 'hidden',
+              cursor: 'default',
             }}
             onClick={e => e.stopPropagation()}
           >
-            {/* Modal Header */}
-            <div style={{
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'space-between',
-              padding: 'var(--spacing-md)',
-              borderBottom: '1px solid var(--color-border)',
-            }}>
-              <h4 style={{ margin: 0, fontSize: 'var(--font-size-md)' }}>Add Integration</h4>
-              <button
-                onClick={() => {
-                  setShowAddIntegrationModal(false);
-                  setIntegrationSearch('');
-                }}
-                style={{
-                  background: 'none',
-                  border: 'none',
-                  color: 'var(--color-text-muted)',
-                  cursor: 'pointer',
-                  fontSize: 'var(--font-size-lg)',
-                  padding: 'var(--spacing-xs)',
-                }}
-              >
-                x
-              </button>
-            </div>
-
             {/* Search Input */}
-            <div style={{ padding: 'var(--spacing-md)', borderBottom: '1px solid var(--color-border)' }}>
+            <div style={{ padding: 'var(--spacing-md)' }}>
               <input
                 type="text"
                 placeholder="Search integrations..."
@@ -1834,39 +1806,28 @@ function SettingsPanel({ currentTheme, onThemeChange }: SettingsPanelProps) {
           System Prompt
         </div>
 
-        <div className="card" style={{ marginLeft: 'var(--spacing-md)' }}>
-          <div style={{ padding: 'var(--spacing-md)' }}>
-            <div>
-              <label style={{
-                display: 'block',
-                fontSize: 'var(--font-size-sm)',
-                marginBottom: 'var(--spacing-xs)',
-                color: 'var(--color-text-muted)'
-              }}>
-                Agent Prompt
-              </label>
-              <textarea
-                value={agentPrompt}
-                onChange={(e) => {
-                  setAgentPrompt(e.target.value);
-                  saveSettings('agentSystemPrompt', e.target.value);
-                }}
-                placeholder="Enter custom agent system prompt..."
-                style={{
-                  width: '100%',
-                  minHeight: '150px',
-                  padding: 'var(--spacing-sm)',
-                  fontSize: 'var(--font-size-sm)',
-                  fontFamily: 'monospace',
-                  borderRadius: 'var(--radius-sm)',
-                  border: '1px solid var(--color-border)',
-                  backgroundColor: 'var(--color-primary)',
-                  color: 'var(--color-text)',
-                  resize: 'vertical',
-                }}
-              />
-            </div>
-          </div>
+        <div style={{ marginLeft: 'var(--spacing-md)' }}>
+          <textarea
+            value={agentPrompt}
+            onChange={(e) => {
+              setAgentPrompt(e.target.value);
+              saveSettings('agentSystemPrompt', e.target.value);
+            }}
+            placeholder="Enter custom agent system prompt..."
+            style={{
+              width: '100%',
+              height: 300,
+              padding: 'var(--spacing-sm)',
+              fontSize: 'var(--font-size-sm)',
+              fontFamily: 'monospace',
+              borderRadius: 'var(--radius-sm)',
+              border: '1px solid var(--color-border)',
+              backgroundColor: 'var(--color-primary)',
+              color: 'var(--color-text)',
+              resize: 'none',
+              lineHeight: 1.5,
+            }}
+          />
         </div>
       </section>
     </div>
