@@ -10,7 +10,7 @@ html, body, #root {
   height: 100%;
   background: transparent;
   font-family: var(--font-family);
-  overflow: visible;
+  overflow: hidden;
 }
 
 /* When dropdown is open, add top padding to push content down */
@@ -25,7 +25,7 @@ html, body, #root {
   background: rgba(39, 41, 50, 0.7);
   border-radius: var(--radius-lg);
   border: 1px solid var(--color-border);
-  overflow: visible;
+  overflow: hidden;
   -webkit-app-region: drag; /* Entire bar is draggable */
 }
 
