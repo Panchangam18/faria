@@ -1263,8 +1263,10 @@ function SettingsPanel({ currentTheme, onThemeChange }: SettingsPanelProps) {
         <div style={{
           display: 'flex',
           flexDirection: 'column',
-          gap: 'var(--spacing-sm)',
+          gap: '2px',
           marginLeft: 'var(--spacing-md)',
+          borderLeft: '2px solid var(--color-border)',
+          paddingLeft: 'var(--spacing-sm)',
         }}>
           {[
             { key: 'screenshot', name: 'Screenshots', description: 'Capture screen images' },
@@ -1281,7 +1283,7 @@ function SettingsPanel({ currentTheme, onThemeChange }: SettingsPanelProps) {
                 display: 'flex',
                 alignItems: 'center',
                 gap: 'var(--spacing-sm)',
-                padding: 'var(--spacing-sm) 0',
+                padding: '4px 0',
               }}
             >
               <span style={{ fontSize: 'var(--font-size-sm)' }}>{tool.name}:</span>
