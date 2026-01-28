@@ -630,12 +630,13 @@ export class AgentLoop {
 
       // Save to history
       const db = initDatabase();
-      db.prepare('INSERT INTO history (query, response, tools_used, agent_type, actions) VALUES (?, ?, ?, ?, ?)').run(
-        query, 
+      db.prepare('INSERT INTO history (query, response, tools_used, agent_type, actions, context_text) VALUES (?, ?, ?, ?, ?, ?)').run(
+        query,
         finalResponse,
         toolsUsed.length > 0 ? JSON.stringify(toolsUsed) : null,
         'regular',
-        actions.length > 0 ? JSON.stringify(actions) : null
+        actions.length > 0 ? JSON.stringify(actions) : null,
+        selectedText || null
       );
       
       return finalResponse;

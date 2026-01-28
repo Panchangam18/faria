@@ -23,6 +23,15 @@ interface GroupedHistory {
 }
 
 /**
+ * Truncate text with ellipsis
+ */
+function truncate(text: string | undefined | null, maxLength: number): string {
+  if (!text) return '';
+  if (text.length <= maxLength) return text;
+  return text.substring(0, maxLength) + '...';
+}
+
+/**
  * Format an action into human-readable text
  */
 function formatAction(action: ActionData): string {
@@ -30,49 +39,167 @@ function formatAction(action: ActionData): string {
 
   switch (action.tool) {
     case 'web_search':
-      return `Searched web for "${input.query}"`;
+      return `Searched web for "${truncate(input.query as string, 50)}"`;
 
     case 'make_edit':
     case 'suggest_edits': {
       const edits = input.edits as Array<{ oldText?: string; newText?: string }>;
       if (edits && edits.length > 0) {
         const edit = edits[0];
-        const newText = edit.newText || '';
+        const newText = truncate(edit.newText, 60);
         return `Made edit: "${newText}"`;
       }
       return 'Made edit';
     }
 
     case 'insert_image':
-      return `Inserted image: "${input.query}"`;
+      return `Inserted image: "${truncate(input.query as string, 50)}"`;
 
     case 'answer':
-      return `Answered: "${(input.text as string)?.substring(0, 80)}${(input.text as string)?.length > 80 ? '...' : ''}"`;
+      return `Answered: "${truncate(input.text as string, 80)}"`;
+
+    case 'replace_selected_text':
+      return `Replaced text with: "${truncate(input.text as string, 60)}"`;
+
+    case 'execute_python': {
+      const code = input.code as string;
+      if (code) {
+        // Show first line or truncated code
+        const firstLine = code.split('\n')[0];
+        return `Executed Python: ${truncate(firstLine, 50)}`;
+      }
+      return 'Executed Python code';
+    }
 
     case 'computer_actions': {
-      const actions = input.actions as Array<{ type: string; text?: string; key?: string; app?: string }>;
+      const actions = input.actions as Array<{
+        type: string;
+        text?: string;
+        key?: string;
+        app?: string;
+        script?: string;
+        query?: string;
+        x?: number;
+        y?: number;
+        coordinate?: number[];
+      }>;
       if (actions && actions.length > 0) {
-        const summary = actions.map(a => {
-          if (a.type === 'type') return `typed "${a.text?.substring(0, 30)}${(a.text?.length || 0) > 30 ? '...' : ''}"`;
-          if (a.type === 'key') return `pressed ${a.key}`;
-          if (a.type === 'hotkey') return `pressed hotkey`;
-          if (a.type === 'activate') return `activated ${a.app}`;
-          if (a.type === 'click') return 'clicked';
-          return a.type;
-        }).join(', ');
-        return `Performed actions: ${summary}`;
+        const summaries = actions.map(a => {
+          switch (a.type) {
+            case 'type':
+              return `typed "${truncate(a.text, 30)}"`;
+            case 'key':
+              return `pressed ${a.key}`;
+            case 'hotkey':
+              return 'pressed hotkey';
+            case 'activate':
+              return `activated ${a.app}`;
+            case 'click':
+              if (a.coordinate) return `clicked at (${a.coordinate[0]}, ${a.coordinate[1]})`;
+              if (a.x !== undefined && a.y !== undefined) return `clicked at (${a.x}, ${a.y})`;
+              return 'clicked';
+            case 'right_click':
+              return 'right-clicked';
+            case 'double_click':
+              return 'double-clicked';
+            case 'scroll':
+              return 'scrolled';
+            case 'drag':
+              return 'dragged';
+            case 'wait':
+              return 'waited';
+            case 'screenshot':
+              return 'took screenshot';
+            case 'insert_image':
+              return `inserted image "${truncate(a.query, 30)}"`;
+            case 'applescript':
+              return 'ran AppleScript';
+            case 'mouse_move':
+              return 'moved mouse';
+            default:
+              return a.type;
+          }
+        });
+        return summaries.join(' → ');
       }
-      return 'Performed chain of actions';
+      return 'Performed actions';
     }
 
     case 'get_state':
       return 'Retrieved app state';
 
     case 'computer':
-      return `Computer action: ${input.action}`;
+      return `Computer: ${input.action}`;
 
-    default:
-      return `${action.tool}`;
+    // Composio tools
+    case 'COMPOSIO_SEARCH_TOOLS': {
+      const queries = input.queries as Array<{ use_case?: string }>;
+      if (queries && queries.length > 0 && queries[0].use_case) {
+        return `Search tools: "${truncate(queries[0].use_case, 50)}"`;
+      }
+      return 'Search tools';
+    }
+
+    case 'COMPOSIO_MULTI_EXECUTE_TOOL': {
+      const tools = input.tools as Array<{ tool_slug?: string; arguments?: Record<string, unknown> }>;
+      if (tools && tools.length > 0) {
+        const firstTool = tools[0];
+        const toolSlug = firstTool.tool_slug || '';
+        const toolArgs = firstTool.arguments || {};
+
+        // Format tool slug: GOOGLECALENDAR_EVENTS_LIST -> Google Calendar Events List
+        const displayName = toolSlug
+          .split('_')
+          .map(word => word.charAt(0).toUpperCase() + word.slice(1).toLowerCase())
+          .join(' ');
+
+        // Extract key details from arguments
+        const detailParts: string[] = [];
+        if (toolArgs.recipient_email) detailParts.push(`to: ${toolArgs.recipient_email}`);
+        if (toolArgs.subject) detailParts.push(`"${truncate(String(toolArgs.subject), 30)}"`);
+        if (toolArgs.to) detailParts.push(`to: ${toolArgs.to}`);
+        if (toolArgs.message) detailParts.push(`"${truncate(String(toolArgs.message), 30)}"`);
+        if (toolArgs.title) detailParts.push(`"${truncate(String(toolArgs.title), 30)}"`);
+        if (toolArgs.query) detailParts.push(`"${truncate(String(toolArgs.query), 30)}"`);
+        if (toolArgs.calendarId) detailParts.push(`calendar: ${toolArgs.calendarId}`);
+        if (toolArgs.timezone) detailParts.push(`tz: ${toolArgs.timezone}`);
+
+        if (detailParts.length > 0) {
+          return `${displayName} (${detailParts.slice(0, 2).join(', ')})`;
+        }
+        return displayName;
+      }
+      return 'Execute integration';
+    }
+
+    default: {
+      // For unknown tools (including Composio tools), format nicely
+      // Convert SCREAMING_SNAKE_CASE or snake_case to Title Case
+      const toolName = action.tool
+        .replace(/^COMPOSIO_/i, '') // Remove COMPOSIO_ prefix
+        .replace(/_/g, ' ')
+        .toLowerCase()
+        .replace(/\b\w/g, c => c.toUpperCase()); // Title case
+
+      // Try to extract meaningful info from input
+      const inputKeys = Object.keys(input);
+      if (inputKeys.length > 0) {
+        // Look for common meaningful fields
+        const meaningfulFields = ['query', 'text', 'message', 'content', 'name', 'title', 'url', 'path', 'body', 'subject'];
+        for (const field of meaningfulFields) {
+          if (input[field] && typeof input[field] === 'string') {
+            return `${toolName}: "${truncate(input[field] as string, 50)}"`;
+          }
+        }
+        // If no meaningful field found, just show the tool name with first key
+        const firstKey = inputKeys[0];
+        const firstValue = input[firstKey];
+        if (typeof firstValue === 'string' && firstValue.length > 0) {
+          return `${toolName}: ${truncate(firstValue, 40)}`;
+        }
+      }
+      return toolName;
+    }
   }
 }
 
@@ -264,41 +391,67 @@ function HistoryPanel() {
                     >
                       {/* Selected text (if any) */}
                       {contextText && (
-                        <div style={{
+                        <span style={{
                           fontSize: 'var(--font-size-xs)',
-                          fontStyle: 'italic',
                           color: 'var(--color-text-muted)',
-                          marginBottom: 'var(--spacing-md)',
-                          wordBreak: 'break-word',
-                          whiteSpace: 'pre-wrap'
+                          marginBottom: 'var(--spacing-sm)',
+                          padding: '2px 6px',
+                          background: 'var(--color-surface)',
+                          borderRadius: '4px',
+                          border: '1px solid var(--color-border)',
+                          display: 'inline-block',
+                          fontStyle: 'italic',
+                          maxWidth: '100%',
+                          wordBreak: 'break-word'
                         }}>
-                          {contextText}
-                        </div>
+                          {truncate(contextText, 100)}
+                        </span>
                       )}
 
                       {/* Agent trace - human readable actions */}
                       {item.actions && item.actions.length > 0 && (
                         <div style={{
-                          marginTop: 'var(--spacing-sm)'
+                          marginTop: 'var(--spacing-sm)',
+                          borderLeft: '2px solid var(--color-border)',
+                          paddingLeft: 'var(--spacing-sm)',
+                          marginLeft: '2px'
                         }}>
                           {item.actions.map((action, idx) => (
                             <div key={idx} style={{
                               fontSize: 'var(--font-size-xs)',
-                              color: 'var(--color-accent)',
-                              marginBottom: 'var(--spacing-xs)'
+                              marginBottom: 'var(--spacing-xs)',
+                              display: 'flex',
+                              alignItems: 'flex-start',
+                              gap: 'var(--spacing-xs)'
                             }}>
-                              {formatAction(action)}
+                              <span style={{
+                                color: 'var(--color-text-muted)',
+                                fontFamily: 'monospace',
+                                minWidth: '18px',
+                                flexShrink: 0
+                              }}>
+                                {idx + 1}.
+                              </span>
+                              <span style={{
+                                color: 'var(--color-accent)',
+                                wordBreak: 'break-word'
+                              }}>
+                                {formatAction(action)}
+                              </span>
                             </div>
                           ))}
                         </div>
                       )}
 
-                      {/* Response (if no actions, or as final result) */}
-                      {(!item.actions || item.actions.length === 0) && item.response && (
+                      {/* Final response */}
+                      {item.response && (
                         <div style={{
                           marginTop: 'var(--spacing-sm)',
                           color: 'var(--color-accent)',
-                          fontSize: 'var(--font-size-xs)'
+                          fontSize: 'var(--font-size-xs)',
+                          lineHeight: 1.5,
+                          wordBreak: 'break-word',
+                          whiteSpace: 'pre-wrap'
                         }}>
                           {item.response}
                         </div>
