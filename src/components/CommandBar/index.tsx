@@ -50,10 +50,10 @@ function formatToolkitName(slug: string): string {
 
 // Line height is 14px (font-size-sm) * 1.5 = 21px
 const LINE_HEIGHT = 21;
-const MAX_LINES = 5;
-const MAX_TEXTAREA_HEIGHT = LINE_HEIGHT * MAX_LINES; // 115px for 5 lines
-const BASE_HEIGHT = 46; // Footer + padding (8px top input + 2px bottom input + 4px top footer + 8px bottom footer + ~24px footer content)
-const MAX_RESPONSE_HEIGHT = 200; // Max height before scrolling kicks in
+const MAX_LINES = 3;
+const MAX_TEXTAREA_HEIGHT = LINE_HEIGHT * MAX_LINES; // 63px for 3 lines
+const BASE_HEIGHT = 38; // Single line input + minimal padding
+const MAX_AGENT_AREA_HEIGHT = 63; // 3 lines for agent/status area
 
 // Placeholder texts
 const PLACEHOLDER_TEXTS = [
@@ -142,11 +142,15 @@ function CommandBar() {
   const [backgroundColor, setBackgroundColor] = useState('#272932'); // Track background color for opacity
   const [isVisible, setIsVisible] = useState(false); // Controls content visibility to prevent flash of old content
   const inputRef = useRef<HTMLTextAreaElement>(null);
+  const agentAreaRef = useRef<HTMLDivElement>(null);
   const responseRef = useRef<HTMLDivElement>(null);
   const toolApprovalRef = useRef<HTMLDivElement>(null);
 
-  // Resize window based on textarea content - debounced to avoid blocking rapid toggles
-  const lastResizeRef = useRef<number>(0);
+  // Resize window based on textarea content - split into two effects to prevent unnecessary re-measurement
+  const lastResizeRef = useRef<{ total: number; agentAreaHeight: number }>({ total: 0, agentAreaHeight: 0 });
+  const textareaHeightRef = useRef(LINE_HEIGHT);
+
+  // Effect 1: Measure textarea height only when query changes (user typing)
   useLayoutEffect(() => {
     const textarea = inputRef.current;
     if (!textarea) return;
@@ -170,31 +174,31 @@ function CommandBar() {
       textarea.classList.remove('scrollable');
     }
 
-    // Calculate response height (actual content height, capped at max)
-    let responseHeight = 0;
-    if ((response || streamingResponse) && responseRef.current) {
-      // Temporarily remove max-height to measure true content height
-      const el = responseRef.current;
-      const originalMaxHeight = el.style.maxHeight;
-      el.style.maxHeight = 'none';
-      const actualHeight = el.scrollHeight;
-      el.style.maxHeight = originalMaxHeight;
-      responseHeight = Math.min(actualHeight, MAX_RESPONSE_HEIGHT) + 16; // +16 for margin
+    // Store the current textarea height for the agent area effect
+    textareaHeightRef.current = contentHeight;
+  }, [query]);
+
+  // Effect 2: Measure agent area and calculate total window height
+  // This runs when agent state changes but does NOT re-measure the textarea
+  useLayoutEffect(() => {
+    // Calculate agent area height (includes response, status, tool approval, auth)
+    let agentAreaHeight = 0;
+    if (agentAreaRef.current) {
+      agentAreaHeight = Math.min(agentAreaRef.current.scrollHeight, MAX_AGENT_AREA_HEIGHT);
     }
 
-    // Calculate tool approval height
-    let toolApprovalHeight = 0;
-    if (pendingToolApproval && toolApprovalRef.current) {
-      toolApprovalHeight = toolApprovalRef.current.scrollHeight;
+    // Calculate and set window height - use stored textarea height to avoid re-measurement
+    const totalHeight = BASE_HEIGHT + textareaHeightRef.current + agentAreaHeight;
+    const lastResize = lastResizeRef.current;
+    if (totalHeight !== lastResize.total || agentAreaHeight !== lastResize.agentAreaHeight) {
+      lastResizeRef.current = { total: totalHeight, agentAreaHeight };
+      // Use requestAnimationFrame to ensure layout is stable before resize
+      // This prevents flash/jerk when agent area first appears
+      requestAnimationFrame(() => {
+        window.faria.commandBar.resize({ total: totalHeight, agentAreaHeight });
+      });
     }
-
-    // Calculate and set window height - debounce to avoid IPC spam during rapid toggle
-    const totalHeight = BASE_HEIGHT + contentHeight + responseHeight + toolApprovalHeight;
-    if (totalHeight !== lastResizeRef.current) {
-      lastResizeRef.current = totalHeight;
-      window.faria.commandBar.resize(totalHeight);
-    }
-  }, [query, response, streamingResponse, pendingToolApproval, toolApprovalExpanded]);
+  }, [response, streamingResponse, status, pendingToolApproval, pendingAuth, toolApprovalExpanded]);
 
   // Load theme on mount
   useEffect(() => {
@@ -451,16 +455,6 @@ function CommandBar() {
     window.faria.agent.toolApprovalResponse(true);
   }, [pendingToolApproval]);
 
-  const handleToolDeny = useCallback(async () => {
-    if (!pendingToolApproval) return;
-    setPendingToolApproval(null);
-    setToolApprovalExpanded(false);
-    // Cancel the agent entirely (deny acts as stop)
-    await window.faria.agent.cancel('tool-deny-button-clicked');
-    setIsProcessing(false);
-    setStatus('');
-  }, [pendingToolApproval]);
-
   const handleKeyDown = useCallback((e: React.KeyboardEvent) => {
     // Tool approval shortcuts handled by global listener
     if (pendingToolApproval) return;
@@ -494,27 +488,9 @@ function CommandBar() {
 
   return (
     <div className="command-bar" style={{ background: getBackgroundWithOpacity(), visibility: isVisible ? 'visible' : 'hidden' }} onClick={handleCommandBarClick}>
-      <div className="command-bar-input-area">
-        <textarea
-          ref={inputRef}
-          className="command-bar-input"
-          placeholder={placeholder}
-          value={query}
-          onChange={handleInputChange}
-          onKeyDown={handleKeyDown}
-          disabled={isProcessing}
-          rows={1}
-        />
-      </div>
-
-      {(response || streamingResponse || errorMessage) && (
-        <div className="command-bar-response" ref={responseRef} style={errorMessage ? { color: 'var(--color-error, #ff4444)' } : undefined}>
-          {errorMessage || response || streamingResponse}
-        </div>
-      )}
-
-      <div className="command-bar-footer">
-        <div className="footer-left">
+      {/* Agent area - at top, shows response OR status OR tool approval */}
+      {(response || streamingResponse || errorMessage || status || pendingToolApproval || pendingAuth) && (
+        <div className="command-bar-agent-area" ref={agentAreaRef}>
           {pendingToolApproval ? (
             <div className="command-bar-tool-approval" ref={toolApprovalRef}>
               <div className="tool-approval-header">
@@ -547,14 +523,8 @@ function CommandBar() {
                   </span>
                 )}
                 <div className="tool-approval-buttons">
-                  {selectedTextLength > 0 && (
-                    <span className="selection-indicator" title="Selected text">{selectedTextLength} chars</span>
-                  )}
                   <button className="auth-inline-button auth-inline-connect" onClick={handleToolApprove}>
                     <span className="button-shortcut">↵</span> Allow
-                  </button>
-                  <button className="auth-inline-button auth-inline-done" onClick={handleToolDeny}>
-                    <span className="button-shortcut">⌃C</span> Deny
                   </button>
                 </div>
               </div>
@@ -585,34 +555,47 @@ function CommandBar() {
               <div className="status-spinner" />
               <span>{status}</span>
             </div>
-          ) : null}
+          ) : (
+            <div className="command-bar-response" ref={responseRef} style={errorMessage ? { color: 'var(--color-error, #ff4444)' } : undefined}>
+              {errorMessage || response || streamingResponse}
+            </div>
+          )}
         </div>
-        <div className="footer-right">
-          {/* Selection indicator - shows character count when text is selected (hide when tool approval showing) */}
-          {selectedTextLength > 0 && !pendingToolApproval && (
+      )}
+
+      {/* Input row - at bottom, contains textarea + send inline */}
+      <div className="command-bar-input-row">
+        <textarea
+          ref={inputRef}
+          className="command-bar-input"
+          placeholder={placeholder}
+          value={query}
+          onChange={handleInputChange}
+          onKeyDown={handleKeyDown}
+          disabled={isProcessing}
+          rows={1}
+        />
+        <div className="input-actions">
+          {selectedTextLength > 0 && (
             <span className="selection-indicator" title="Selected text">{selectedTextLength} chars</span>
           )}
-
-          {/* Hide stop/send buttons when tool approval is showing (it has its own stop button) */}
-          {!pendingToolApproval && (
-            isProcessing ? (
-              <button
-                className="stop-button"
-                onClick={handleStop}
-                title="Stop"
-              >
-                <IoStopCircleSharp />
-              </button>
-            ) : (
-              <button
-                className="send-button"
-                onClick={handleSubmit}
-                disabled={!query.trim()}
-                title="Send message"
-              >
-                <IoMdSend />
-              </button>
-            )
+          {isProcessing ? (
+            <button
+              className="stop-button"
+              onClick={handleStop}
+              title="Stop"
+            >
+              <IoStopCircleSharp />
+            </button>
+          ) : (
+            <button
+              className="send-button"
+              onClick={handleSubmit}
+              disabled={!query.trim()}
+              title="Send message"
+            >
+              <IoMdSend />
+            </button>
           )}
         </div>
       </div>

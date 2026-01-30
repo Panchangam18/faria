@@ -49,16 +49,56 @@ html, body, #root {
   background: rgba(15, 32, 39, 0.7);
 }
 
-/* Input Area */
-.command-bar-input-area {
-  flex: 0 0 auto; /* Don't grow or shrink - size determined by content */
+/* Agent Area - at top, shows response/status/tool approval */
+.command-bar-agent-area {
+  flex: 0 0 auto;
+  max-height: 63px; /* 3 lines */
+  overflow-y: auto;
+  padding: var(--spacing-sm) var(--spacing-md);
+  font-size: var(--font-size-xs);
+  line-height: 1.6;
+  color: var(--color-accent);
+  /* No -webkit-app-region here - inherits drag from parent, children override */
+}
+
+.command-bar-agent-area::-webkit-scrollbar {
+  width: 4px;
+}
+
+.command-bar-agent-area::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.command-bar-agent-area::-webkit-scrollbar-thumb {
+  background: var(--color-border);
+  border-radius: 2px;
+}
+
+/* Interactive children inside agent area need no-drag for scrolling/selection */
+.command-bar-status,
+.command-bar-response,
+.command-bar-tool-approval,
+.command-bar-auth-inline {
+  -webkit-app-region: no-drag;
+}
+
+.command-bar-response:empty {
+  display: none;
+}
+
+/* Input Row - at bottom, contains textarea + absolutely positioned send button */
+.command-bar-input-row {
+  flex: 0 0 auto;
+  position: relative; /* For absolute button positioning */
   display: flex;
-  flex-direction: column;
-  padding: var(--spacing-sm) 0 2px var(--spacing-md); /* Reduced top padding */
+  align-items: flex-start;
+  padding: var(--spacing-sm) 0 var(--spacing-sm) var(--spacing-md); /* No right padding - scrollbar at edge */
+  -webkit-app-region: no-drag;
 }
 
 .command-bar-input {
-  /* No flex - height controlled purely by JavaScript */
+  flex: 1 1 0;
+  min-width: 0; /* Allow shrinking */
   background: transparent;
   border: none;
   color: var(--color-text);
@@ -66,15 +106,15 @@ html, body, #root {
   font-size: var(--font-size-sm);
   resize: none;
   line-height: 1.5;
-  overflow: hidden; /* Hide scrollbar by default */
+  overflow: hidden;
   min-height: 21px; /* At least one line (14px font * 1.5 line-height) */
-  padding: 0 20px 0 0; /* 20px right padding - scrollbar will take 4px of this */
-  -webkit-app-region: no-drag; /* Allow text selection, not dragging */
+  padding: 0 36px 0 0; /* Right padding for button space */
+  -webkit-app-region: no-drag;
 }
 
 .command-bar-input.scrollable {
   overflow-y: auto;
-  padding-right: 16px; /* Reduce to 16px when scrollbar visible (4px scrollbar + 16px = 20px total) */
+  padding-right: 32px; /* Slightly less when scrollbar visible (4px scrollbar) */
 }
 
 .command-bar-input:focus {
@@ -103,20 +143,14 @@ html, body, #root {
   background: var(--color-text-muted);
 }
 
-/* Response Area */
-.command-bar-response {
-  padding: 0 var(--spacing-md);
-  margin-bottom: var(--spacing-md);
-  max-height: 200px;
-  overflow-y: auto;
-  font-size: var(--font-size-xs);
-  line-height: 1.6;
-  color: var(--color-accent);
-  -webkit-app-region: no-drag; /* Allow scrolling, not dragging */
-}
-
-.command-bar-response:empty {
-  display: none;
+/* Input Actions - send/stop button absolutely positioned in bottom-right */
+.input-actions {
+  position: absolute;
+  bottom: var(--spacing-sm);
+  right: 8px; /* Small margin from edge */
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-sm);
 }
 
 /* Status Text */
@@ -542,25 +576,10 @@ html, body, #root {
   margin-left: 2px;
   padding-left: 10px;
   border-left: 2px solid var(--color-border);
-  overflow-y: auto;
   overflow-x: hidden;
   margin-right: auto;
   max-width: calc(100% - 120px);
-  max-height: 150px;
   -webkit-app-region: no-drag;
-}
-
-.tool-approval-details::-webkit-scrollbar {
-  width: 4px;
-}
-
-.tool-approval-details::-webkit-scrollbar-track {
-  background: transparent;
-}
-
-.tool-approval-details::-webkit-scrollbar-thumb {
-  background: var(--color-border);
-  border-radius: 2px;
 }
 
 .tool-approval-detail {

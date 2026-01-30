@@ -871,32 +871,47 @@ function setupIPC() {
     }
   });
 
-  // Track dropdown state for resize coordination
+  // Track dropdown state and agent area height for resize coordination
   let isDropdownOpen = false;
   let baseContentHeight = DEFAULT_COMMAND_BAR_HEIGHT;
+  let lastAgentAreaHeight = 0;
   const DROPDOWN_EXTRA_HEIGHT = 80;
 
-  ipcMain.on('command-bar:resize', (_event, height: number) => {
+  ipcMain.on('command-bar:resize', (_event, data: { total: number; agentAreaHeight: number }) => {
     if (commandBarWindow) {
       const [width] = commandBarWindow.getSize();
-      // Min: ~60 (single line with minimal padding), Max: ~350 (5 lines + response area)
-      const clampedHeight = Math.min(Math.max(height, 60), 350);
+      const [x, y] = commandBarWindow.getPosition();
+
+      // Min: ~38 (single line with minimal padding), Max: ~200
+      const clampedHeight = Math.min(Math.max(data.total, 38), 200);
       baseContentHeight = clampedHeight;
-      
+
+      // Calculate agent area delta for upward expansion
+      const agentDelta = data.agentAreaHeight - lastAgentAreaHeight;
+      lastAgentAreaHeight = data.agentAreaHeight;
+
       if (isDropdownOpen) {
         // When dropdown is open, add extra height and keep window expanded upward
-        const [x, y] = commandBarWindow.getPosition();
         const currentHeight = commandBarWindow.getSize()[1];
         const newTotalHeight = clampedHeight + DROPDOWN_EXTRA_HEIGHT;
         const heightDiff = newTotalHeight - currentHeight;
-        
+
         commandBarWindow.setBounds({
           x,
           y: y - heightDiff,
           width,
           height: newTotalHeight
         });
+      } else if (agentDelta !== 0) {
+        // Agent area changed - expand/contract upward (bottom stays fixed)
+        commandBarWindow.setBounds({
+          x,
+          y: y - agentDelta,
+          width,
+          height: clampedHeight
+        });
       } else {
+        // Normal resize (input area changed) - expand downward
         commandBarWindow.setSize(width, clampedHeight);
       }
     }
