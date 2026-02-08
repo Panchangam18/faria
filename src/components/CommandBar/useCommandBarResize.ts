@@ -39,10 +39,17 @@ export function useCommandBarResize(
   // Measure agent area and calculate total window height
   useLayoutEffect(() => {
     let agentAreaHeight = 0;
-    if (agentAreaRef.current) {
-      // Force max-height constraint before measuring to prevent overflow flash
-      agentAreaRef.current.style.maxHeight = `${MAX_AGENT_AREA_HEIGHT}px`;
-      agentAreaHeight = Math.min(agentAreaRef.current.scrollHeight, MAX_AGENT_AREA_HEIGHT);
+    const el = agentAreaRef.current;
+    if (el) {
+      const hasContent = el.classList.contains('has-content');
+      if (hasContent) {
+        // Force max-height constraint before measuring to prevent overflow flash
+        el.style.maxHeight = `${MAX_AGENT_AREA_HEIGHT}px`;
+        agentAreaHeight = Math.min(el.scrollHeight, MAX_AGENT_AREA_HEIGHT);
+      } else {
+        // Empty — clear any inline max-height so CSS collapse rules apply
+        el.style.maxHeight = '';
+      }
     }
 
     const totalHeight = BASE_HEIGHT + textareaHeightRef.current + agentAreaHeight;

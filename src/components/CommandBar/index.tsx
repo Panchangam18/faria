@@ -93,8 +93,8 @@ function CommandBar() {
     }).catch(() => {});
   }, []);
 
-  const hasAgentContent = agent.response || agent.streamingResponse || agent.errorMessage
-    || agent.status || agent.pendingToolApproval || agent.pendingAuth;
+  const hasAgentContent = !!(agent.response || agent.streamingResponse || agent.errorMessage
+    || agent.status || agent.pendingToolApproval || agent.pendingAuth);
 
   return (
     <div
@@ -102,34 +102,35 @@ function CommandBar() {
       style={{ background: backgroundStyle, visibility: isVisible ? 'visible' : 'hidden' }}
       onClick={handleCommandBarClick}
     >
-      {hasAgentContent && (
-        <div className="command-bar-agent-area" ref={agentAreaRef}>
-          {agent.pendingToolApproval ? (
-            <ToolApprovalView
-              approval={agent.pendingToolApproval}
-              expanded={agent.toolApprovalExpanded}
-              onToggleExpanded={() => dispatch({ type: 'TOGGLE_TOOL_EXPANDED' })}
-              onApprove={handleToolApprove}
-              toolApprovalRef={toolApprovalRef}
-            />
-          ) : agent.pendingAuth ? (
-            <AuthView
-              pendingAuth={agent.pendingAuth}
-              onOpenUrl={handleOpenAuthUrl}
-              onComplete={handleAuthComplete}
-            />
-          ) : agent.status ? (
-            <StatusView status={agent.status} />
-          ) : (
-            <ResponseView
-              errorMessage={agent.errorMessage}
-              response={agent.response}
-              streamingResponse={agent.streamingResponse}
-              responseRef={responseRef}
-            />
-          )}
-        </div>
-      )}
+      <div
+        className={`command-bar-agent-area ${hasAgentContent ? 'has-content' : ''}`}
+        ref={agentAreaRef}
+      >
+        {agent.pendingToolApproval ? (
+          <ToolApprovalView
+            approval={agent.pendingToolApproval}
+            expanded={agent.toolApprovalExpanded}
+            onToggleExpanded={() => dispatch({ type: 'TOGGLE_TOOL_EXPANDED' })}
+            onApprove={handleToolApprove}
+            toolApprovalRef={toolApprovalRef}
+          />
+        ) : agent.pendingAuth ? (
+          <AuthView
+            pendingAuth={agent.pendingAuth}
+            onOpenUrl={handleOpenAuthUrl}
+            onComplete={handleAuthComplete}
+          />
+        ) : agent.status ? (
+          <StatusView status={agent.status} />
+        ) : hasAgentContent ? (
+          <ResponseView
+            errorMessage={agent.errorMessage}
+            response={agent.response}
+            streamingResponse={agent.streamingResponse}
+            responseRef={responseRef}
+          />
+        ) : null}
+      </div>
 
       <div className="command-bar-input-row">
         <textarea
