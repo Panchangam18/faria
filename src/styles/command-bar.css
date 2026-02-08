@@ -13,11 +13,6 @@ html, body, #root {
   overflow: hidden;
 }
 
-/* When dropdown is open, add top padding to push content down */
-.dropdown-open {
-  padding-top: 80px;
-}
-
 .command-bar {
   height: 100%;
   display: flex;
@@ -29,26 +24,6 @@ html, body, #root {
   -webkit-app-region: drag; /* Entire bar is draggable */
 }
 
-[data-theme="midnight"] .command-bar {
-  background: rgba(13, 17, 23, 0.7);
-}
-
-[data-theme="forest"] .command-bar {
-  background: rgba(26, 47, 26, 0.7);
-}
-
-[data-theme="aurora"] .command-bar {
-  background: rgba(26, 26, 46, 0.7);
-}
-
-[data-theme="obsidian"] .command-bar {
-  background: rgba(30, 30, 30, 0.7);
-}
-
-[data-theme="ocean"] .command-bar {
-  background: rgba(15, 32, 39, 0.7);
-}
-
 /* Agent Area - at top, shows response/status/tool approval */
 .command-bar-agent-area {
   flex: 0 0 auto;
@@ -58,7 +33,6 @@ html, body, #root {
   font-size: var(--font-size-xs);
   line-height: 1.6;
   color: var(--color-accent);
-  /* No -webkit-app-region here - inherits drag from parent, children override */
 }
 
 .command-bar-agent-area::-webkit-scrollbar {
@@ -89,16 +63,16 @@ html, body, #root {
 /* Input Row - at bottom, contains textarea + absolutely positioned send button */
 .command-bar-input-row {
   flex: 0 0 auto;
-  position: relative; /* For absolute button positioning */
+  position: relative;
   display: flex;
   align-items: flex-start;
-  padding: var(--spacing-sm) 0 var(--spacing-sm) var(--spacing-md); /* No right padding - scrollbar at edge */
+  padding: var(--spacing-sm) 0 var(--spacing-sm) var(--spacing-md);
   -webkit-app-region: no-drag;
 }
 
 .command-bar-input {
   flex: 1 1 0;
-  min-width: 0; /* Allow shrinking */
+  min-width: 0;
   background: transparent;
   border: none;
   color: var(--color-text);
@@ -107,14 +81,14 @@ html, body, #root {
   resize: none;
   line-height: 1.5;
   overflow: hidden;
-  min-height: 21px; /* At least one line (14px font * 1.5 line-height) */
+  min-height: 21px; /* One line: 14px font * 1.5 line-height */
   padding: 0 36px 0 0; /* Right padding for button space */
   -webkit-app-region: no-drag;
 }
 
 .command-bar-input.scrollable {
   overflow-y: auto;
-  padding-right: 32px; /* Slightly less when scrollbar visible (4px scrollbar) */
+  padding-right: 32px; /* Slightly less when scrollbar visible */
 }
 
 .command-bar-input:focus {
@@ -125,7 +99,6 @@ html, body, #root {
   color: var(--color-text-muted);
 }
 
-/* Scrollbar styling */
 .command-bar-input::-webkit-scrollbar {
   width: 4px;
 }
@@ -147,7 +120,7 @@ html, body, #root {
 .input-actions {
   position: absolute;
   bottom: var(--spacing-sm);
-  right: 8px; /* Small margin from edge */
+  right: 8px;
   display: flex;
   align-items: center;
   gap: var(--spacing-sm);
@@ -177,190 +150,6 @@ html, body, #root {
   }
 }
 
-/* Footer */
-.command-bar-footer {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  padding: var(--spacing-xs) var(--spacing-md) var(--spacing-sm) var(--spacing-md); /* Reduced top padding, kept bottom */
-}
-
-.footer-left {
-  flex: 1;
-}
-
-.footer-right {
-  display: flex;
-  align-items: center;
-  gap: var(--spacing-sm);
-}
-
-/* Model Selector */
-.model-selector {
-  position: relative;
-}
-
-.model-selector-trigger {
-  display: flex;
-  align-items: center;
-  gap: var(--spacing-xs);
-  padding: var(--spacing-xs) var(--spacing-sm);
-  background: transparent;
-  border: none;
-  color: var(--color-text-muted);
-  font-size: var(--font-size-xs);
-  cursor: pointer;
-  transition: all var(--transition-fast);
-  -webkit-app-region: no-drag; /* Allow clicking, not dragging */
-}
-
-.model-selector-trigger:hover {
-  color: var(--color-text);
-}
-
-
-.model-option {
-  padding: var(--spacing-sm) var(--spacing-md);
-  cursor: pointer;
-  font-size: var(--font-size-sm);
-  transition: background var(--transition-fast);
-}
-
-.model-option:hover {
-  background: var(--color-hover);
-}
-
-.model-option.active {
-  background: var(--color-accent);
-  color: var(--color-primary);
-}
-
-/* Mode Selector */
-.mode-shortcut-hint {
-  font-size: var(--font-size-xs);
-  color: inherit;
-  font-family: system-ui, -apple-system, sans-serif;
-  margin-right: 0;
-  transition: color var(--transition-fast);
-}
-
-.mode-selector {
-  position: relative;
-  margin-left: -4px;
-}
-
-.mode-selector-trigger {
-  display: flex;
-  align-items: center;
-  gap: var(--spacing-xs);
-  padding: var(--spacing-xs) var(--spacing-sm) var(--spacing-xs) 0;
-  background: transparent;
-  border: none;
-  color: var(--color-accent);
-  font-size: var(--font-size-xs);
-  cursor: pointer;
-  transition: all var(--transition-fast);
-  -webkit-app-region: no-drag;
-}
-
-.mode-selector-trigger:hover:not(:disabled) {
-  color: var(--color-accent-hover);
-}
-
-.mode-selector-trigger:disabled {
-  opacity: 0.5;
-  cursor: not-allowed;
-}
-
-/* Mode indicator dot */
-.mode-indicator {
-  width: 8px;
-  height: 8px;
-  border-radius: 50%;
-  transition: background var(--transition-fast);
-}
-
-.mode-indicator.agent {
-  background: var(--color-accent);
-}
-
-.mode-indicator.inline {
-  background: #58A6FF; /* Blue for inline edit */
-}
-
-[data-theme="midnight"] .mode-indicator.inline {
-  background: #58A6FF;
-}
-
-[data-theme="forest"] .mode-indicator.inline {
-  background: #7CB342;
-}
-
-.mode-selector-menu {
-  position: absolute;
-  bottom: 100%;
-  right: 0;
-  margin-bottom: var(--spacing-xs);
-  background: rgba(39, 41, 50, 0.98);
-  border: 1px solid var(--color-border);
-  border-radius: var(--radius-md);
-  box-shadow: var(--shadow-lg);
-  min-width: 180px;
-  z-index: 100;
-  overflow: hidden;
-  -webkit-app-region: no-drag;
-}
-
-[data-theme="midnight"] .mode-selector-menu {
-  background: rgba(13, 17, 23, 0.92);
-}
-
-[data-theme="forest"] .mode-selector-menu {
-  background: rgba(26, 47, 26, 0.92);
-}
-
-[data-theme="aurora"] .mode-selector-menu {
-  background: rgba(26, 26, 46, 0.92);
-}
-
-[data-theme="obsidian"] .mode-selector-menu {
-  background: rgba(30, 30, 30, 0.92);
-}
-
-[data-theme="ocean"] .mode-selector-menu {
-  background: rgba(15, 32, 39, 0.92);
-}
-
-.mode-option {
-  display: flex;
-  align-items: center;
-  gap: var(--spacing-sm);
-  padding: var(--spacing-sm) var(--spacing-md);
-  cursor: pointer;
-  font-size: var(--font-size-sm);
-  color: var(--color-text);
-  transition: background var(--transition-fast);
-}
-
-.mode-option:hover {
-  background: var(--color-hover);
-}
-
-.mode-option.active {
-  background: rgba(255, 255, 255, 0.1);
-}
-
-.mode-option .mode-name {
-  flex: 1;
-  color: var(--color-accent);
-}
-
-.mode-option .mode-shortcut {
-  font-size: var(--font-size-xs);
-  color: var(--color-accent);
-  font-family: system-ui, -apple-system, sans-serif;
-}
-
 /* Send Button */
 .send-button {
   display: flex;
@@ -371,7 +160,7 @@ html, body, #root {
   color: var(--color-accent);
   cursor: pointer;
   transition: all var(--transition-fast);
-  -webkit-app-region: no-drag; /* Allow clicking, not dragging */
+  -webkit-app-region: no-drag;
   font-size: 18px;
   padding: var(--spacing-xs);
 }
@@ -418,7 +207,6 @@ html, body, #root {
 .chevron {
   width: 10px;
   height: 10px;
-  transition: transform var(--transition-fast);
 }
 
 .chevron.open {
@@ -534,7 +322,6 @@ html, body, #root {
   width: 12px;
   height: 12px;
   flex-shrink: 0;
-  transition: transform var(--transition-fast);
 }
 
 .tool-approval-toggle .chevron.open {
@@ -576,10 +363,18 @@ html, body, #root {
   margin-left: 2px;
   padding-left: 10px;
   border-left: 2px solid var(--color-border);
-  overflow-x: hidden;
+  overflow: hidden;
   margin-right: auto;
   max-width: calc(100% - 120px);
   -webkit-app-region: no-drag;
+  max-height: 0;
+  opacity: 0;
+  transition: max-height 200ms ease, opacity 150ms ease;
+}
+
+.tool-approval-details.expanded {
+  max-height: 200px;
+  opacity: 1;
 }
 
 .tool-approval-detail {
