@@ -7,9 +7,19 @@ export function useCommandBarResize(
   agentAreaRef: MutableRefObject<HTMLDivElement | null>,
   query: string,
   agent: AgentState,
+  isVisible: boolean,
 ) {
   const lastResizeRef = useRef<{ total: number; agentAreaHeight: number }>({ total: 0, agentAreaHeight: 0 });
   const textareaHeightRef = useRef(LINE_HEIGHT);
+  const rafRef = useRef(0);
+
+  // Reset cached resize dimensions when command bar hides so the next
+  // open always sends a fresh resize IPC to the main process
+  useLayoutEffect(() => {
+    if (!isVisible) {
+      lastResizeRef.current = { total: 0, agentAreaHeight: 0 };
+    }
+  }, [isVisible]);
 
   // Measure textarea height when query changes (user typing)
   useLayoutEffect(() => {
@@ -36,28 +46,44 @@ export function useCommandBarResize(
     textareaHeightRef.current = contentHeight;
   }, [query]);
 
-  // Measure agent area and calculate total window height
+  // Measure agent area and calculate total window height.
+  // Content is kept invisible until the window has resized to prevent flash.
   useLayoutEffect(() => {
-    let agentAreaHeight = 0;
     const el = agentAreaRef.current;
-    if (el) {
-      const hasContent = el.classList.contains('has-content');
-      if (hasContent) {
-        // Force max-height constraint before measuring to prevent overflow flash
-        el.style.maxHeight = `${MAX_AGENT_AREA_HEIGHT}px`;
-        agentAreaHeight = Math.min(el.scrollHeight, MAX_AGENT_AREA_HEIGHT);
-      } else {
-        // Empty — clear any inline max-height so CSS collapse rules apply
-        el.style.maxHeight = '';
-      }
+    if (!el) return;
+
+    cancelAnimationFrame(rafRef.current);
+
+    const hasContent = el.classList.contains('has-content');
+    let agentAreaHeight = 0;
+
+    if (hasContent) {
+      // Hide content immediately so it doesn't flash in the un-resized window
+      el.style.opacity = '0';
+      // Force max-height constraint before measuring to prevent overflow
+      el.style.maxHeight = `${MAX_AGENT_AREA_HEIGHT}px`;
+      agentAreaHeight = Math.min(el.scrollHeight, MAX_AGENT_AREA_HEIGHT);
+    } else {
+      el.style.maxHeight = '';
+      el.style.opacity = '';
     }
 
     const totalHeight = BASE_HEIGHT + textareaHeightRef.current + agentAreaHeight;
     const last = lastResizeRef.current;
     if (totalHeight !== last.total || agentAreaHeight !== last.agentAreaHeight) {
       lastResizeRef.current = { total: totalHeight, agentAreaHeight };
-      // Call resize synchronously — no RAF delay to prevent one-frame flash
+      // Send resize IPC — main process will setBounds on next tick
       window.faria.commandBar.resize({ total: totalHeight, agentAreaHeight });
+    }
+
+    if (hasContent) {
+      // Reveal content after two frames — gives the main process time to
+      // process the resize IPC and call setBounds before we show anything
+      rafRef.current = requestAnimationFrame(() => {
+        rafRef.current = requestAnimationFrame(() => {
+          if (el) el.style.opacity = '';
+        });
+      });
     }
   }, [agent.response, agent.streamingResponse, agent.status, agent.pendingToolApproval, agent.pendingAuth, agent.toolApprovalExpanded]);
 }

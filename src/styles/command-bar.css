@@ -24,8 +24,9 @@ html, body, #root {
   -webkit-app-region: drag; /* Entire bar is draggable */
 }
 
-/* Agent Area - always rendered, collapsed when empty, fades in with content.
-   This avoids the flash from conditional mount (React paints before Electron resizes). */
+/* Agent Area - always rendered, collapsed when empty.
+   Visibility on open/close is controlled by useCommandBarResize via inline opacity
+   to sync with the async Electron window resize (prevents content flash). */
 .command-bar-agent-area {
   flex: 0 0 auto;
   max-height: 0;
@@ -34,15 +35,12 @@ html, body, #root {
   font-size: var(--font-size-xs);
   line-height: 1.6;
   color: var(--color-accent);
-  opacity: 0;
-  transition: opacity 100ms ease;
 }
 
 .command-bar-agent-area.has-content {
   max-height: 63px; /* 3 lines */
   overflow-y: auto;
   padding: var(--spacing-sm) var(--spacing-md);
-  opacity: 1;
 }
 
 .command-bar-agent-area::-webkit-scrollbar {

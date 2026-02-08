@@ -9,6 +9,7 @@ function focusInput(inputRef: MutableRefObject<HTMLTextAreaElement | null>) {
 export function useCommandBarEvents(
   dispatch: React.Dispatch<AgentAction>,
   inputRef: MutableRefObject<HTMLTextAreaElement | null>,
+  agentAreaRef: MutableRefObject<HTMLDivElement | null>,
   setSelectedTextLength: (n: number) => void,
   setPlaceholder: (s: string) => void,
   setIsVisible: (v: boolean) => void,
@@ -69,6 +70,13 @@ export function useCommandBarEvents(
     });
 
     const cleanupReset = window.faria.commandBar.onReset(() => {
+      // Hide agent area synchronously via DOM before React re-renders,
+      // so the window can resize without flashing stale content
+      if (agentAreaRef.current) {
+        agentAreaRef.current.classList.remove('has-content');
+        agentAreaRef.current.style.maxHeight = '';
+        agentAreaRef.current.style.opacity = '';
+      }
       setQuery('');
       setSelectedTextLength(0);
       dispatch({ type: 'ON_RESET' });

@@ -54,6 +54,10 @@ let isMainWindowVisible = false;
 const DEFAULT_COMMAND_BAR_WIDTH = 400;
 const DEFAULT_COMMAND_BAR_HEIGHT = 67; // Single line: 46 (base) + 21 (one line)
 
+// Track agent area height for resize delta calculation (must be module-level
+// so toggleCommandBar/resetCommandBar can reset it on hide)
+let lastAgentAreaHeight = 0;
+
 // Default keyboard shortcuts
 const DEFAULT_COMMAND_BAR_SHORTCUT = 'CommandOrControl+Enter';
 const DEFAULT_RESET_COMMAND_BAR_SHORTCUT = 'CommandOrControl+Shift+Enter';
@@ -309,6 +313,7 @@ async function toggleCommandBar() {
     commandBarWindow?.webContents.send('command-bar:will-hide');
     commandBarWindow?.hide();
     isCommandBarVisible = false;
+    lastAgentAreaHeight = 0;
     targetAppName = null;
     currentSelectedText = null;
     return;
@@ -491,6 +496,7 @@ async function resetCommandBar() {
   // Clear context
   targetAppName = null;
   currentSelectedText = null;
+  lastAgentAreaHeight = 0;
 
   // If command bar doesn't exist, create it
   if (!commandBarWindow || commandBarWindow.webContents.isDestroyed()) {
@@ -498,14 +504,18 @@ async function resetCommandBar() {
     createCommandBarWindow();
   }
 
-  // Reset window size and position
-  commandBarWindow?.setSize(DEFAULT_COMMAND_BAR_WIDTH, DEFAULT_COMMAND_BAR_HEIGHT);
-  positionCommandBar();
+  // Hide first so the user never sees stale content during resize/reposition
+  commandBarWindow?.hide();
+  isCommandBarVisible = false;
 
   // Send reset event to renderer to clear all state
   commandBarWindow?.webContents.send('command-bar:reset');
 
-  // Show the command bar
+  // Reset window size and position while hidden
+  commandBarWindow?.setSize(DEFAULT_COMMAND_BAR_WIDTH, DEFAULT_COMMAND_BAR_HEIGHT);
+  positionCommandBar();
+
+  // Show the command bar fresh
   showCommandBar();
 
   // Send ready state after reset
@@ -844,6 +854,7 @@ function setupIPC() {
       commandBarWindow.webContents.send('command-bar:will-hide');
       commandBarWindow.hide();
       isCommandBarVisible = false;
+      lastAgentAreaHeight = 0;
       currentSelectedText = null;
     }
   });
@@ -871,10 +882,9 @@ function setupIPC() {
     }
   });
 
-  // Track dropdown state and agent area height for resize coordination
+  // Track dropdown state for resize coordination
   let isDropdownOpen = false;
   let baseContentHeight = DEFAULT_COMMAND_BAR_HEIGHT;
-  let lastAgentAreaHeight = 0;
   const DROPDOWN_EXTRA_HEIGHT = 80;
 
   ipcMain.on('command-bar:resize', (_event, data: { total: number; agentAreaHeight: number }) => {

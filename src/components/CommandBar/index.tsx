@@ -23,10 +23,10 @@ function CommandBar() {
   const toolApprovalRef = useRef<HTMLDivElement>(null);
 
   useCommandBarEvents(
-    dispatch, inputRef, setSelectedTextLength, setPlaceholder,
+    dispatch, inputRef, agentAreaRef, setSelectedTextLength, setPlaceholder,
     setIsVisible, setQuery, agent.isProcessing, agent.pendingToolApproval,
   );
-  useCommandBarResize(inputRef, agentAreaRef, query, agent);
+  useCommandBarResize(inputRef, agentAreaRef, query, agent, isVisible);
 
   const backgroundStyle = useMemo(
     () => hexToRgba(backgroundColor, opacity),
