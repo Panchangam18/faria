@@ -142,6 +142,7 @@ function CommandBar() {
   const [opacity, setOpacity] = useState(0.7);
   const [backgroundColor, setBackgroundColor] = useState('#272932'); // Track background color for opacity
   const [isVisible, setIsVisible] = useState(false); // Controls content visibility to prevent flash of old content
+  const [isScrollable, setIsScrollable] = useState(false);
   const inputRef = useRef<HTMLTextAreaElement>(null);
   const inlineControlsRef = useRef<HTMLDivElement>(null);
   const responseRef = useRef<HTMLDivElement>(null);
@@ -164,7 +165,13 @@ function CommandBar() {
 
     const style = getComputedStyle(textarea);
     ctx.font = `${style.fontSize} ${style.fontFamily}`;
-    return ctx.measureText(lastLine).width;
+    const fullWidth = ctx.measureText(lastLine).width;
+    // Account for soft wrapping: the visual last line is the remainder after wrapping
+    const textareaWidth = textarea.clientWidth;
+    if (textareaWidth > 0 && fullWidth > textareaWidth) {
+      return fullWidth % textareaWidth;
+    }
+    return fullWidth;
   }, []);
 
   // Resize window based on textarea content - debounced to avoid blocking rapid toggles
@@ -174,31 +181,38 @@ function CommandBar() {
     const controlsEl = inlineControlsRef.current;
     if (!textarea) return;
 
-    // Measure controls width (including gap from the text)
-    const controlsWidth = controlsEl ? controlsEl.offsetWidth + CONTROLS_GAP : 0;
-
-    // Measure last line width to determine if controls need their own line
-    const lastLineWidth = measureLastLineWidth(textarea);
-    const textareaWidth = textarea.clientWidth;
-    const needsExtraLine = lastLineWidth + controlsWidth > textareaWidth;
-
-    // Set padding-bottom to push the container taller when controls need their own line
-    textarea.style.paddingBottom = needsExtraLine ? `${LINE_HEIGHT}px` : '0px';
-
-    // Collapse to 0 to get true content height
+    // Collapse to 0 to get true content height (before adding any padding)
+    textarea.style.paddingBottom = '0px';
     textarea.style.height = '0px';
     textarea.style.overflow = 'hidden';
 
-    // Read the true content height (includes padding-bottom if set)
     const scrollHeight = textarea.scrollHeight;
-    const contentHeight = Math.max(LINE_HEIGHT, Math.min(scrollHeight, MAX_TEXTAREA_HEIGHT));
+    const scrollable = scrollHeight > MAX_TEXTAREA_HEIGHT;
+    setIsScrollable(scrollable);
+
+    if (!scrollable) {
+      // Measure controls width (including gap from the text)
+      const controlsWidth = controlsEl ? controlsEl.offsetWidth + CONTROLS_GAP : 0;
+
+      // Measure last line width to determine if controls need their own line
+      const lastLineWidth = measureLastLineWidth(textarea);
+      const textareaWidth = textarea.clientWidth;
+      const needsExtraLine = lastLineWidth + controlsWidth > textareaWidth;
+
+      // Set padding-bottom to push the container taller when controls need their own line
+      textarea.style.paddingBottom = needsExtraLine ? `${LINE_HEIGHT}px` : '0px';
+    }
+
+    // Re-read after potential padding change
+    const finalScrollHeight = textarea.scrollHeight;
+    const contentHeight = Math.max(LINE_HEIGHT, Math.min(finalScrollHeight, MAX_TEXTAREA_HEIGHT));
     textarea.style.height = `${contentHeight}px`;
 
     // Clear inline overflow style so CSS class can control it
     textarea.style.overflow = '';
 
     // Only enable scrolling when content exceeds max height
-    if (scrollHeight > MAX_TEXTAREA_HEIGHT) {
+    if (scrollable) {
       textarea.classList.add('scrollable');
     } else {
       textarea.classList.remove('scrollable');
@@ -224,8 +238,11 @@ function CommandBar() {
       footerHeight = 36; // Approximate height for auth/status rows with padding
     }
 
+    // When scrollable, controls become a separate row below the textarea
+    const controlsRowHeight = scrollable ? LINE_HEIGHT : 0;
+
     // Calculate and set window height - debounce to avoid IPC spam during rapid toggle
-    const totalHeight = BASE_HEIGHT + contentHeight + responseHeight + footerHeight;
+    const totalHeight = BASE_HEIGHT + contentHeight + controlsRowHeight + responseHeight + footerHeight;
     if (totalHeight !== lastResizeRef.current) {
       lastResizeRef.current = totalHeight;
       window.faria.commandBar.resize(totalHeight);
@@ -530,7 +547,7 @@ function CommandBar() {
 
   return (
     <div className="command-bar" style={{ background: getBackgroundWithOpacity(), visibility: isVisible ? 'visible' : 'hidden' }} onClick={handleCommandBarClick}>
-      <div className="command-bar-input-area">
+      <div className={`command-bar-input-area${isScrollable ? ' scrollable' : ''}`}>
         <textarea
           ref={inputRef}
           className="command-bar-input"

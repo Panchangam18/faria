@@ -88,6 +88,18 @@ html, body, #root {
   overflow-y: auto;
 }
 
+/* When scrollable, controls become a static row below the textarea */
+.command-bar-input-area.scrollable {
+  display: flex;
+  flex-direction: column;
+}
+
+.command-bar-input-area.scrollable .input-inline-controls {
+  position: static;
+  justify-content: flex-end;
+  padding-top: var(--spacing-xs);
+}
+
 .command-bar-input:focus {
   outline: none;
 }
