@@ -50,10 +50,10 @@ function formatToolkitName(slug: string): string {
 
 // Line height is 14px (font-size-sm) * 1.5 = 21px
 const LINE_HEIGHT = 21;
-const MAX_LINES = 5;
-const MAX_TEXTAREA_HEIGHT = LINE_HEIGHT * MAX_LINES; // 115px for 5 lines
+const MAX_LINES = 3;
+const MAX_TEXTAREA_HEIGHT = LINE_HEIGHT * MAX_LINES; // 63px for 3 lines
 const CONTROLS_GAP = 12; // Breathing room between text and inline controls
-const BASE_HEIGHT = 14; // Input area padding (8 top + 4 bottom) + border (2)
+const BASE_HEIGHT = 18; // Input area padding (8 top + 8 bottom) + border (2)
 const MAX_RESPONSE_HEIGHT = 200; // Max height before scrolling kicks in
 
 // Placeholder texts
