@@ -52,7 +52,7 @@ function formatToolkitName(slug: string): string {
 const LINE_HEIGHT = 21;
 const MAX_LINES = 3;
 const MAX_TEXTAREA_HEIGHT = LINE_HEIGHT * MAX_LINES; // 63px for 3 lines
-const CONTROLS_GAP = 12; // Breathing room between text and inline controls
+const CONTROLS_GAP = 4; // Breathing room between text and inline controls
 const BASE_HEIGHT = 18; // Input area padding (8 top + 8 bottom) + border (2)
 const MAX_RESPONSE_HEIGHT = 200; // Max height before scrolling kicks in
 
