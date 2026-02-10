@@ -171,8 +171,9 @@ function CommandBar() {
     const controlsEl = inlineControlsRef.current;
     if (!textarea || !scrollWrapper) return;
 
-    // Measure controls width (including gap from the text)
+    // Measure controls dimensions
     const controlsWidth = controlsEl ? controlsEl.offsetWidth + CONTROLS_GAP : 0;
+    const controlsHeight = controlsEl ? controlsEl.offsetHeight : 0;
 
     // First pass: measure raw content height without any extra padding
     textarea.style.paddingBottom = '0px';
@@ -183,10 +184,13 @@ function CommandBar() {
     setIsScrollable(scrollable);
 
     if (!scrollable && textarea.value) {
-      // Check if the last visual line collides with inline controls
-      // Only for actual user text — placeholder can overlap with controls
-      if (wouldControlsCollide(textarea, controlsWidth)) {
-        textarea.style.paddingBottom = `${LINE_HEIGHT}px`;
+      if (rawScrollHeight >= MAX_TEXTAREA_HEIGHT) {
+        // At max lines: always reserve space for controls row so the transition
+        // to scrollable mode (where controls become a static row) is seamless
+        textarea.style.paddingBottom = `${controlsHeight}px`;
+      } else if (wouldControlsCollide(textarea, controlsWidth)) {
+        // Below max lines: only add padding when text actually collides with controls
+        textarea.style.paddingBottom = `${controlsHeight}px`;
       }
     }
 
@@ -194,8 +198,12 @@ function CommandBar() {
     const scrollHeight = textarea.scrollHeight;
     textarea.style.height = `${scrollHeight}px`;
 
-    // The visible height is capped by the wrapper's max-height
-    const contentHeight = Math.max(LINE_HEIGHT, Math.min(scrollHeight, MAX_TEXTAREA_HEIGHT));
+    // The visible height is capped by the wrapper's max-height.
+    // When not scrollable, use full scrollHeight (includes any collision padding)
+    // so the window is tall enough to show the send button row.
+    const contentHeight = scrollable
+      ? MAX_TEXTAREA_HEIGHT
+      : Math.max(LINE_HEIGHT, scrollHeight);
 
     // Toggle scrollable class on the wrapper and cap its height
     if (scrollable) {
@@ -226,8 +234,8 @@ function CommandBar() {
       footerHeight = 36; // Approximate height for auth/status rows with padding
     }
 
-    // When scrollable, controls become a separate row below the textarea
-    const controlsRowHeight = scrollable ? LINE_HEIGHT : 0;
+    // When scrollable, controls become a static row below the textarea
+    const controlsRowHeight = scrollable ? controlsHeight : 0;
 
     // Calculate and set window height - debounce to avoid IPC spam during rapid toggle
     const totalHeight = BASE_HEIGHT + contentHeight + controlsRowHeight + responseHeight + footerHeight;

@@ -100,7 +100,6 @@ html, body, #root {
 .command-bar-input-area.scrollable .input-inline-controls {
   position: static;
   justify-content: flex-end;
-  padding-top: var(--spacing-xs);
   padding-right: var(--spacing-md);
 }
 
