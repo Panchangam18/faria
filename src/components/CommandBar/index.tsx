@@ -52,7 +52,8 @@ function formatToolkitName(slug: string): string {
 const LINE_HEIGHT = 21;
 const MAX_LINES = 5;
 const MAX_TEXTAREA_HEIGHT = LINE_HEIGHT * MAX_LINES; // 115px for 5 lines
-const BASE_HEIGHT = 46; // Footer + padding (8px top input + 2px bottom input + 4px top footer + 8px bottom footer + ~24px footer content)
+const CONTROLS_GAP = 12; // Breathing room between text and inline controls
+const BASE_HEIGHT = 14; // Input area padding (8 top + 4 bottom) + border (2)
 const MAX_RESPONSE_HEIGHT = 200; // Max height before scrolling kicks in
 
 // Placeholder texts
@@ -142,20 +143,53 @@ function CommandBar() {
   const [backgroundColor, setBackgroundColor] = useState('#272932'); // Track background color for opacity
   const [isVisible, setIsVisible] = useState(false); // Controls content visibility to prevent flash of old content
   const inputRef = useRef<HTMLTextAreaElement>(null);
+  const inlineControlsRef = useRef<HTMLDivElement>(null);
   const responseRef = useRef<HTMLDivElement>(null);
   const toolApprovalRef = useRef<HTMLDivElement>(null);
+
+  // Measure the width of the last line of text in the textarea
+  const measureLastLineWidth = useCallback((textarea: HTMLTextAreaElement): number => {
+    const text = textarea.value || textarea.placeholder;
+    if (!text) return 0;
+
+    // Get the last line of text (after the last newline, or all text if single-line)
+    const lines = text.split('\n');
+    const lastLine = lines[lines.length - 1];
+    if (!lastLine) return 0;
+
+    // Measure using a canvas (fast, no DOM thrash)
+    const canvas = document.createElement('canvas');
+    const ctx = canvas.getContext('2d');
+    if (!ctx) return 0;
+
+    const style = getComputedStyle(textarea);
+    ctx.font = `${style.fontSize} ${style.fontFamily}`;
+    return ctx.measureText(lastLine).width;
+  }, []);
 
   // Resize window based on textarea content - debounced to avoid blocking rapid toggles
   const lastResizeRef = useRef<number>(0);
   useLayoutEffect(() => {
     const textarea = inputRef.current;
+    const controlsEl = inlineControlsRef.current;
     if (!textarea) return;
 
-    // Collapse to 0 to get true content height (no flexbox interference now)
+    // Measure controls width (including gap from the text)
+    const controlsWidth = controlsEl ? controlsEl.offsetWidth + CONTROLS_GAP : 0;
+
+    // Measure last line width to determine if controls need their own line
+    const lastLineWidth = measureLastLineWidth(textarea);
+    const textareaWidth = textarea.clientWidth;
+    const needsExtraLine = lastLineWidth + controlsWidth > textareaWidth;
+
+    // Set padding-bottom to push the container taller when controls need their own line
+    textarea.style.paddingBottom = needsExtraLine ? `${LINE_HEIGHT}px` : '0px';
+
+    // Collapse to 0 to get true content height
     textarea.style.height = '0px';
     textarea.style.overflow = 'hidden';
 
-    // Read the true content height
+    // Read the true content height (includes padding-bottom if set)
     const scrollHeight = textarea.scrollHeight;
     const contentHeight = Math.max(LINE_HEIGHT, Math.min(scrollHeight, MAX_TEXTAREA_HEIGHT));
     textarea.style.height = `${contentHeight}px`;
@@ -182,19 +216,21 @@ function CommandBar() {
       responseHeight = Math.min(actualHeight, MAX_RESPONSE_HEIGHT) + 16; // +16 for margin
     }
 
-    // Calculate tool approval height
-    let toolApprovalHeight = 0;
+    // Calculate footer height (only present when tool approval, auth, or status showing)
+    let footerHeight = 0;
     if (pendingToolApproval && toolApprovalRef.current) {
-      toolApprovalHeight = toolApprovalRef.current.scrollHeight;
+      footerHeight = toolApprovalRef.current.scrollHeight + 16; // +16 for footer padding
+    } else if (pendingAuth || status) {
+      footerHeight = 36; // Approximate height for auth/status rows with padding
     }
 
     // Calculate and set window height - debounce to avoid IPC spam during rapid toggle
-    const totalHeight = BASE_HEIGHT + contentHeight + responseHeight + toolApprovalHeight;
+    const totalHeight = BASE_HEIGHT + contentHeight + responseHeight + footerHeight;
     if (totalHeight !== lastResizeRef.current) {
       lastResizeRef.current = totalHeight;
       window.faria.commandBar.resize(totalHeight);
     }
-  }, [query, response, streamingResponse, pendingToolApproval, toolApprovalExpanded]);
+  }, [query, response, streamingResponse, pendingToolApproval, toolApprovalExpanded, pendingAuth, status, measureLastLineWidth, selectedTextLength]);
 
   // Load theme on mount
   useEffect(() => {
@@ -505,6 +541,31 @@ function CommandBar() {
           disabled={isProcessing}
           rows={1}
         />
+        <div className="input-inline-controls" ref={inlineControlsRef}>
+          {selectedTextLength > 0 && !pendingToolApproval && (
+            <span className="selection-indicator" title="Selected text">{selectedTextLength} chars</span>
+          )}
+          {!pendingToolApproval && (
+            isProcessing ? (
+              <button
+                className="stop-button"
+                onClick={handleStop}
+                title="Stop"
+              >
+                <IoStopCircleSharp />
+              </button>
+            ) : (
+              <button
+                className="send-button"
+                onClick={handleSubmit}
+                disabled={!query.trim()}
+                title="Send message"
+              >
+                <IoMdSend />
+              </button>
+            )
+          )}
+        </div>
       </div>
 
       {(response || streamingResponse || errorMessage) && (
@@ -513,8 +574,8 @@ function CommandBar() {
         </div>
       )}
 
-      <div className="command-bar-footer">
-        <div className="footer-left">
+      {(pendingToolApproval || pendingAuth || status) && (
+        <div className="command-bar-footer">
           {pendingToolApproval ? (
             <div className="command-bar-tool-approval" ref={toolApprovalRef}>
               <div className="tool-approval-header">
@@ -587,35 +648,7 @@ function CommandBar() {
             </div>
           ) : null}
         </div>
-        <div className="footer-right">
-          {/* Selection indicator - shows character count when text is selected (hide when tool approval showing) */}
-          {selectedTextLength > 0 && !pendingToolApproval && (
-            <span className="selection-indicator" title="Selected text">{selectedTextLength} chars</span>
-          )}
-
-          {/* Hide stop/send buttons when tool approval is showing (it has its own stop button) */}
-          {!pendingToolApproval && (
-            isProcessing ? (
-              <button
-                className="stop-button"
-                onClick={handleStop}
-                title="Stop"
-              >
-                <IoStopCircleSharp />
-              </button>
-            ) : (
-              <button
-                className="send-button"
-                onClick={handleSubmit}
-                disabled={!query.trim()}
-                title="Send message"
-              >
-                <IoMdSend />
-              </button>
-            )
-          )}
-        </div>
-      </div>
+      )}
     </div>
   );
 }
