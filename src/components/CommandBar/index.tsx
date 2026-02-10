@@ -148,17 +148,15 @@ function CommandBar() {
   const responseRef = useRef<HTMLDivElement>(null);
   const toolApprovalRef = useRef<HTMLDivElement>(null);
 
-  // Measure the width of the last line of text in the textarea
+  // Measure the width of the last visual line of text in the textarea
   const measureLastLineWidth = useCallback((textarea: HTMLTextAreaElement): number => {
     const text = textarea.value || textarea.placeholder;
     if (!text) return 0;
 
-    // Get the last line of text (after the last newline, or all text if single-line)
     const lines = text.split('\n');
     const lastLine = lines[lines.length - 1];
     if (!lastLine) return 0;
 
-    // Measure using a canvas (fast, no DOM thrash)
     const canvas = document.createElement('canvas');
     const ctx = canvas.getContext('2d');
     if (!ctx) return 0;
@@ -181,31 +179,33 @@ function CommandBar() {
     const controlsEl = inlineControlsRef.current;
     if (!textarea) return;
 
-    // Collapse to 0 to get true content height (before adding any padding)
+    // Measure controls width (including gap from the text)
+    const controlsWidth = controlsEl ? controlsEl.offsetWidth + CONTROLS_GAP : 0;
+
+    // First pass: measure raw content height without any extra padding
     textarea.style.paddingBottom = '0px';
     textarea.style.height = '0px';
     textarea.style.overflow = 'hidden';
 
-    const scrollHeight = textarea.scrollHeight;
-    const scrollable = scrollHeight > MAX_TEXTAREA_HEIGHT;
+    const rawScrollHeight = textarea.scrollHeight;
+    const scrollable = rawScrollHeight > MAX_TEXTAREA_HEIGHT;
     setIsScrollable(scrollable);
 
     if (!scrollable) {
-      // Measure controls width (including gap from the text)
-      const controlsWidth = controlsEl ? controlsEl.offsetWidth + CONTROLS_GAP : 0;
-
       // Measure last line width to determine if controls need their own line
       const lastLineWidth = measureLastLineWidth(textarea);
       const textareaWidth = textarea.clientWidth;
-      const needsExtraLine = lastLineWidth + controlsWidth > textareaWidth;
+      // Buffer of ~8px to prevent text going under controls due to measurement imprecision
+      const needsExtraLine = lastLineWidth + controlsWidth + 8 > textareaWidth;
 
-      // Set padding-bottom to push the container taller when controls need their own line
-      textarea.style.paddingBottom = needsExtraLine ? `${LINE_HEIGHT}px` : '0px';
+      if (needsExtraLine) {
+        textarea.style.paddingBottom = `${LINE_HEIGHT}px`;
+      }
     }
 
-    // Re-read after potential padding change
-    const finalScrollHeight = textarea.scrollHeight;
-    const contentHeight = Math.max(LINE_HEIGHT, Math.min(finalScrollHeight, MAX_TEXTAREA_HEIGHT));
+    // Re-read height after potential padding change
+    const scrollHeight = textarea.scrollHeight;
+    const contentHeight = Math.max(LINE_HEIGHT, Math.min(scrollHeight, MAX_TEXTAREA_HEIGHT));
     textarea.style.height = `${contentHeight}px`;
 
     // Clear inline overflow style so CSS class can control it
