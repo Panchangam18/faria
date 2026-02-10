@@ -175,6 +175,9 @@ function CommandBar() {
     const controlsWidth = controlsEl ? controlsEl.offsetWidth + CONTROLS_GAP : 0;
     const controlsHeight = controlsEl ? controlsEl.offsetHeight : 0;
 
+    // Save scroll position before measurement — collapsing height to 0 resets scrollTop
+    const savedScrollTop = scrollWrapper.scrollTop;
+
     // First pass: measure raw content height without any extra padding
     textarea.style.paddingBottom = '0px';
     textarea.style.height = '0px';
@@ -213,6 +216,9 @@ function CommandBar() {
       scrollWrapper.classList.remove('scrollable');
       scrollWrapper.style.maxHeight = '';
     }
+
+    // Restore scroll position after measurement — the height:0 collapse reset it
+    scrollWrapper.scrollTop = savedScrollTop;
 
     // Calculate response height (actual content height, capped at max)
     let responseHeight = 0;
