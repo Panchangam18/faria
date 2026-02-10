@@ -54,7 +54,6 @@ const MAX_LINES = 3;
 const MAX_TEXTAREA_HEIGHT = LINE_HEIGHT * MAX_LINES; // 63px for 3 lines
 const CONTROLS_GAP = 4; // Breathing room between text and inline controls
 const BASE_HEIGHT = 18; // Input area padding (8 top + 8 bottom) + border (2)
-const MAX_RESPONSE_HEIGHT = 200; // Max height before scrolling kicks in
 
 // Placeholder texts
 const PLACEHOLDER_TEXTS = [
@@ -148,6 +147,7 @@ function CommandBar() {
   const inlineControlsRef = useRef<HTMLDivElement>(null);
   const responseRef = useRef<HTMLDivElement>(null);
   const toolApprovalRef = useRef<HTMLDivElement>(null);
+  const agentAreaRef = useRef<HTMLDivElement>(null);
 
   // Check if the last visual line of text collides with the inline controls.
   // Uses a mirror div with an appended marker span to find the x-position
@@ -243,34 +243,22 @@ function CommandBar() {
     // Restore scroll position after measurement — the height:0 collapse reset it
     scrollWrapper.scrollTop = savedScrollTop;
 
-    // Calculate response height (actual content height, capped at max)
-    let responseHeight = 0;
-    if ((response || streamingResponse) && responseRef.current) {
-      // Temporarily remove max-height to measure true content height
-      const el = responseRef.current;
-      const originalMaxHeight = el.style.maxHeight;
-      el.style.maxHeight = 'none';
-      const actualHeight = el.scrollHeight;
-      el.style.maxHeight = originalMaxHeight;
-      responseHeight = Math.min(actualHeight, MAX_RESPONSE_HEIGHT) + 16; // +16 for margin
-    }
-
-    // Calculate footer height (only present when tool approval, auth, or status showing)
-    let footerHeight = 0;
-    if (pendingToolApproval && toolApprovalRef.current) {
-      footerHeight = toolApprovalRef.current.scrollHeight + 16; // +16 for footer padding
-    } else if (pendingAuth || status) {
-      footerHeight = 36; // Approximate height for auth/status rows with padding
+    // Measure agent area height (response + footer + divider — all above the input)
+    let agentAreaHeight = 0;
+    if (agentAreaRef.current) {
+      agentAreaHeight = agentAreaRef.current.scrollHeight;
     }
 
     // When scrollable, controls become a static row below the textarea
     const controlsRowHeight = scrollable ? controlsHeight : 0;
 
-    // Calculate and set window height - debounce to avoid IPC spam during rapid toggle
-    const totalHeight = BASE_HEIGHT + contentHeight + controlsRowHeight + responseHeight + footerHeight;
+    // Calculate total window height
+    const inputAreaHeight = BASE_HEIGHT + contentHeight + controlsRowHeight;
+    const totalHeight = inputAreaHeight + agentAreaHeight;
     if (totalHeight !== lastResizeRef.current) {
       lastResizeRef.current = totalHeight;
-      window.faria.commandBar.resize(totalHeight);
+      // Send both total height and agent area height so main process can grow upward
+      window.faria.commandBar.resize(totalHeight, agentAreaHeight);
     }
   }, [query, response, streamingResponse, pendingToolApproval, toolApprovalExpanded, pendingAuth, status, wouldControlsCollide, selectedTextLength]);
 
@@ -529,16 +517,6 @@ function CommandBar() {
     window.faria.agent.toolApprovalResponse(true);
   }, [pendingToolApproval]);
 
-  const handleToolDeny = useCallback(async () => {
-    if (!pendingToolApproval) return;
-    setPendingToolApproval(null);
-    setToolApprovalExpanded(false);
-    // Cancel the agent entirely (deny acts as stop)
-    await window.faria.agent.cancel('tool-deny-button-clicked');
-    setIsProcessing(false);
-    setStatus('');
-  }, [pendingToolApproval]);
-
   const handleKeyDown = useCallback((e: React.KeyboardEvent) => {
     // Tool approval shortcuts handled by global listener
     if (pendingToolApproval) return;
@@ -570,8 +548,94 @@ function CommandBar() {
     return `rgba(${r}, ${g}, ${b}, ${opacity})`;
   };
 
+  const hasAgentContent = !!(response || streamingResponse || errorMessage || pendingToolApproval || pendingAuth || status);
+
   return (
     <div className="command-bar" style={{ background: getBackgroundWithOpacity(), visibility: isVisible ? 'visible' : 'hidden' }} onClick={handleCommandBarClick}>
+      {/* Agent area: appears above input, grows upward */}
+      {hasAgentContent && (
+        <div className="command-bar-agent-area" ref={agentAreaRef}>
+          {(response || streamingResponse || errorMessage) && (
+            <div className="command-bar-response" ref={responseRef} style={errorMessage ? { color: 'var(--color-error, #ff4444)' } : undefined}>
+              {errorMessage || response || streamingResponse}
+            </div>
+          )}
+
+          {(pendingToolApproval || pendingAuth || status) && (
+            <div className="command-bar-footer">
+              {pendingToolApproval ? (
+                <div className="command-bar-tool-approval" ref={toolApprovalRef}>
+                  <div className="tool-approval-header">
+                    {pendingToolApproval.details && Object.keys(pendingToolApproval.details).length > 0 ? (
+                      <button
+                        className="tool-approval-toggle"
+                        onClick={() => setToolApprovalExpanded(!toolApprovalExpanded)}
+                      >
+                        <span className="tool-approval-shortcut">&#8679;&#8677;</span>
+                        <span className="tool-approval-name">
+                          {pendingToolApproval.displayName || (pendingToolApproval.isComposio
+                            ? `Use ${formatToolkitName(pendingToolApproval.toolName.split('_')[0])}`
+                            : 'Allow computer control?')}
+                        </span>
+                        <svg
+                          className={`chevron ${toolApprovalExpanded ? 'open' : ''}`}
+                          viewBox="0 0 10 10"
+                          fill="none"
+                          stroke="currentColor"
+                          strokeWidth="1.5"
+                        >
+                          <path d="M2 3.5L5 6.5L8 3.5" />
+                        </svg>
+                      </button>
+                    ) : (
+                      <span className="tool-approval-name-static">
+                        {pendingToolApproval.displayName || (pendingToolApproval.isComposio
+                          ? `Use ${formatToolkitName(pendingToolApproval.toolName.split('_')[0])}`
+                          : 'Allow computer control?')}
+                      </span>
+                    )}
+                    <div className="tool-approval-buttons">
+                      <button className="auth-inline-button auth-inline-connect" onClick={handleToolApprove}>
+                        <span className="button-shortcut">↵</span> Allow
+                      </button>
+                    </div>
+                  </div>
+                  {toolApprovalExpanded && pendingToolApproval.details && Object.keys(pendingToolApproval.details).length > 0 && (
+                    <div className="tool-approval-details">
+                      {Object.entries(pendingToolApproval.details).map(([key, value]) => (
+                        <div key={key || 'content'} className="tool-approval-detail">
+                          {key ? <><span className="detail-key">{key}:</span> {value}</> : value}
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              ) : pendingAuth ? (
+                <div className="command-bar-auth-inline">
+                  <span className="auth-status-text" style={{ fontStyle: 'normal' }}>
+                    Faria wants to use {formatToolkitName(pendingAuth.toolkit)}
+                  </span>
+                  <button className="auth-inline-button auth-inline-connect" onClick={handleOpenAuthUrl}>
+                    Connect
+                  </button>
+                  <button className="auth-inline-button auth-inline-done" onClick={handleAuthComplete}>
+                    Done
+                  </button>
+                </div>
+              ) : status ? (
+                <div className="command-bar-status">
+                  <div className="status-spinner" />
+                  <span>{status}</span>
+                </div>
+              ) : null}
+            </div>
+          )}
+
+          <div className="command-bar-divider" />
+        </div>
+      )}
+
+      {/* User input area: always at the bottom */}
       <div className={`command-bar-input-area${isScrollable ? ' scrollable' : ''}`}>
         <div className="command-bar-input-scroll" ref={scrollWrapperRef}>
           <textarea
@@ -586,113 +650,29 @@ function CommandBar() {
           />
         </div>
         <div className="input-inline-controls" ref={inlineControlsRef}>
-          {selectedTextLength > 0 && !pendingToolApproval && (
+          {selectedTextLength > 0 && (
             <span className="selection-indicator" title="Selected text">{selectedTextLength} chars</span>
           )}
-          {!pendingToolApproval && (
-            isProcessing ? (
-              <button
-                className="stop-button"
-                onClick={handleStop}
-                title="Stop"
-              >
-                <IoStopCircleSharp />
-              </button>
-            ) : (
-              <button
-                className="send-button"
-                onClick={handleSubmit}
-                disabled={!query.trim()}
-                title="Send message"
-              >
-                <IoMdSend />
-              </button>
-            )
+          {isProcessing ? (
+            <button
+              className="stop-button"
+              onClick={handleStop}
+              title="Stop"
+            >
+              <IoStopCircleSharp />
+            </button>
+          ) : (
+            <button
+              className="send-button"
+              onClick={handleSubmit}
+              disabled={!query.trim()}
+              title="Send message"
+            >
+              <IoMdSend />
+            </button>
           )}
         </div>
       </div>
-
-      {(response || streamingResponse || errorMessage) && (
-        <div className="command-bar-response" ref={responseRef} style={errorMessage ? { color: 'var(--color-error, #ff4444)' } : undefined}>
-          {errorMessage || response || streamingResponse}
-        </div>
-      )}
-
-      {(pendingToolApproval || pendingAuth || status) && (
-        <div className="command-bar-footer">
-          {pendingToolApproval ? (
-            <div className="command-bar-tool-approval" ref={toolApprovalRef}>
-              <div className="tool-approval-header">
-                {pendingToolApproval.details && Object.keys(pendingToolApproval.details).length > 0 ? (
-                  <button
-                    className="tool-approval-toggle"
-                    onClick={() => setToolApprovalExpanded(!toolApprovalExpanded)}
-                  >
-                    <span className="tool-approval-shortcut">&#8679;&#8677;</span>
-                    <span className="tool-approval-name">
-                      {pendingToolApproval.displayName || (pendingToolApproval.isComposio
-                        ? `Use ${formatToolkitName(pendingToolApproval.toolName.split('_')[0])}`
-                        : 'Allow computer control?')}
-                    </span>
-                    <svg
-                      className={`chevron ${toolApprovalExpanded ? 'open' : ''}`}
-                      viewBox="0 0 10 10"
-                      fill="none"
-                      stroke="currentColor"
-                      strokeWidth="1.5"
-                    >
-                      <path d="M2 3.5L5 6.5L8 3.5" />
-                    </svg>
-                  </button>
-                ) : (
-                  <span className="tool-approval-name-static">
-                    {pendingToolApproval.displayName || (pendingToolApproval.isComposio
-                      ? `Use ${formatToolkitName(pendingToolApproval.toolName.split('_')[0])}`
-                      : 'Allow computer control?')}
-                  </span>
-                )}
-                <div className="tool-approval-buttons">
-                  {selectedTextLength > 0 && (
-                    <span className="selection-indicator" title="Selected text">{selectedTextLength} chars</span>
-                  )}
-                  <button className="auth-inline-button auth-inline-connect" onClick={handleToolApprove}>
-                    <span className="button-shortcut">↵</span> Allow
-                  </button>
-                  <button className="auth-inline-button auth-inline-done" onClick={handleToolDeny}>
-                    <span className="button-shortcut">⌃C</span> Deny
-                  </button>
-                </div>
-              </div>
-              {toolApprovalExpanded && pendingToolApproval.details && Object.keys(pendingToolApproval.details).length > 0 && (
-                <div className="tool-approval-details">
-                  {Object.entries(pendingToolApproval.details).map(([key, value]) => (
-                    <div key={key || 'content'} className="tool-approval-detail">
-                      {key ? <><span className="detail-key">{key}:</span> {value}</> : value}
-                    </div>
-                  ))}
-                </div>
-              )}
-            </div>
-          ) : pendingAuth ? (
-            <div className="command-bar-auth-inline">
-              <span className="auth-status-text" style={{ fontStyle: 'normal' }}>
-                Faria wants to use {formatToolkitName(pendingAuth.toolkit)}
-              </span>
-              <button className="auth-inline-button auth-inline-connect" onClick={handleOpenAuthUrl}>
-                Connect
-              </button>
-              <button className="auth-inline-button auth-inline-done" onClick={handleAuthComplete}>
-                Done
-              </button>
-            </div>
-          ) : status ? (
-            <div className="command-bar-status">
-              <div className="status-spinner" />
-              <span>{status}</span>
-            </div>
-          ) : null}
-        </div>
-      )}
     </div>
   );
 }

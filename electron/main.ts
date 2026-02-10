@@ -53,6 +53,7 @@ let isMainWindowVisible = false;
 // Default command bar dimensions
 const DEFAULT_COMMAND_BAR_WIDTH = 400;
 const DEFAULT_COMMAND_BAR_HEIGHT = 35; // Single line: 14 (base) + 21 (one line)
+let lastAgentAreaHeight = 0; // Track agent area height for upward growth delta
 
 // Default keyboard shortcuts
 const DEFAULT_COMMAND_BAR_SHORTCUT = 'CommandOrControl+Enter';
@@ -311,6 +312,7 @@ async function toggleCommandBar() {
     isCommandBarVisible = false;
     targetAppName = null;
     currentSelectedText = null;
+    lastAgentAreaHeight = 0;
     return;
   }
 
@@ -491,6 +493,7 @@ async function resetCommandBar() {
   // Clear context
   targetAppName = null;
   currentSelectedText = null;
+  lastAgentAreaHeight = 0;
 
   // If command bar doesn't exist, create it
   if (!commandBarWindow || commandBarWindow.webContents.isDestroyed()) {
@@ -845,6 +848,7 @@ function setupIPC() {
       commandBarWindow.hide();
       isCommandBarVisible = false;
       currentSelectedText = null;
+      lastAgentAreaHeight = 0;
     }
   });
 
@@ -876,28 +880,35 @@ function setupIPC() {
   let baseContentHeight = DEFAULT_COMMAND_BAR_HEIGHT;
   const DROPDOWN_EXTRA_HEIGHT = 80;
 
-  ipcMain.on('command-bar:resize', (_event, height: number) => {
+  ipcMain.on('command-bar:resize', (_event, height: number, agentAreaHeight: number) => {
     if (commandBarWindow) {
       const [width] = commandBarWindow.getSize();
-      // Min: 35 (single line with padding + border), Max: ~350 (5 lines + response area)
-      const clampedHeight = Math.min(Math.max(height, 35), 350);
+      // Min: 35 (single line with padding + border), Max: ~500 (input + agent area)
+      const clampedHeight = Math.min(Math.max(height, 35), 500);
       baseContentHeight = clampedHeight;
-      
+
+      // Calculate how much the agent area height changed to grow/shrink upward
+      const agentDelta = (agentAreaHeight || 0) - lastAgentAreaHeight;
+      lastAgentAreaHeight = agentAreaHeight || 0;
+
+      const [x, y] = commandBarWindow.getPosition();
+
       if (isDropdownOpen) {
-        // When dropdown is open, add extra height and keep window expanded upward
-        const [x, y] = commandBarWindow.getPosition();
-        const currentHeight = commandBarWindow.getSize()[1];
         const newTotalHeight = clampedHeight + DROPDOWN_EXTRA_HEIGHT;
-        const heightDiff = newTotalHeight - currentHeight;
-        
         commandBarWindow.setBounds({
           x,
-          y: y - heightDiff,
+          y: y - agentDelta,
           width,
           height: newTotalHeight
         });
       } else {
-        commandBarWindow.setSize(width, clampedHeight);
+        // Grow upward: move Y up by agent delta, set new total height
+        commandBarWindow.setBounds({
+          x,
+          y: y - agentDelta,
+          width,
+          height: clampedHeight
+        });
       }
     }
   });
@@ -905,10 +916,10 @@ function setupIPC() {
   // Dropdown visibility - expand window upward to make room
   ipcMain.on('command-bar:dropdown-visible', (_event, visible: boolean) => {
     if (!commandBarWindow) return;
-    
+
     const [width, height] = commandBarWindow.getSize();
     const [x, y] = commandBarWindow.getPosition();
-    
+
     if (visible && !isDropdownOpen) {
       isDropdownOpen = true;
       // Expand window upward: move Y up and increase height
