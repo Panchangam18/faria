@@ -52,7 +52,7 @@ let isMainWindowVisible = false;
 
 // Default command bar dimensions
 const DEFAULT_COMMAND_BAR_WIDTH = 400;
-const DEFAULT_COMMAND_BAR_HEIGHT = 67; // Single line: 46 (base) + 21 (one line)
+const DEFAULT_COMMAND_BAR_HEIGHT = 35; // Single line: 14 (base) + 21 (one line)
 
 // Default keyboard shortcuts
 const DEFAULT_COMMAND_BAR_SHORTCUT = 'CommandOrControl+Enter';
@@ -879,8 +879,8 @@ function setupIPC() {
   ipcMain.on('command-bar:resize', (_event, height: number) => {
     if (commandBarWindow) {
       const [width] = commandBarWindow.getSize();
-      // Min: ~60 (single line with minimal padding), Max: ~350 (5 lines + response area)
-      const clampedHeight = Math.min(Math.max(height, 60), 350);
+      // Min: 35 (single line with padding + border), Max: ~350 (5 lines + response area)
+      const clampedHeight = Math.min(Math.max(height, 35), 350);
       baseContentHeight = clampedHeight;
       
       if (isDropdownOpen) {

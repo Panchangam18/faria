@@ -192,8 +192,9 @@ function CommandBar() {
     const scrollable = rawScrollHeight > MAX_TEXTAREA_HEIGHT;
     setIsScrollable(scrollable);
 
-    if (!scrollable) {
+    if (!scrollable && textarea.value) {
       // Measure last line width to determine if controls need their own line
+      // Only for actual user text — placeholder can overlap with controls
       const lastLineWidth = measureLastLineWidth(textarea);
       const textareaWidth = textarea.clientWidth;
       // Buffer of ~8px to prevent text going under controls due to measurement imprecision
