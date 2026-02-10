@@ -354,7 +354,7 @@ html, body, #root {
   transition: all var(--transition-fast);
   -webkit-app-region: no-drag; /* Allow clicking, not dragging */
   font-size: var(--font-size-sm);
-  padding: var(--spacing-xs);
+  padding: var(--spacing-xs) 0 var(--spacing-xs) var(--spacing-xs);
 }
 
 .send-button:hover:not(:disabled) {
