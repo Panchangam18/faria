@@ -144,6 +144,7 @@ function CommandBar() {
   const [isVisible, setIsVisible] = useState(false); // Controls content visibility to prevent flash of old content
   const [isScrollable, setIsScrollable] = useState(false);
   const inputRef = useRef<HTMLTextAreaElement>(null);
+  const scrollWrapperRef = useRef<HTMLDivElement>(null);
   const inlineControlsRef = useRef<HTMLDivElement>(null);
   const responseRef = useRef<HTMLDivElement>(null);
   const toolApprovalRef = useRef<HTMLDivElement>(null);
@@ -176,8 +177,9 @@ function CommandBar() {
   const lastResizeRef = useRef<number>(0);
   useLayoutEffect(() => {
     const textarea = inputRef.current;
+    const scrollWrapper = scrollWrapperRef.current;
     const controlsEl = inlineControlsRef.current;
-    if (!textarea) return;
+    if (!textarea || !scrollWrapper) return;
 
     // Measure controls width (including gap from the text)
     const controlsWidth = controlsEl ? controlsEl.offsetWidth + CONTROLS_GAP : 0;
@@ -185,7 +187,6 @@ function CommandBar() {
     // First pass: measure raw content height without any extra padding
     textarea.style.paddingBottom = '0px';
     textarea.style.height = '0px';
-    textarea.style.overflow = 'hidden';
 
     const rawScrollHeight = textarea.scrollHeight;
     const scrollable = rawScrollHeight > MAX_TEXTAREA_HEIGHT;
@@ -203,19 +204,20 @@ function CommandBar() {
       }
     }
 
-    // Re-read height after potential padding change
+    // Let textarea expand to full content height (wrapper handles capping/scrolling)
     const scrollHeight = textarea.scrollHeight;
+    textarea.style.height = `${scrollHeight}px`;
+
+    // The visible height is capped by the wrapper's max-height
     const contentHeight = Math.max(LINE_HEIGHT, Math.min(scrollHeight, MAX_TEXTAREA_HEIGHT));
-    textarea.style.height = `${contentHeight}px`;
 
-    // Clear inline overflow style so CSS class can control it
-    textarea.style.overflow = '';
-
-    // Only enable scrolling when content exceeds max height
+    // Toggle scrollable class on the wrapper and cap its height
     if (scrollable) {
-      textarea.classList.add('scrollable');
+      scrollWrapper.classList.add('scrollable');
+      scrollWrapper.style.maxHeight = `${MAX_TEXTAREA_HEIGHT}px`;
     } else {
-      textarea.classList.remove('scrollable');
+      scrollWrapper.classList.remove('scrollable');
+      scrollWrapper.style.maxHeight = '';
     }
 
     // Calculate response height (actual content height, capped at max)
@@ -548,16 +550,18 @@ function CommandBar() {
   return (
     <div className="command-bar" style={{ background: getBackgroundWithOpacity(), visibility: isVisible ? 'visible' : 'hidden' }} onClick={handleCommandBarClick}>
       <div className={`command-bar-input-area${isScrollable ? ' scrollable' : ''}`}>
-        <textarea
-          ref={inputRef}
-          className="command-bar-input"
-          placeholder={placeholder}
-          value={query}
-          onChange={handleInputChange}
-          onKeyDown={handleKeyDown}
-          disabled={isProcessing}
-          rows={1}
-        />
+        <div className="command-bar-input-scroll" ref={scrollWrapperRef}>
+          <textarea
+            ref={inputRef}
+            className="command-bar-input"
+            placeholder={placeholder}
+            value={query}
+            onChange={handleInputChange}
+            onKeyDown={handleKeyDown}
+            disabled={isProcessing}
+            rows={1}
+          />
+        </div>
         <div className="input-inline-controls" ref={inlineControlsRef}>
           {selectedTextLength > 0 && !pendingToolApproval && (
             <span className="selection-indicator" title="Selected text">{selectedTextLength} chars</span>

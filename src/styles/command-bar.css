@@ -53,12 +53,18 @@ html, body, #root {
 .command-bar-input-area {
   flex: 0 0 auto; /* Don't grow or shrink - size determined by content */
   position: relative;
-  padding: var(--spacing-sm) var(--spacing-md) var(--spacing-xs) var(--spacing-md);
+  padding: var(--spacing-sm) 0 var(--spacing-xs) var(--spacing-md);
+}
+
+/* Scroll wrapper: full width, handles overflow, scrollbar flush to right edge */
+.command-bar-input-scroll {
+  overflow-y: auto;
+  scrollbar-gutter: stable; /* Always reserve scrollbar space so text never shifts */
 }
 
 .command-bar-input {
   display: block;
-  width: 100%;
+  width: calc(100% - var(--spacing-md) + 4px); /* Inset text from right edge to match left padding (4px accounts for scrollbar gutter) */
   background: transparent;
   border: none;
   color: var(--color-text);
@@ -66,7 +72,7 @@ html, body, #root {
   font-size: var(--font-size-sm);
   resize: none;
   line-height: 1.5;
-  overflow: hidden; /* Hide scrollbar by default */
+  overflow: hidden; /* Never scrolls — wrapper handles scrolling */
   min-height: 21px; /* At least one line (14px font * 1.5 line-height) */
   padding: 0; /* padding-bottom set dynamically by JS for inline controls */
   -webkit-app-region: no-drag; /* Allow text selection, not dragging */
@@ -84,9 +90,6 @@ html, body, #root {
   pointer-events: auto;
 }
 
-.command-bar-input.scrollable {
-  overflow-y: auto;
-}
 
 /* When scrollable, controls become a static row below the textarea */
 .command-bar-input-area.scrollable {
@@ -98,6 +101,7 @@ html, body, #root {
   position: static;
   justify-content: flex-end;
   padding-top: var(--spacing-xs);
+  padding-right: var(--spacing-md);
 }
 
 .command-bar-input:focus {
@@ -108,21 +112,21 @@ html, body, #root {
   color: var(--color-text-muted);
 }
 
-/* Scrollbar styling */
-.command-bar-input::-webkit-scrollbar {
+/* Scrollbar styling (on scroll wrapper) */
+.command-bar-input-scroll::-webkit-scrollbar {
   width: 4px;
 }
 
-.command-bar-input::-webkit-scrollbar-track {
+.command-bar-input-scroll::-webkit-scrollbar-track {
   background: transparent;
 }
 
-.command-bar-input::-webkit-scrollbar-thumb {
+.command-bar-input-scroll::-webkit-scrollbar-thumb {
   background: var(--color-border);
   border-radius: 2px;
 }
 
-.command-bar-input::-webkit-scrollbar-thumb:hover {
+.command-bar-input-scroll::-webkit-scrollbar-thumb:hover {
   background: var(--color-text-muted);
 }
 
