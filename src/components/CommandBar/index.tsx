@@ -150,17 +150,28 @@ function CommandBar() {
   const toolApprovalRef = useRef<HTMLDivElement>(null);
 
   // Check if the last visual line of text collides with the inline controls.
-  // Uses the browser's own layout engine by temporarily adding padding-right
-  // and checking if scrollHeight increases — avoids canvas measurement drift.
+  // Uses a mirror div with an appended marker span to find the x-position
+  // where text ends on the last visual line, so soft-wrapped earlier lines
+  // can't trigger a false positive.
   const wouldControlsCollide = useCallback((textarea: HTMLTextAreaElement, controlsWidth: number): boolean => {
-    // Measure height without any right padding (current state, already at height:0 paddingBottom:0)
-    const baseHeight = textarea.scrollHeight;
-    // Temporarily add right padding equal to controls width and re-measure
-    textarea.style.paddingRight = `${controlsWidth}px`;
-    const paddedHeight = textarea.scrollHeight;
-    textarea.style.paddingRight = '0px';
-    // If adding the padding caused text to wrap to a new line, they collide
-    return paddedHeight > baseHeight;
+    if (!textarea.value) return false;
+    const mirror = document.createElement('div');
+    const style = getComputedStyle(textarea);
+    mirror.style.cssText = `
+      position: absolute; visibility: hidden; white-space: pre-wrap;
+      word-break: break-word; overflow-wrap: break-word;
+      font: ${style.font}; letter-spacing: ${style.letterSpacing};
+      width: ${textarea.clientWidth}px; padding: 0; border: 0;
+    `;
+    // Append text + zero-width marker at the end
+    mirror.appendChild(document.createTextNode(textarea.value));
+    const marker = document.createElement('span');
+    mirror.appendChild(marker);
+    document.body.appendChild(mirror);
+    // marker.offsetLeft = x-position where the last visual line's text ends
+    const lastLineEndX = marker.offsetLeft;
+    document.body.removeChild(mirror);
+    return lastLineEndX >= textarea.clientWidth - controlsWidth;
   }, []);
 
   // Resize window based on textarea content - debounced to avoid blocking rapid toggles
