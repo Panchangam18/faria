@@ -149,28 +149,18 @@ function CommandBar() {
   const responseRef = useRef<HTMLDivElement>(null);
   const toolApprovalRef = useRef<HTMLDivElement>(null);
 
-  // Measure the width of the last visual line of text in the textarea
-  const measureLastLineWidth = useCallback((textarea: HTMLTextAreaElement): number => {
-    const text = textarea.value || textarea.placeholder;
-    if (!text) return 0;
-
-    const lines = text.split('\n');
-    const lastLine = lines[lines.length - 1];
-    if (!lastLine) return 0;
-
-    const canvas = document.createElement('canvas');
-    const ctx = canvas.getContext('2d');
-    if (!ctx) return 0;
-
-    const style = getComputedStyle(textarea);
-    ctx.font = `${style.fontSize} ${style.fontFamily}`;
-    const fullWidth = ctx.measureText(lastLine).width;
-    // Account for soft wrapping: the visual last line is the remainder after wrapping
-    const textareaWidth = textarea.clientWidth;
-    if (textareaWidth > 0 && fullWidth > textareaWidth) {
-      return fullWidth % textareaWidth;
-    }
-    return fullWidth;
+  // Check if the last visual line of text collides with the inline controls.
+  // Uses the browser's own layout engine by temporarily adding padding-right
+  // and checking if scrollHeight increases — avoids canvas measurement drift.
+  const wouldControlsCollide = useCallback((textarea: HTMLTextAreaElement, controlsWidth: number): boolean => {
+    // Measure height without any right padding (current state, already at height:0 paddingBottom:0)
+    const baseHeight = textarea.scrollHeight;
+    // Temporarily add right padding equal to controls width and re-measure
+    textarea.style.paddingRight = `${controlsWidth}px`;
+    const paddedHeight = textarea.scrollHeight;
+    textarea.style.paddingRight = '0px';
+    // If adding the padding caused text to wrap to a new line, they collide
+    return paddedHeight > baseHeight;
   }, []);
 
   // Resize window based on textarea content - debounced to avoid blocking rapid toggles
@@ -193,14 +183,9 @@ function CommandBar() {
     setIsScrollable(scrollable);
 
     if (!scrollable && textarea.value) {
-      // Measure last line width to determine if controls need their own line
+      // Check if the last visual line collides with inline controls
       // Only for actual user text — placeholder can overlap with controls
-      const lastLineWidth = measureLastLineWidth(textarea);
-      const textareaWidth = textarea.clientWidth;
-      // Buffer of ~8px to prevent text going under controls due to measurement imprecision
-      const needsExtraLine = lastLineWidth + controlsWidth + 8 > textareaWidth;
-
-      if (needsExtraLine) {
+      if (wouldControlsCollide(textarea, controlsWidth)) {
         textarea.style.paddingBottom = `${LINE_HEIGHT}px`;
       }
     }
@@ -250,7 +235,7 @@ function CommandBar() {
       lastResizeRef.current = totalHeight;
       window.faria.commandBar.resize(totalHeight);
     }
-  }, [query, response, streamingResponse, pendingToolApproval, toolApprovalExpanded, pendingAuth, status, measureLastLineWidth, selectedTextLength]);
+  }, [query, response, streamingResponse, pendingToolApproval, toolApprovalExpanded, pendingAuth, status, wouldControlsCollide, selectedTextLength]);
 
   // Load theme on mount
   useEffect(() => {
