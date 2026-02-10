@@ -189,11 +189,21 @@ function CommandBar() {
     // Save scroll position before measurement — collapsing height to 0 resets scrollTop
     const savedScrollTop = scrollWrapper.scrollTop;
 
-    // First pass: measure raw content height without any extra padding
+    // First pass: measure raw content height without any extra padding.
+    // Temporarily clear min-height so we get the true content height
+    // (min-height: 21px in CSS inflates scrollHeight for single-line content).
     textarea.style.paddingBottom = '0px';
     textarea.style.height = '0px';
+    textarea.style.minHeight = '0px';
 
     const rawScrollHeight = textarea.scrollHeight;
+
+    textarea.style.minHeight = '';
+
+    // Read the browser's actual computed line-height (px value) so padding
+    // matches exactly where the next text line would appear.
+    const computedLineHeight = parseFloat(getComputedStyle(textarea).lineHeight) || LINE_HEIGHT;
+
     const scrollable = rawScrollHeight > MAX_TEXTAREA_HEIGHT;
     setIsScrollable(scrollable);
 
@@ -201,10 +211,12 @@ function CommandBar() {
       if (rawScrollHeight >= MAX_TEXTAREA_HEIGHT) {
         // At max lines: always reserve space for controls row so the transition
         // to scrollable mode (where controls become a static row) is seamless
-        textarea.style.paddingBottom = `${controlsHeight}px`;
+        textarea.style.paddingBottom = `${computedLineHeight}px`;
       } else if (wouldControlsCollide(textarea, controlsWidth)) {
-        // Below max lines: only add padding when text actually collides with controls
-        textarea.style.paddingBottom = `${controlsHeight}px`;
+        // Below max lines: only add padding when text actually collides with controls.
+        // Use computedLineHeight so the controls drop by exactly one text line —
+        // matching where the next line of text will appear when it wraps.
+        textarea.style.paddingBottom = `${computedLineHeight}px`;
       }
     }
 
