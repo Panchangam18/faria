@@ -151,6 +151,7 @@ const deriveAccentColors = (accent: string): { hover: string; active: string } =
 };
 
 const MODELS = [
+  { id: 'claude-opus-4-20250514', name: 'Claude Opus 4.5', provider: 'anthropic' },
   { id: 'claude-sonnet-4-20250514', name: 'Claude Sonnet 4', provider: 'anthropic' },
   { id: 'claude-3-5-sonnet-20241022', name: 'Claude 3.5 Sonnet', provider: 'anthropic' },
   { id: 'gemini-3-pro-preview', name: 'Gemini 3 Pro', provider: 'google' },
