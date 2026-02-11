@@ -272,9 +272,21 @@ function CommandBar() {
     scrollWrapper.scrollTop = savedScrollTop;
 
     // Measure agent area height (response + footer + divider — all above the input)
+    // Temporarily remove overflow on the response div so its full content height
+    // contributes to the agent area's scrollHeight. Without this, when content is
+    // set all at once (e.g. history navigation), the response div absorbs overflow
+    // internally (overflow-y: auto) and reports a tiny offsetHeight, causing the
+    // agent area scrollHeight to undercount.
     let agentAreaHeight = 0;
     if (agentAreaRef.current) {
+      const respEl = responseRef.current;
+      if (respEl) {
+        respEl.style.overflow = 'visible';
+      }
       agentAreaHeight = agentAreaRef.current.scrollHeight;
+      if (respEl) {
+        respEl.style.overflow = '';
+      }
     }
 
     // When scrollable, controls become a static row below the textarea
@@ -298,7 +310,10 @@ function CommandBar() {
     // yet reflect the final layout.
     const rafId = requestAnimationFrame(() => {
       if (agentAreaRef.current) {
+        const respEl = responseRef.current;
+        if (respEl) respEl.style.overflow = 'visible';
         const settled = agentAreaRef.current.scrollHeight;
+        if (respEl) respEl.style.overflow = '';
         if (settled !== agentAreaHeight) {
           sendResize(settled);
         }
