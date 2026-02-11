@@ -78,28 +78,6 @@ const MAX_TEXTAREA_HEIGHT = LINE_HEIGHT * MAX_LINES; // 63px for 3 lines
 const CONTROLS_GAP = 4; // Breathing room between text and inline controls
 const BASE_HEIGHT = 18; // Input area padding (8 top + 8 bottom) + border (2)
 
-// Placeholder texts
-const PLACEHOLDER_TEXTS = [
-  "What do you seek?",
-  "What weighs upon your mind?",
-  "The present is but a bridge...",
-  "In what direction shall we proceed?",
-  "Time reveals all things...",
-  "What truth shall we uncover?",
-  "What hidden thing seeks light?",
-  "Life is a tempest, one must learn to sail...",
-  "What door shall we open?",
-  "In what cavern of thought shall we dwell?",
-  "What sleeping thing shall we awaken?",
-  "To wait and to hope...",
-  "What treasure lies buried in your mind?",
-  "The slow unraveling of all things...",
-  "One must have lived to know...",
-  "What song does solitude sing?",
-  "What melody does the wind play?",
-  "What shadow does the sun cast?",
-];
-
 // Default theme colors (fallback only)
 const DEFAULT_COLORS = { background: '#272932', text: '#EAE0D5', accent: '#C6AC8F' };
 
@@ -149,7 +127,7 @@ function applyTheme(theme: string, colors?: { background: string; text: string; 
 
 function CommandBar() {
   const [query, setQuery] = useState('');
-  const [placeholder, setPlaceholder] = useState('...');
+  const placeholder = 'What do you seek?';
   const [response, setResponse] = useState('');
   const [streamingResponse, setStreamingResponse] = useState('');
   const [status, setStatus] = useState('');
@@ -369,7 +347,6 @@ function CommandBar() {
       // Clear streaming response (incomplete placeholder content) but keep final response
       // Response persists so user can see agent's answer when they reopen
       setStreamingResponse('');
-      setPlaceholder('...');
       // Reset history navigation
       setHistoryIndex(-1);
       historyRef.current = [];
@@ -378,7 +355,6 @@ function CommandBar() {
 
     // Focus input when command bar becomes visible and refresh selection
     const cleanupFocus = window.faria.commandBar.onFocus(() => {
-      setPlaceholder(PLACEHOLDER_TEXTS[Math.floor(Math.random() * PLACEHOLDER_TEXTS.length)]);
       // Show content now that state is fresh
       setIsVisible(true);
       inputRef.current?.focus();
