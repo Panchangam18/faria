@@ -1264,8 +1264,7 @@ function SettingsPanel({ currentTheme, onThemeChange }: SettingsPanelProps) {
           display: 'flex',
           flexDirection: 'column',
           gap: '2px',
-          marginLeft: 'var(--spacing-md)',
-          borderLeft: '2px solid var(--color-border)',
+          marginLeft: 'var(--spacing-sm)',
           paddingLeft: 'var(--spacing-sm)',
         }}>
           {[
