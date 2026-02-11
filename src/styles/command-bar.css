@@ -395,8 +395,8 @@ html, body, #root {
   cursor: pointer;
   transition: all var(--transition-fast);
   -webkit-app-region: no-drag;
-  font-size: 20px;
-  padding: var(--spacing-xs);
+  font-size: var(--font-size-sm);
+  padding: var(--spacing-xs) 0 var(--spacing-xs) var(--spacing-xs);
 }
 
 .stop-button:hover {
