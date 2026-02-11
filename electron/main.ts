@@ -883,8 +883,8 @@ function setupIPC() {
   ipcMain.on('command-bar:resize', (_event, height: number, agentAreaHeight: number) => {
     if (commandBarWindow) {
       const [width] = commandBarWindow.getSize();
-      // Min: 35 (single line with padding + border), Max: ~500 (input + agent area)
-      const clampedHeight = Math.min(Math.max(height, 35), 500);
+      const maxHeight = Math.round(screen.getPrimaryDisplay().workAreaSize.height / 2);
+      const clampedHeight = Math.min(Math.max(height, 35), maxHeight);
       baseContentHeight = clampedHeight;
 
       // Calculate how much the agent area height changed to grow/shrink upward

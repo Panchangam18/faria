@@ -48,6 +48,29 @@ function formatToolkitName(slug: string): string {
     .trim();
 }
 
+// Get the pixel rect of the caret at the current selectionStart using a mirror div.
+function getCaretRect(textarea: HTMLTextAreaElement): { top: number; left: number } | null {
+  const mirror = document.createElement('div');
+  const style = getComputedStyle(textarea);
+  mirror.style.cssText = `
+    position: absolute; visibility: hidden; white-space: pre-wrap;
+    word-break: break-word; overflow-wrap: break-word;
+    font: ${style.font}; letter-spacing: ${style.letterSpacing};
+    line-height: ${style.lineHeight}; padding: ${style.padding};
+    width: ${textarea.clientWidth}px; border: 0;
+  `;
+  const text = textarea.value.substring(0, textarea.selectionStart);
+  mirror.appendChild(document.createTextNode(text));
+  const marker = document.createElement('span');
+  marker.textContent = '\u200b'; // zero-width space so it has height
+  mirror.appendChild(marker);
+  document.body.appendChild(mirror);
+  const top = marker.offsetTop;
+  const left = marker.offsetLeft;
+  document.body.removeChild(mirror);
+  return { top, left };
+}
+
 // Line height is 14px (font-size-sm) * 1.5 = 21px
 const LINE_HEIGHT = 21;
 const MAX_LINES = 3;
@@ -133,6 +156,11 @@ function CommandBar() {
   const [streamingResponse, setStreamingResponse] = useState('');
   const [status, setStatus] = useState('');
   const [isProcessing, setIsProcessing] = useState(false);
+
+  // History navigation state
+  const [historyIndex, setHistoryIndex] = useState(-1); // -1 = not navigating history
+  const historyRef = useRef<Array<{ query: string; response: string }>>([]);
+  const draftQueryRef = useRef(''); // Saves the user's in-progress query before navigating
   const [selectedTextLength, setSelectedTextLength] = useState<number>(0); // Character count of selected text
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [pendingAuth, setPendingAuth] = useState<{ toolkit: string; redirectUrl: string } | null>(null);
@@ -252,14 +280,32 @@ function CommandBar() {
     // When scrollable, controls become a static row below the textarea
     const controlsRowHeight = scrollable ? controlsHeight : 0;
 
-    // Calculate total window height
+    // Calculate total window height and send resize
     const inputAreaHeight = BASE_HEIGHT + contentHeight + controlsRowHeight;
-    const totalHeight = inputAreaHeight + agentAreaHeight;
-    if (totalHeight !== lastResizeRef.current) {
-      lastResizeRef.current = totalHeight;
-      // Send both total height and agent area height so main process can grow upward
-      window.faria.commandBar.resize(totalHeight, agentAreaHeight);
-    }
+    const sendResize = (aaHeight: number) => {
+      const total = inputAreaHeight + aaHeight;
+      if (total !== lastResizeRef.current) {
+        lastResizeRef.current = total;
+        window.faria.commandBar.resize(total, aaHeight);
+      }
+    };
+
+    sendResize(agentAreaHeight);
+
+    // Schedule a follow-up measurement after browser layout settles.
+    // When content changes abruptly (e.g. history navigation populates
+    // a full response at once), the synchronous scrollHeight may not
+    // yet reflect the final layout.
+    const rafId = requestAnimationFrame(() => {
+      if (agentAreaRef.current) {
+        const settled = agentAreaRef.current.scrollHeight;
+        if (settled !== agentAreaHeight) {
+          sendResize(settled);
+        }
+      }
+    });
+
+    return () => cancelAnimationFrame(rafId);
   }, [query, response, streamingResponse, pendingToolApproval, toolApprovalExpanded, pendingAuth, status, wouldControlsCollide, selectedTextLength]);
 
   // Load theme on mount
@@ -311,6 +357,9 @@ function CommandBar() {
       // Response persists so user can see agent's answer when they reopen
       setStreamingResponse('');
       setPlaceholder('...');
+      // Reset history navigation
+      setHistoryIndex(-1);
+      historyRef.current = [];
       // Don't clear isProcessing, status, response, or pendingAuth - keep them when command bar reopens
     });
 
@@ -398,6 +447,8 @@ function CommandBar() {
       setPendingAuth(null);
       setPendingToolApproval(null);
       setToolApprovalExpanded(false);
+      setHistoryIndex(-1);
+      historyRef.current = [];
     });
 
     // Cleanup all listeners on unmount
@@ -482,6 +533,11 @@ function CommandBar() {
 
   const handleInputChange = (e: React.ChangeEvent<HTMLTextAreaElement>) => {
     setQuery(e.target.value);
+    // Reset history navigation when user types
+    if (historyIndex !== -1) {
+      setHistoryIndex(-1);
+      historyRef.current = [];
+    }
   };
 
   const handleStop = useCallback(async () => {
@@ -523,12 +579,90 @@ function CommandBar() {
 
     if (e.key === 'Enter' && !e.shiftKey) {
       e.preventDefault();
+      // Reset history navigation on submit
+      setHistoryIndex(-1);
+      historyRef.current = [];
       handleSubmit();
     }
     if (e.key === 'Escape') {
       window.faria.commandBar.hide();
     }
-  }, [handleSubmit, pendingToolApproval]);
+
+    // History navigation with ArrowUp/ArrowDown (only when not processing)
+    if ((e.key === 'ArrowUp' || e.key === 'ArrowDown') && !isProcessing) {
+      const textarea = inputRef.current;
+      if (!textarea) return;
+
+      // ArrowDown does nothing when not navigating history
+      if (e.key === 'ArrowDown' && historyIndex === -1) return;
+
+      // Check if the cursor can move within the textarea (multiline / soft-wrap).
+      // For ArrowUp: if cursor is on the first visual row, there's nowhere to go up.
+      // For ArrowDown: if cursor is on the last visual row, there's nowhere to go down.
+      // We detect this by checking if the cursor is already at the top (ArrowUp) or
+      // bottom (ArrowDown) row using a coordinate-based approach.
+      const cursorPos = textarea.selectionStart;
+      if (e.key === 'ArrowUp' && cursorPos > 0) {
+        // Move cursor to position 0 temporarily to get top-row Y, then restore
+        textarea.setSelectionRange(0, 0);
+        const topRect = getCaretRect(textarea);
+        textarea.setSelectionRange(cursorPos, cursorPos);
+        const curRect = getCaretRect(textarea);
+        // If cursor Y is below the first row, let the browser handle normal navigation
+        if (curRect && topRect && curRect.top > topRect.top) return;
+      }
+      if (e.key === 'ArrowDown') {
+        const len = textarea.value.length;
+        if (cursorPos < len) {
+          textarea.setSelectionRange(len, len);
+          const botRect = getCaretRect(textarea);
+          textarea.setSelectionRange(cursorPos, cursorPos);
+          const curRect = getCaretRect(textarea);
+          if (curRect && botRect && curRect.top < botRect.top) return;
+        }
+      }
+
+      e.preventDefault();
+
+      // First ArrowUp: fetch history and save draft
+      if (historyIndex === -1 && e.key === 'ArrowUp') {
+        draftQueryRef.current = query;
+        window.faria.history.get().then((entries) => {
+          if (!entries || entries.length === 0) return;
+          historyRef.current = entries; // already sorted newest-first
+          setHistoryIndex(0);
+          setQuery(entries[0].query);
+          setResponse(entries[0].response);
+        });
+        return;
+      }
+
+      // Navigate within loaded history
+      const history = historyRef.current;
+      if (history.length === 0) return;
+
+      if (e.key === 'ArrowUp') {
+        const newIndex = Math.min(historyIndex + 1, history.length - 1);
+        setHistoryIndex(newIndex);
+        setQuery(history[newIndex].query);
+        setResponse(history[newIndex].response);
+      } else {
+        // ArrowDown
+        const newIndex = historyIndex - 1;
+        if (newIndex < 0) {
+          // Back to draft
+          setHistoryIndex(-1);
+          setQuery(draftQueryRef.current);
+          setResponse('');
+          historyRef.current = [];
+        } else {
+          setHistoryIndex(newIndex);
+          setQuery(history[newIndex].query);
+          setResponse(history[newIndex].response);
+        }
+      }
+    }
+  }, [handleSubmit, pendingToolApproval, isProcessing, query, historyIndex]);
 
   // Refresh selection when clicking in the command bar (in case user selected new text)
   const handleCommandBarClick = useCallback(() => {
