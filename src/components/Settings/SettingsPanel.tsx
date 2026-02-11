@@ -1257,7 +1257,7 @@ function SettingsPanel({ currentTheme, onThemeChange }: SettingsPanelProps) {
           letterSpacing: '0.05em',
           fontWeight: 500
         }}>
-          Tools
+          Actions
         </div>
 
         <div style={{
