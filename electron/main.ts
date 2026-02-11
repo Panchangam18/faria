@@ -51,7 +51,7 @@ try {
 let isMainWindowVisible = false;
 
 // Default command bar dimensions
-const DEFAULT_COMMAND_BAR_WIDTH = 400;
+const DEFAULT_COMMAND_BAR_WIDTH = 300;
 const DEFAULT_COMMAND_BAR_HEIGHT = 35; // Single line: 14 (base) + 21 (one line)
 let lastAgentAreaHeight = 0; // Track agent area height for upward growth delta
 
