@@ -77,6 +77,9 @@ const MAX_LINES = 3;
 const MAX_TEXTAREA_HEIGHT = LINE_HEIGHT * MAX_LINES; // 63px for 3 lines
 const CONTROLS_GAP = 4; // Breathing room between text and inline controls
 const BASE_HEIGHT = 18; // Input area padding (8 top + 8 bottom) + border (2)
+const RESPONSE_LINE_HEIGHT = 17.6; // 11px (font-size-xs) * 1.6 line-height
+const MAX_RESPONSE_LINES = 5;
+const MAX_RESPONSE_HEIGHT = RESPONSE_LINE_HEIGHT * MAX_RESPONSE_LINES; // 88px
 
 // Default theme colors (fallback only)
 const DEFAULT_COLORS = { background: '#272932', text: '#EAE0D5', accent: '#C6AC8F' };
@@ -248,20 +251,27 @@ function CommandBar() {
     scrollWrapper.scrollTop = savedScrollTop;
 
     // Measure agent area height (response + footer + divider — all above the input)
-    // Temporarily remove overflow on the response div so its full content height
-    // contributes to the agent area's scrollHeight. Without this, when content is
-    // set all at once (e.g. history navigation), the response div absorbs overflow
-    // internally (overflow-y: auto) and reports a tiny offsetHeight, causing the
-    // agent area scrollHeight to undercount.
+    // Temporarily remove overflow and max-height on the response div so its full
+    // content height contributes to the agent area's scrollHeight. Then cap the
+    // result so the response never exceeds MAX_RESPONSE_HEIGHT (scrolls instead).
     let agentAreaHeight = 0;
     if (agentAreaRef.current) {
       const respEl = responseRef.current;
       if (respEl) {
         respEl.style.overflow = 'visible';
+        respEl.style.maxHeight = 'none';
       }
-      agentAreaHeight = agentAreaRef.current.scrollHeight;
+      const uncappedHeight = agentAreaRef.current.scrollHeight;
+      const responseContentHeight = respEl ? respEl.scrollHeight : 0;
       if (respEl) {
         respEl.style.overflow = '';
+        respEl.style.maxHeight = '';
+      }
+      // Cap: if response content exceeds the max, shrink by the overflow amount
+      if (respEl && responseContentHeight > MAX_RESPONSE_HEIGHT) {
+        agentAreaHeight = uncappedHeight - (responseContentHeight - MAX_RESPONSE_HEIGHT);
+      } else {
+        agentAreaHeight = uncappedHeight;
       }
     }
 
@@ -287,9 +297,19 @@ function CommandBar() {
     const rafId = requestAnimationFrame(() => {
       if (agentAreaRef.current) {
         const respEl = responseRef.current;
-        if (respEl) respEl.style.overflow = 'visible';
-        const settled = agentAreaRef.current.scrollHeight;
-        if (respEl) respEl.style.overflow = '';
+        if (respEl) {
+          respEl.style.overflow = 'visible';
+          respEl.style.maxHeight = 'none';
+        }
+        const uncapped = agentAreaRef.current.scrollHeight;
+        const respHeight = respEl ? respEl.scrollHeight : 0;
+        if (respEl) {
+          respEl.style.overflow = '';
+          respEl.style.maxHeight = '';
+        }
+        const settled = respEl && respHeight > MAX_RESPONSE_HEIGHT
+          ? uncapped - (respHeight - MAX_RESPONSE_HEIGHT)
+          : uncapped;
         if (settled !== agentAreaHeight) {
           sendResize(settled);
         }
@@ -454,6 +474,13 @@ function CommandBar() {
       cleanupReset();
     };
   }, []);
+
+  // Auto-scroll response to bottom as streaming content arrives
+  useEffect(() => {
+    if (responseRef.current && streamingResponse) {
+      responseRef.current.scrollTop = responseRef.current.scrollHeight;
+    }
+  }, [streamingResponse]);
 
   // Reset expanded state when tool approval changes
   useEffect(() => {

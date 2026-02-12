@@ -152,6 +152,7 @@ html, body, #root {
   line-height: 1.6;
   color: var(--color-accent);
   -webkit-app-region: no-drag; /* Allow scrolling, not dragging */
+  max-height: 88px; /* Cap at 5 lines: 11px font * 1.6 line-height = 17.6px per line */
 }
 
 .command-bar-response:empty {
