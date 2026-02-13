@@ -72,7 +72,7 @@ export class StateExtractor {
           };
         } else {
           // Fallback to screenshot
-          const screenshot = await takeScreenshot({ preserveSize: true });
+          const screenshot = await takeScreenshot();
           state = {
             method: 'screenshot',
             appName,
@@ -85,7 +85,7 @@ export class StateExtractor {
         }
       } else {
         // Fallback to screenshot
-        const screenshot = await takeScreenshot({ preserveSize: true });
+        const screenshot = await takeScreenshot();
         state = {
           method: 'screenshot',
           appName,
@@ -109,8 +109,8 @@ export class StateExtractor {
       };
     } else {
       // Last resort: screenshot fallback (for Electron apps, etc.)
-      // Use preserveSize to ensure coordinates match the screen dimensions for computer use
-      const screenshot = await takeScreenshot({ preserveSize: true });
+      // Resize screenshot to fit within Anthropic's vision constraints for deterministic coordinate mapping
+      const screenshot = await takeScreenshot();
       state = {
         method: 'screenshot',
         appName,

@@ -5,7 +5,7 @@ import { ToolResult, ToolContext } from './types';
 import { runAppleScript, focusApp } from '../../services/applescript';
 import { insertImageFromUrl } from '../../services/text-extraction';
 import * as cliclick from '../../services/cliclick';
-import { takeScreenshot } from '../../services/screenshot';
+import { takeScreenshot, calculateResizeWidth } from '../../services/screenshot';
 import { screen } from 'electron';
 import type { ToolSettings } from '../../services/models';
 
@@ -78,29 +78,46 @@ export const ChainActionsSchema = z.object({
 });
 
 /**
- * Convert coordinates from Google's 0-1000 normalized grid to logical screen points.
- * Google Gemini outputs coordinates in a normalized 0-1000 range relative to the image dimensions.
- * The screenshot sent to Gemini is at native (Retina) resolution, but cliclick and
- * Electron's screen.getPrimaryDisplay().size operate in logical (DIP) points.
- * Since imagePixels / scaleFactor = logicalPoints, the formula (coord / 1000) * logicalSize
- * correctly maps Gemini's image-relative coordinates to cliclick's coordinate space.
- * Anthropic uses actual pixel coordinates, so no conversion needed.
+ * Convert model output coordinates to logical screen points for cliclick.
+ *
+ * Google Gemini: outputs 0-1000 normalized coordinates relative to the image.
+ *   Formula: (coord / 1000) * logicalScreenSize
+ *
+ * Anthropic Claude: outputs pixel coordinates relative to the screenshot image.
+ *   Screenshots are pre-resized to fit within Anthropic's vision constraints
+ *   (1568px max edge, ~1.19MP total pixels) so the API won't further resize.
+ *   We use the same calculateResizeWidth() to know the exact image dimensions
+ *   Claude sees, then scale coordinates back to logical screen points.
  */
 function convertCoordinates(x: number, y: number, provider: 'anthropic' | 'google' | null): { x: number; y: number } {
-  // Only convert for Google - Anthropic uses real pixel coordinates
-  if (provider !== 'google') {
+  const primaryDisplay = screen.getPrimaryDisplay();
+  const { width: screenWidth, height: screenHeight } = primaryDisplay.size;
+  const scaleFactor = primaryDisplay.scaleFactor || 1;
+
+  if (provider === 'google') {
+    // Gemini uses 0-1000 normalized coordinates (divide by 1000)
+    // Coordinates above 1000 are treated as raw pixel values (fallthrough)
+    if (x <= 1000 && y <= 1000) {
+      const pixelX = Math.round((x / 1000) * screenWidth);
+      const pixelY = Math.round((y / 1000) * screenHeight);
+      console.log(`[Faria] Converting Google normalized (0-1000) coords (${x},${y}) -> logical (${pixelX},${pixelY}) for screen ${screenWidth}x${screenHeight}`);
+      return { x: pixelX, y: pixelY };
+    }
     return { x, y };
   }
 
-  const primaryDisplay = screen.getPrimaryDisplay();
-  const { width: screenWidth, height: screenHeight } = primaryDisplay.size;
+  if (provider === 'anthropic') {
+    // Screenshots are pre-resized using calculateResizeWidth() before sending to Claude.
+    // This is the same function used by the screenshot service, so we know the exact
+    // image dimensions Claude sees. Scale coordinates from image space to logical screen.
+    const nativeWidth = screenWidth * scaleFactor;
+    const nativeHeight = screenHeight * scaleFactor;
+    const ssWidth = calculateResizeWidth(nativeWidth, nativeHeight);
+    const ssHeight = Math.round(nativeHeight * (ssWidth / nativeWidth));
 
-  // Gemini uses 0-1000 normalized coordinates (divide by 1000, not 999)
-  // Coordinates above 1000 are treated as raw pixel values (fallthrough)
-  if (x <= 1000 && y <= 1000) {
-    const pixelX = Math.round((x / 1000) * screenWidth);
-    const pixelY = Math.round((y / 1000) * screenHeight);
-    console.log(`[Faria] Converting Google normalized (0-1000) coords (${x},${y}) -> logical (${pixelX},${pixelY}) for screen ${screenWidth}x${screenHeight}`);
+    const pixelX = Math.round((x / ssWidth) * screenWidth);
+    const pixelY = Math.round((y / ssHeight) * screenHeight);
+    console.log(`[Faria] Converting Anthropic coords (${x},${y}) from screenshot ${ssWidth}x${ssHeight} -> logical (${pixelX},${pixelY}) for screen ${screenWidth}x${screenHeight}`);
     return { x: pixelX, y: pixelY };
   }
 
@@ -489,7 +506,7 @@ async function executeAction(
     }
 
     case 'screenshot': {
-      const screenshot = await takeScreenshot({ preserveSize: true });
+      const screenshot = await takeScreenshot();
       const base64Data = screenshot.replace(/^data:image\/\w+;base64,/, '');
       return { message: 'Screenshot captured', image: base64Data };
     }
