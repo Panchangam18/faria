@@ -7,30 +7,45 @@ import { v4 as uuidv4 } from 'uuid';
 
 const execAsync = promisify(exec);
 
-// Max dimension for screenshots to reduce token usage (Claude vision handles this well)
-const MAX_SCREENSHOT_DIMENSION = 1568;
+// Anthropic vision constraints — images exceeding these are auto-downscaled by the API.
+// We pre-resize to fit within these limits so we know the exact dimensions Claude sees,
+// enabling deterministic coordinate conversion.
+const MAX_LONG_EDGE = 1568;
+const MAX_TOTAL_PIXELS = 1_190_000; // ~1.19MP (from Anthropic docs: 1092² = 1,192,464)
+
+/**
+ * Calculate the target width for resizing a screenshot.
+ * Applies both Anthropic's constraints: max long edge AND max total pixels.
+ * Returns the target width (aspect ratio is preserved by sips).
+ */
+export function calculateResizeWidth(width: number, height: number): number {
+  // Scale factor for long edge constraint
+  const longEdgeScale = MAX_LONG_EDGE / Math.max(width, height);
+  // Scale factor for total pixel constraint
+  const totalPixelScale = Math.sqrt(MAX_TOTAL_PIXELS / (width * height));
+  // Take the more restrictive constraint (but don't upscale)
+  const scale = Math.min(1.0, longEdgeScale, totalPixelScale);
+
+  return Math.round(width * scale);
+}
 
 /**
  * Resize an image using sips (built into macOS)
- * Maintains aspect ratio, resizes to fit within maxDimension
+ * Maintains aspect ratio, fits within Anthropic's vision constraints.
  */
-async function resizeImage(inputPath: string, outputPath: string, maxDimension: number): Promise<void> {
+async function resizeImage(inputPath: string, outputPath: string): Promise<void> {
   // Get current dimensions
   const { stdout: dimensions } = await execAsync(
     `sips -g pixelWidth -g pixelHeight "${inputPath}" | tail -2 | awk '{print $2}'`
   );
   const [width, height] = dimensions.trim().split('\n').map(Number);
-  
-  // Only resize if larger than max dimension
-  if (width > maxDimension || height > maxDimension) {
-    // Determine which dimension to constrain
-    if (width >= height) {
-      await execAsync(`sips --resampleWidth ${maxDimension} "${inputPath}" --out "${outputPath}"`, { timeout: 10000 });
-    } else {
-      await execAsync(`sips --resampleHeight ${maxDimension} "${inputPath}" --out "${outputPath}"`, { timeout: 10000 });
-    }
+
+  const targetWidth = calculateResizeWidth(width, height);
+
+  if (targetWidth < width) {
+    await execAsync(`sips --resampleWidth ${targetWidth} "${inputPath}" --out "${outputPath}"`, { timeout: 10000 });
   } else {
-    // Just copy if already small enough
+    // Already small enough
     await execAsync(`cp "${inputPath}" "${outputPath}"`);
   }
 }
@@ -43,19 +58,19 @@ export interface ScreenshotOptions {
 /**
  * Capture a screenshot of the entire screen
  * Returns base64 encoded PNG
- * 
+ *
  * @param options.preserveSize - If true, don't resize (important for computer use coordinate accuracy)
  */
 export async function takeScreenshot(options: ScreenshotOptions = {}): Promise<string> {
   const tempPath = join(tmpdir(), `faria-screenshot-${uuidv4()}.png`);
   const resizedPath = join(tmpdir(), `faria-screenshot-${uuidv4()}-resized.png`);
-  
+
   try {
     // Use screencapture command (built into macOS)
     await execAsync(`screencapture -x -t png "${tempPath}"`, {
       timeout: 5000,
     });
-    
+
     // For computer use, preserve original size so coordinates match exactly
     // For other uses (like inline agent), resize to save tokens
     if (options.preserveSize) {
@@ -64,18 +79,18 @@ export async function takeScreenshot(options: ScreenshotOptions = {}): Promise<s
       await unlink(tempPath).catch(() => {});
       return `data:image/png;base64,${base64}`;
     }
-    
-    // Resize to reduce token usage
-    await resizeImage(tempPath, resizedPath, MAX_SCREENSHOT_DIMENSION);
-    
+
+    // Resize to fit within Anthropic's vision constraints
+    await resizeImage(tempPath, resizedPath);
+
     // Read the resized file and convert to base64
     const imageBuffer = await readFile(resizedPath);
     const base64 = imageBuffer.toString('base64');
-    
+
     // Clean up temp files
     await unlink(tempPath).catch(() => {});
     await unlink(resizedPath).catch(() => {});
-    
+
     return `data:image/png;base64,${base64}`;
   } catch (error) {
     // Clean up temp files on error
