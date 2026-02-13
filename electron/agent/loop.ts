@@ -1,5 +1,5 @@
 import { HumanMessage, SystemMessage, AIMessage, ToolMessage } from '@langchain/core/messages';
-import { BrowserWindow, ipcMain } from 'electron';
+import { BrowserWindow, ipcMain, screen } from 'electron';
 import { StateExtractor, AppState } from '../services/state-extractor';
 import { ToolExecutor } from './tools';
 import { initDatabase } from '../db/sqlite';
@@ -19,6 +19,7 @@ import {
 import { searchMemories, getAllMemories, ContextManager, estimateTokens } from '../services/memory';
 import { triggerMemoryAgent } from './memory-agent';
 import { ComposioService } from '../services/composio';
+import { showClickIndicator, hideClickIndicator } from '../services/click-indicator';
 
 // Load environment variables for LangSmith tracing
 import 'dotenv/config';
@@ -137,11 +138,20 @@ function generateBuiltinApprovalInfo(toolName: string, args: Record<string, unkn
       if (args.text) details[''] = String(args.text);
       return { displayName: 'Replace Selected Text', details };
 
-    case 'computer_actions':
+    case 'computer_actions': {
       if (args.actions && Array.isArray(args.actions)) {
-        details['Actions'] = args.actions.map((a: any) => a.type || 'unknown').join(', ');
+        const actionTypes = args.actions.map((a: any) => a.type || 'unknown');
+        const hasClick = actionTypes.some((t: string) =>
+          ['click', 'right_click', 'double_click'].includes(t)
+        );
+        if (hasClick) {
+          // Click actions use the visual indicator overlay, no detail text needed
+          return { displayName: 'Faria wants to click', details: {} };
+        }
+        details['Actions'] = actionTypes.join(', ');
       }
-      return { displayName: 'Computer Actions', details };
+      return { displayName: 'Allow computer control?', details };
+    }
 
     case 'execute_python':
       if (args.code) details['Code'] = String(args.code);
@@ -495,6 +505,17 @@ export class AgentLoop {
                 ? generateComposioApprovalInfo(toolCall.name, toolCall.args as Record<string, unknown>)
                 : generateBuiltinApprovalInfo(toolCall.name, toolCall.args as Record<string, unknown>);
 
+              // Show pulsing click indicator overlay for click actions
+              if (toolCall.name === 'computer_actions') {
+                const clickCoords = this.extractClickCoordinates(
+                  toolCall.args as Record<string, unknown>,
+                  providerName
+                );
+                if (clickCoords) {
+                  showClickIndicator(clickCoords.x, clickCoords.y);
+                }
+              }
+
               this.sendStatus('Waiting for approval...');
               const approved = await this.requestToolApproval(
                 toolCall.name,
@@ -504,6 +525,9 @@ export class AgentLoop {
                 displayName,
                 details
               );
+
+              // Hide click indicator once user responds
+              hideClickIndicator();
 
               if (!approved || this.shouldCancel) {
                 addMessage(new ToolMessage({
@@ -654,6 +678,7 @@ export class AgentLoop {
   cancel(): void {
     console.log('[Faria] Cancel requested');
     this.shouldCancel = true;
+    hideClickIndicator();
     // Also resolve any pending auth to unblock
     if (this.pendingAuthResolve) {
       this.pendingAuthResolve();
@@ -664,6 +689,45 @@ export class AgentLoop {
       this.pendingToolApprovalResolve(false); // Treat cancel as denial
       this.pendingToolApprovalResolve = null;
     }
+  }
+
+  /**
+   * Extract the first click coordinate from computer_actions tool args.
+   * Converts Google normalized (0-1000) coordinates to logical screen points.
+   * Returns null if no click action or no coordinates found.
+   */
+  private extractClickCoordinates(
+    args: Record<string, unknown>,
+    providerName: string
+  ): { x: number; y: number } | null {
+    if (!args.actions || !Array.isArray(args.actions)) return null;
+
+    const clickAction = (args.actions as Array<any>).find((a: any) =>
+      ['click', 'right_click', 'double_click'].includes(a.type)
+    );
+    if (!clickAction) return null;
+
+    let x: number | undefined;
+    let y: number | undefined;
+
+    if (clickAction.coordinate && Array.isArray(clickAction.coordinate)) {
+      [x, y] = clickAction.coordinate;
+    } else if (clickAction.x !== undefined && clickAction.y !== undefined) {
+      x = clickAction.x;
+      y = clickAction.y;
+    }
+
+    if (x === undefined || y === undefined) return null;
+
+    // Convert Google's 0-1000 normalized coordinates to logical screen points
+    if (providerName === 'google' && x <= 1000 && y <= 1000) {
+      const primaryDisplay = screen.getPrimaryDisplay();
+      const { width: screenWidth, height: screenHeight } = primaryDisplay.size;
+      x = Math.round((x / 1000) * screenWidth);
+      y = Math.round((y / 1000) * screenHeight);
+    }
+
+    return { x, y };
   }
 
   /**
