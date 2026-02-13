@@ -22,8 +22,19 @@ export interface AppState {
 }
 
 export class StateExtractor {
+  private provider: 'anthropic' | 'google' | null = null;
+
   constructor() {
     // State extractor initialization
+  }
+
+  /**
+   * Set the model provider for screenshot sizing decisions.
+   * Google/Gemini gets full-res screenshots (uses normalized coords).
+   * Anthropic/Claude gets resized screenshots (for deterministic coord mapping).
+   */
+  setProvider(provider: 'anthropic' | 'google' | null): void {
+    this.provider = provider;
   }
 
   /**
@@ -72,7 +83,7 @@ export class StateExtractor {
           };
         } else {
           // Fallback to screenshot
-          const screenshot = await takeScreenshot();
+          const screenshot = await takeScreenshot({ provider: this.provider });
           state = {
             method: 'screenshot',
             appName,
@@ -85,7 +96,7 @@ export class StateExtractor {
         }
       } else {
         // Fallback to screenshot
-        const screenshot = await takeScreenshot();
+        const screenshot = await takeScreenshot({ provider: this.provider });
         state = {
           method: 'screenshot',
           appName,
@@ -109,8 +120,8 @@ export class StateExtractor {
       };
     } else {
       // Last resort: screenshot fallback (for Electron apps, etc.)
-      // Resize screenshot to fit within Anthropic's vision constraints for deterministic coordinate mapping
-      const screenshot = await takeScreenshot();
+      // Screenshot sizing depends on provider (set via setProvider)
+      const screenshot = await takeScreenshot({ provider: this.provider });
       state = {
         method: 'screenshot',
         appName,

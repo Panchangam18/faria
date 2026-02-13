@@ -6,6 +6,8 @@ import { runAppleScript, focusApp } from '../../services/applescript';
 import { insertImageFromUrl } from '../../services/text-extraction';
 import * as cliclick from '../../services/cliclick';
 import { takeScreenshot, calculateResizeWidth } from '../../services/screenshot';
+// NOTE: calculateResizeWidth must use the same constants as screenshot.ts to keep
+// the coordinate conversion in sync with the actual screenshot dimensions.
 import { screen } from 'electron';
 import type { ToolSettings } from '../../services/models';
 
@@ -506,7 +508,7 @@ async function executeAction(
     }
 
     case 'screenshot': {
-      const screenshot = await takeScreenshot();
+      const screenshot = await takeScreenshot({ provider: context.provider });
       const base64Data = screenshot.replace(/^data:image\/\w+;base64,/, '');
       return { message: 'Screenshot captured', image: base64Data };
     }

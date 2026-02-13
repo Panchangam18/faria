@@ -11,7 +11,7 @@ const execAsync = promisify(exec);
 // We pre-resize to fit within these limits so we know the exact dimensions Claude sees,
 // enabling deterministic coordinate conversion.
 const MAX_LONG_EDGE = 1568;
-const MAX_TOTAL_PIXELS = 1_190_000; // ~1.19MP (from Anthropic docs: 1092² = 1,192,464)
+const MAX_TOTAL_PIXELS = 1_180_000; // Stay safely under Anthropic's ~1.19MP threshold
 
 /**
  * Calculate the target width for resizing a screenshot.
@@ -53,6 +53,13 @@ async function resizeImage(inputPath: string, outputPath: string): Promise<void>
 export interface ScreenshotOptions {
   /** If true, skip resizing to preserve exact pixel coordinates for computer use */
   preserveSize?: boolean;
+  /**
+   * Which model provider will receive this screenshot.
+   * - 'anthropic': resize to fit within Anthropic's vision constraints for deterministic coord mapping
+   * - 'google': preserve full resolution (Gemini uses 0-1000 normalized coords, unaffected by image size)
+   * - null/undefined: resize to save tokens (default)
+   */
+  provider?: 'anthropic' | 'google' | null;
 }
 
 /**
@@ -71,16 +78,18 @@ export async function takeScreenshot(options: ScreenshotOptions = {}): Promise<s
       timeout: 5000,
     });
 
-    // For computer use, preserve original size so coordinates match exactly
-    // For other uses (like inline agent), resize to save tokens
-    if (options.preserveSize) {
+    // For Google/Gemini: preserve full resolution for best coordinate accuracy
+    // (Gemini uses 0-1000 normalized coords, unaffected by image size)
+    if (options.preserveSize || options.provider === 'google') {
       const imageBuffer = await readFile(tempPath);
       const base64 = imageBuffer.toString('base64');
       await unlink(tempPath).catch(() => {});
       return `data:image/png;base64,${base64}`;
     }
 
-    // Resize to fit within Anthropic's vision constraints
+    // For Anthropic and default: resize to fit within vision constraints
+    // This ensures deterministic coordinate mapping for Anthropic,
+    // and saves tokens for non-agent uses.
     await resizeImage(tempPath, resizedPath);
 
     // Read the resized file and convert to base64
