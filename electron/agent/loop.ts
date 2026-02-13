@@ -243,6 +243,17 @@ export class AgentLoop {
    */
   private executeAgentLoop = traceable(
     async (query: string, targetApp?: string | null, selectedText?: string | null): Promise<string> => {
+      // Determine provider early — needed for screenshot sizing decisions
+      const modelName = getSelectedModel('selectedModel');
+      const providerName = getProviderName(modelName);
+      const provider: 'anthropic' | 'google' | null =
+        providerName === 'anthropic' || providerName === 'google' ? providerName : null;
+
+      // Set provider on state extractor (controls screenshot resolution)
+      // and tool executor (controls coordinate conversion)
+      this.stateExtractor.setProvider(provider);
+      this.toolExecutor.setProvider(provider);
+
       // Extract initial state (with selected text if provided)
       this.sendStatus('Extracting state...');
       let state = await this.stateExtractor.extractState(selectedText || undefined);
@@ -253,7 +264,7 @@ export class AgentLoop {
       const memoryContext = relevantMemories.length > 0
         ? `=== Relevant Memories ===\n${relevantMemories.map(m => `- ${m.content}`).join('\n')}`
         : '';
-      
+
       // Build initial messages for LangChain
       const userPrompt = this.buildUserPrompt(query, state, memoryContext);
       const systemPrompt = getAgentSystemPrompt();
@@ -263,14 +274,6 @@ export class AgentLoop {
           ? new HumanMessage(userPrompt)
           : new HumanMessage({ content: userPrompt }),
       ];
-      
-      // Get selected model and set provider before tools are created
-      const modelName = getSelectedModel('selectedModel');
-      const providerName = getProviderName(modelName);
-      // Set provider for coordinate conversion (Google uses 0-999 normalized, Anthropic uses pixels)
-      this.toolExecutor.setProvider(
-        providerName === 'anthropic' || providerName === 'google' ? providerName : null
-      );
 
       // Check tool settings
       const toolSettings = getToolSettings();
