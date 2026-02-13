@@ -78,9 +78,13 @@ export const ChainActionsSchema = z.object({
 });
 
 /**
- * Convert coordinates from Google's 0-999 normalized grid to actual pixels
- * Google Gemini outputs coordinates in a normalized 0-999 range regardless of screen size
- * Anthropic uses actual pixel coordinates, so no conversion needed
+ * Convert coordinates from Google's 0-1000 normalized grid to logical screen points.
+ * Google Gemini outputs coordinates in a normalized 0-1000 range relative to the image dimensions.
+ * The screenshot sent to Gemini is at native (Retina) resolution, but cliclick and
+ * Electron's screen.getPrimaryDisplay().size operate in logical (DIP) points.
+ * Since imagePixels / scaleFactor = logicalPoints, the formula (coord / 1000) * logicalSize
+ * correctly maps Gemini's image-relative coordinates to cliclick's coordinate space.
+ * Anthropic uses actual pixel coordinates, so no conversion needed.
  */
 function convertCoordinates(x: number, y: number, provider: 'anthropic' | 'google' | null): { x: number; y: number } {
   // Only convert for Google - Anthropic uses real pixel coordinates
@@ -91,18 +95,12 @@ function convertCoordinates(x: number, y: number, provider: 'anthropic' | 'googl
   const primaryDisplay = screen.getPrimaryDisplay();
   const { width: screenWidth, height: screenHeight } = primaryDisplay.size;
 
-  // Support both 0-1 and 0-999 normalized coordinates for Google
-  if (x <= 1 && y <= 1) {
-    const pixelX = Math.round(x * screenWidth);
-    const pixelY = Math.round(y * screenHeight);
-    console.log(`[Faria] Converting Google normalized (0-1) coords (${x},${y}) -> pixels (${pixelX},${pixelY}) for screen ${screenWidth}x${screenHeight}`);
-    return { x: pixelX, y: pixelY };
-  }
-
-  if (x <= 999 && y <= 999) {
-    const pixelX = Math.round((x / 999) * screenWidth);
-    const pixelY = Math.round((y / 999) * screenHeight);
-    console.log(`[Faria] Converting Google normalized (0-999) coords (${x},${y}) -> pixels (${pixelX},${pixelY}) for screen ${screenWidth}x${screenHeight}`);
+  // Gemini uses 0-1000 normalized coordinates (divide by 1000, not 999)
+  // Coordinates above 1000 are treated as raw pixel values (fallthrough)
+  if (x <= 1000 && y <= 1000) {
+    const pixelX = Math.round((x / 1000) * screenWidth);
+    const pixelY = Math.round((y / 1000) * screenHeight);
+    console.log(`[Faria] Converting Google normalized (0-1000) coords (${x},${y}) -> logical (${pixelX},${pixelY}) for screen ${screenWidth}x${screenHeight}`);
     return { x: pixelX, y: pixelY };
   }
 
