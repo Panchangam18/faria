@@ -1819,7 +1819,7 @@ function SettingsPanel({ currentTheme, onThemeChange }: SettingsPanelProps) {
             placeholder="Enter custom agent system prompt..."
             style={{
               width: '100%',
-              height: 300,
+              height: 120,
               padding: 'var(--spacing-sm)',
               fontSize: 'var(--font-size-sm)',
               fontFamily: 'monospace',
