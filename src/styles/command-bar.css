@@ -159,6 +159,86 @@ html, body, #root {
   display: none;
 }
 
+/* Markdown elements inside response */
+.command-bar-response p {
+  margin: 0 0 4px 0;
+}
+
+.command-bar-response p:last-child {
+  margin-bottom: 0;
+}
+
+.command-bar-response strong {
+  font-weight: 600;
+}
+
+.command-bar-response em {
+  font-style: italic;
+}
+
+.command-bar-response code {
+  background: var(--color-primary-light);
+  padding: 1px 4px;
+  border-radius: 3px;
+  font-family: 'SF Mono', 'Fira Code', 'Cascadia Code', monospace;
+  font-size: 0.9em;
+}
+
+.command-bar-response pre {
+  background: var(--color-primary-dark);
+  border-radius: 4px;
+  padding: 6px 8px;
+  margin: 4px 0;
+  overflow-x: auto;
+}
+
+.command-bar-response pre code {
+  background: transparent;
+  padding: 0;
+  font-size: 0.85em;
+  line-height: 1.4;
+}
+
+.command-bar-response ul,
+.command-bar-response ol {
+  margin: 2px 0;
+  padding-left: 16px;
+}
+
+.command-bar-response li {
+  margin: 1px 0;
+}
+
+.command-bar-response h1,
+.command-bar-response h2,
+.command-bar-response h3,
+.command-bar-response h4,
+.command-bar-response h5,
+.command-bar-response h6 {
+  font-size: inherit;
+  font-weight: 600;
+  margin: 4px 0 2px 0;
+}
+
+.command-bar-response a {
+  color: var(--color-accent);
+  text-decoration: underline;
+  text-underline-offset: 2px;
+}
+
+.command-bar-response blockquote {
+  border-left: 2px solid var(--color-border);
+  margin: 4px 0;
+  padding-left: 8px;
+  color: var(--color-text-muted);
+}
+
+.command-bar-response hr {
+  border: none;
+  border-top: 1px solid var(--color-border);
+  margin: 4px 0;
+}
+
 /* Status Text */
 .command-bar-status {
   font-size: var(--font-size-xs);

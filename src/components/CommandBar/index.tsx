@@ -1,6 +1,13 @@
 import React, { useState, useEffect, useRef, useCallback, useLayoutEffect } from 'react';
 import { IoMdSend } from 'react-icons/io';
 import { IoStopCircleSharp } from 'react-icons/io5';
+import { marked } from 'marked';
+
+// Configure marked for compact command bar output
+marked.setOptions({
+  breaks: true,    // Convert \n to <br> for compact display
+  gfm: true,       // GitHub Flavored Markdown
+});
 
 // Format toolkit slug into proper display name
 function formatToolkitName(slug: string): string {
@@ -706,9 +713,17 @@ function CommandBar() {
       {hasAgentContent && (
         <div className="command-bar-agent-area" ref={agentAreaRef}>
           {(response || streamingResponse || errorMessage) && (
-            <div className="command-bar-response" ref={responseRef} style={errorMessage ? { color: 'var(--color-error, #ff4444)' } : undefined}>
-              {errorMessage || response || streamingResponse}
-            </div>
+            errorMessage ? (
+              <div className="command-bar-response" ref={responseRef} style={{ color: 'var(--color-error, #ff4444)' }}>
+                {errorMessage}
+              </div>
+            ) : (
+              <div
+                className="command-bar-response"
+                ref={responseRef}
+                dangerouslySetInnerHTML={{ __html: marked.parse(response || streamingResponse, { async: false }) as string }}
+              />
+            )
           )}
 
           {(pendingToolApproval || pendingAuth || status) && (
