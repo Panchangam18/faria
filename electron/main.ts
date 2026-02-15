@@ -1,4 +1,4 @@
-import { app, BrowserWindow, globalShortcut, ipcMain, screen, shell } from 'electron';
+import { app, BrowserWindow, globalShortcut, ipcMain, screen, shell, systemPreferences } from 'electron';
 import { join } from 'path';
 import { initDatabase } from './db/sqlite';
 import { StateExtractor } from './services/state-extractor';
@@ -912,6 +912,40 @@ function setupIPC() {
   // Shell - Open external URLs in default browser
   ipcMain.handle('shell:openExternal', async (_event, url: string) => {
     await shell.openExternal(url);
+  });
+
+  // Onboarding - Permission checks
+  ipcMain.handle('onboarding:checkAccessibility', () => {
+    if (process.platform === 'darwin') {
+      return systemPreferences.isTrustedAccessibilityClient(false);
+    }
+    return true;
+  });
+
+  ipcMain.handle('onboarding:requestAccessibility', () => {
+    if (process.platform === 'darwin') {
+      return systemPreferences.isTrustedAccessibilityClient(true);
+    }
+    return true;
+  });
+
+  ipcMain.handle('onboarding:openAccessibilitySettings', async () => {
+    if (process.platform === 'darwin') {
+      await shell.openExternal('x-apple.systempreferences:com.apple.preference.security?Privacy_Accessibility');
+    }
+  });
+
+  ipcMain.handle('onboarding:checkScreenRecording', () => {
+    if (process.platform === 'darwin') {
+      return systemPreferences.getMediaAccessStatus('screen');
+    }
+    return 'granted';
+  });
+
+  ipcMain.handle('onboarding:openScreenRecordingSettings', async () => {
+    if (process.platform === 'darwin') {
+      await shell.openExternal('x-apple.systempreferences:com.apple.preference.security?Privacy_ScreenCapture');
+    }
   });
 
   // Window control IPC
