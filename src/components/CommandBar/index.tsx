@@ -78,15 +78,107 @@ function getCaretRect(textarea: HTMLTextAreaElement): { top: number; left: numbe
   return { top, left };
 }
 
-// Line height is 14px (font-size-sm) * 1.5 = 21px
-const LINE_HEIGHT = 21;
-const MAX_LINES = 3;
-const MAX_TEXTAREA_HEIGHT = LINE_HEIGHT * MAX_LINES; // 63px for 3 lines
-const CONTROLS_GAP = 4; // Breathing room between text and inline controls
-const BASE_HEIGHT = 18; // Input area padding (8 top + 8 bottom) + border (2)
-const RESPONSE_LINE_HEIGHT = 17.6; // 11px (font-size-xs) * 1.6 line-height
-const MAX_RESPONSE_LINES = 5;
-const MAX_RESPONSE_HEIGHT = RESPONSE_LINE_HEIGHT * MAX_RESPONSE_LINES; // 88px
+// Size mode definitions — small is the original baseline, medium and large scale proportionally
+type SizeMode = 'small' | 'medium' | 'large';
+
+interface SizeConfig {
+  lineHeight: number;
+  maxLines: number;
+  maxTextareaHeight: number;
+  controlsGap: number;
+  baseHeight: number;
+  maxResponseHeight: number;
+  // CSS variable values
+  fontSizeXs: number;
+  fontSizeSm: number;
+  fontSizeMd: number;
+  spacingXs: number;
+  spacingSm: number;
+  spacingMd: number;
+  radiusSm: number;
+  radiusMd: number;
+  radiusLg: number;
+  spinnerSize: number;
+  spinnerBorder: number;
+  chevronSize: number;
+  chevronSizeLg: number;
+  indicatorSize: number;
+  fontSizeXxs: number;
+  scrollbarWidth: number;
+}
+
+const SIZE_CONFIGS: Record<SizeMode, SizeConfig> = {
+  small: {
+    lineHeight: 21,            // 14px * 1.5
+    maxLines: 3,
+    maxTextareaHeight: 63,     // 21 * 3
+    controlsGap: 4,
+    baseHeight: 18,            // 8+8+2
+    maxResponseHeight: 88,     // 17.6 * 5
+    fontSizeXs: 11, fontSizeSm: 13, fontSizeMd: 15,
+    spacingXs: 4, spacingSm: 8, spacingMd: 16,
+    radiusSm: 4, radiusMd: 8, radiusLg: 6,
+    spinnerSize: 12, spinnerBorder: 2,
+    chevronSize: 10, chevronSizeLg: 12,
+    indicatorSize: 8, fontSizeXxs: 10, scrollbarWidth: 4,
+  },
+  medium: {
+    lineHeight: 25,            // ~17px * 1.5
+    maxLines: 3,
+    maxTextareaHeight: 75,     // 25 * 3
+    controlsGap: 5,
+    baseHeight: 22,            // 10+10+2
+    maxResponseHeight: 110,    // 22 * 5
+    fontSizeXs: 14, fontSizeSm: 16, fontSizeMd: 19,
+    spacingXs: 5, spacingSm: 10, spacingMd: 20,
+    radiusSm: 5, radiusMd: 10, radiusLg: 8,
+    spinnerSize: 15, spinnerBorder: 2,
+    chevronSize: 12, chevronSizeLg: 15,
+    indicatorSize: 10, fontSizeXxs: 12, scrollbarWidth: 5,
+  },
+  large: {
+    lineHeight: 30,            // 20px * 1.5
+    maxLines: 3,
+    maxTextareaHeight: 90,     // 30 * 3
+    controlsGap: 6,
+    baseHeight: 26,            // 12+12+2
+    maxResponseHeight: 132,    // 26.4 * 5
+    fontSizeXs: 16, fontSizeSm: 20, fontSizeMd: 22,
+    spacingXs: 6, spacingSm: 12, spacingMd: 24,
+    radiusSm: 6, radiusMd: 12, radiusLg: 9,
+    spinnerSize: 18, spinnerBorder: 3,
+    chevronSize: 15, chevronSizeLg: 18,
+    indicatorSize: 12, fontSizeXxs: 15, scrollbarWidth: 6,
+  },
+};
+
+// Apply size-mode CSS variables to the command bar document
+function applySizeMode(mode: SizeMode) {
+  const c = SIZE_CONFIGS[mode];
+  const doc = document.documentElement;
+
+  // Override shared theme variables (safe — command bar is its own BrowserWindow)
+  doc.style.setProperty('--font-size-xs', `${c.fontSizeXs}px`);
+  doc.style.setProperty('--font-size-sm', `${c.fontSizeSm}px`);
+  doc.style.setProperty('--font-size-md', `${c.fontSizeMd}px`);
+  doc.style.setProperty('--spacing-xs', `${c.spacingXs}px`);
+  doc.style.setProperty('--spacing-sm', `${c.spacingSm}px`);
+  doc.style.setProperty('--spacing-md', `${c.spacingMd}px`);
+  doc.style.setProperty('--radius-sm', `${c.radiusSm}px`);
+  doc.style.setProperty('--radius-md', `${c.radiusMd}px`);
+  doc.style.setProperty('--radius-lg', `${c.radiusLg}px`);
+
+  // Command-bar-specific variables (referenced in command-bar.css)
+  doc.style.setProperty('--cb-line-height', `${c.lineHeight}px`);
+  doc.style.setProperty('--cb-max-response-height', `${c.maxResponseHeight}px`);
+  doc.style.setProperty('--cb-spinner-size', `${c.spinnerSize}px`);
+  doc.style.setProperty('--cb-spinner-border', `${c.spinnerBorder}px`);
+  doc.style.setProperty('--cb-chevron-size', `${c.chevronSize}px`);
+  doc.style.setProperty('--cb-chevron-size-lg', `${c.chevronSizeLg}px`);
+  doc.style.setProperty('--cb-indicator-size', `${c.indicatorSize}px`);
+  doc.style.setProperty('--cb-font-size-xxs', `${c.fontSizeXxs}px`);
+  doc.style.setProperty('--cb-scrollbar-width', `${c.scrollbarWidth}px`);
+}
 
 // Default theme colors (fallback only)
 const DEFAULT_COLORS = { background: '#272932', text: '#EAE0D5', accent: '#C6AC8F' };
@@ -155,6 +247,7 @@ function CommandBar() {
   const [opacity, setOpacity] = useState(0.7);
   const [backgroundColor, setBackgroundColor] = useState('#272932'); // Track background color for opacity
   const [isVisible, setIsVisible] = useState(false); // Controls content visibility to prevent flash of old content
+  const [sizeMode, setSizeMode] = useState<SizeMode>('small');
   const [isScrollable, setIsScrollable] = useState(false);
   const inputRef = useRef<HTMLTextAreaElement>(null);
   const scrollWrapperRef = useRef<HTMLDivElement>(null);
@@ -195,6 +288,14 @@ function CommandBar() {
     const scrollWrapper = scrollWrapperRef.current;
     const controlsEl = inlineControlsRef.current;
     if (!textarea || !scrollWrapper) return;
+
+    // Derive layout constants from current size mode
+    const sc = SIZE_CONFIGS[sizeMode];
+    const LINE_HEIGHT = sc.lineHeight;
+    const MAX_TEXTAREA_HEIGHT = sc.maxTextareaHeight;
+    const CONTROLS_GAP = sc.controlsGap;
+    const BASE_HEIGHT = sc.baseHeight;
+    const MAX_RESPONSE_HEIGHT = sc.maxResponseHeight;
 
     // Measure controls dimensions
     const controlsWidth = controlsEl ? controlsEl.offsetWidth + CONTROLS_GAP : 0;
@@ -324,7 +425,7 @@ function CommandBar() {
     });
 
     return () => cancelAnimationFrame(rafId);
-  }, [query, response, streamingResponse, pendingToolApproval, toolApprovalExpanded, pendingAuth, status, wouldControlsCollide, selectedTextLength]);
+  }, [query, response, streamingResponse, pendingToolApproval, toolApprovalExpanded, pendingAuth, status, wouldControlsCollide, selectedTextLength, sizeMode]);
 
   // Load theme on mount
   useEffect(() => {
@@ -339,6 +440,14 @@ function CommandBar() {
         const savedOpacity = await window.faria.settings.get('commandBarOpacity');
         if (savedOpacity) {
           setOpacity(parseFloat(savedOpacity));
+        }
+
+        // Load size mode
+        const savedSize = await window.faria.settings.getSizeMode();
+        if (savedSize && savedSize in SIZE_CONFIGS) {
+          const mode = savedSize as SizeMode;
+          setSizeMode(mode);
+          applySizeMode(mode);
         }
       } catch (e) {
         console.error('[CommandBar] Error loading settings:', e);
@@ -358,9 +467,19 @@ function CommandBar() {
       setOpacity(newOpacity);
     });
 
+    // Listen for size mode changes
+    const cleanupSize = window.faria.settings.onSizeChange((newSize) => {
+      if (newSize in SIZE_CONFIGS) {
+        const mode = newSize as SizeMode;
+        setSizeMode(mode);
+        applySizeMode(mode);
+      }
+    });
+
     return () => {
       cleanupTheme();
       cleanupOpacity();
+      cleanupSize();
     };
   }, []);
 

@@ -57,6 +57,12 @@ contextBridge.exposeInMainWorld('faria', {
       const handler = (_event: Electron.IpcRendererEvent, opacity: number) => callback(opacity);
       ipcRenderer.on('settings:opacity-change', handler);
       return () => ipcRenderer.removeListener('settings:opacity-change', handler);
+    },
+    getSizeMode: () => ipcRenderer.invoke('settings:getSizeMode') as Promise<string>,
+    onSizeChange: (callback: (size: string) => void) => {
+      const handler = (_event: Electron.IpcRendererEvent, size: string) => callback(size);
+      ipcRenderer.on('settings:size-change', handler);
+      return () => ipcRenderer.removeListener('settings:size-change', handler);
     }
   },
 
@@ -147,6 +153,8 @@ export interface FariaAPI {
     onThemeChange: (callback: (themeData: { theme: string; colors: { background: string; text: string; accent: string }; font: string }) => void) => () => void;
     notifyOpacityChange: (opacity: number) => void;
     onOpacityChange: (callback: (opacity: number) => void) => () => void;
+    getSizeMode: () => Promise<string>;
+    onSizeChange: (callback: (size: string) => void) => () => void;
   };
   history: {
     get: () => Promise<Array<{

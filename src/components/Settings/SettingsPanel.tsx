@@ -312,6 +312,8 @@ function SettingsPanel({ currentTheme, onThemeChange }: SettingsPanelProps) {
 
   const [hasLoadedSettings, setHasLoadedSettings] = useState(false);
   const [hoverAgentModel, setHoverAgentModel] = useState(false);
+  const [commandBarSize, setCommandBarSize] = useState('small');
+  const [hoveredSize, setHoveredSize] = useState<string | null>(null);
   const [agentPrompt, setAgentPrompt] = useState('');
 
   // Tool settings - 'enabled' | 'disabled' | 'auto-approve'
@@ -457,6 +459,10 @@ function SettingsPanel({ currentTheme, onThemeChange }: SettingsPanelProps) {
 
     const savedTransparencyPrefix = await window.faria.settings.get('transparencyShortcutPrefix');
     if (savedTransparencyPrefix) setTransparencyPrefix(savedTransparencyPrefix);
+
+    // Load command bar size
+    const savedSize = await window.faria.settings.get('commandBarSize');
+    if (savedSize) setCommandBarSize(savedSize);
 
     // Load tool settings
     const savedToolSettings = await window.faria.settings.get('toolSettings');
@@ -1078,6 +1084,136 @@ function SettingsPanel({ currentTheme, onThemeChange }: SettingsPanelProps) {
         </div>
 
 
+      </section>
+
+      {/* Command Bar Size Section */}
+      <section style={{ marginBottom: 'var(--spacing-xl)' }}>
+        <div style={{
+          fontSize: 'var(--font-size-sm)',
+          color: 'var(--color-text-muted)',
+          marginBottom: 'var(--spacing-md)',
+          textTransform: 'uppercase',
+          letterSpacing: '0.05em',
+          fontWeight: 500
+        }}>
+          Command Bar Size
+        </div>
+        <div style={{
+          display: 'flex',
+          flexDirection: 'column',
+          gap: 'var(--spacing-sm)',
+          marginLeft: 'var(--spacing-md)',
+          alignItems: 'center',
+        }}>
+          {(['small', 'medium', 'large'] as const).map((size) => {
+            const isSelected = commandBarSize === size;
+            const isHovered = hoveredSize === size;
+            const labels: Record<string, string> = { small: 'Small', medium: 'Medium', large: 'Large' };
+            // Scale factors relative to the preview container
+            const scales: Record<string, number> = { small: 1.0, medium: 1.25, large: 1.5 };
+            const scale = scales[size];
+            // Base preview dimensions (small)
+            const baseWidth = 180;
+            const baseHeight = 36;
+            const baseFontSize = 10;
+            const baseIconSize = 10;
+            const basePadding = 6;
+            const baseRadius = 4;
+
+            return (
+              <div
+                key={size}
+                onClick={() => {
+                  setCommandBarSize(size);
+                  saveSettings('commandBarSize', size);
+                }}
+                onMouseEnter={() => setHoveredSize(size)}
+                onMouseLeave={() => setHoveredSize(null)}
+                style={{
+                  cursor: 'pointer',
+                  transform: isHovered ? 'translateY(-2px)' : 'translateY(0)',
+                  transition: 'all 0.2s cubic-bezier(0.4, 0, 0.2, 1)',
+                  display: 'flex',
+                  flexDirection: 'column',
+                  alignItems: 'center',
+                  gap: 4,
+                }}
+              >
+                {/* Mini command bar mockup at proportional scale */}
+                <div style={{
+                  width: Math.round(baseWidth * scale),
+                  height: Math.round(baseHeight * scale),
+                  borderRadius: Math.round(baseRadius * scale),
+                  overflow: 'hidden',
+                  background: 'var(--color-background)',
+                  border: `1px solid ${isSelected ? 'var(--color-accent)' : 'var(--color-border)'}`,
+                  boxShadow: isSelected ? '0 0 0 1px var(--color-accent)' : 'none',
+                  display: 'flex',
+                  flexDirection: 'column',
+                  position: 'relative',
+                }}>
+                  {/* Input area */}
+                  <div style={{
+                    flex: 1,
+                    padding: `${Math.round(basePadding * scale)}px ${Math.round((basePadding + 4) * scale)}px`,
+                    display: 'flex',
+                    alignItems: 'center',
+                  }}>
+                    <span style={{
+                      fontSize: Math.round(baseFontSize * scale),
+                      color: 'var(--color-text-muted)',
+                    }}>
+                      What do you seek?
+                    </span>
+                  </div>
+                  {/* Footer with send icon */}
+                  <div style={{
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'flex-end',
+                    padding: `${Math.round(2 * scale)}px ${Math.round(basePadding * scale)}px ${Math.round(4 * scale)}px`,
+                  }}>
+                    <svg
+                      width={Math.round(baseIconSize * scale)}
+                      height={Math.round(baseIconSize * scale)}
+                      viewBox="0 0 24 24"
+                      fill="var(--color-accent)"
+                    >
+                      <path d="M2.01 21L23 12 2.01 3 2 10l15 2-15 2z" />
+                    </svg>
+                  </div>
+                  {/* Selected checkmark */}
+                  {isSelected && (
+                    <div style={{
+                      position: 'absolute',
+                      top: 3,
+                      right: 3,
+                      width: 14,
+                      height: 14,
+                      borderRadius: '50%',
+                      background: 'var(--color-accent)',
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                    }}>
+                      <svg width="7" height="7" viewBox="0 0 24 24" fill="none" stroke="var(--color-background)" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round">
+                        <polyline points="20 6 9 17 4 12" />
+                      </svg>
+                    </div>
+                  )}
+                </div>
+                {/* Label */}
+                <span style={{
+                  fontSize: 'var(--font-size-xs)',
+                  color: isSelected ? 'var(--color-accent)' : 'var(--color-text-muted)',
+                  fontWeight: isSelected ? 500 : 400,
+                }}>
+                  {labels[size]}
+                </span>
+              </div>
+            );
+          })}
+        </div>
       </section>
 
       {/* Agent Model Section */}
