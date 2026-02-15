@@ -50,9 +50,19 @@ try {
 // Track if main window is visible (for Dock icon management)
 let isMainWindowVisible = false;
 
-// Default command bar dimensions
-const DEFAULT_COMMAND_BAR_WIDTH = 300;
-const DEFAULT_COMMAND_BAR_HEIGHT = 35; // Single line: 14 (base) + 21 (one line)
+// Command bar size modes
+type CommandBarSizeMode = 'small' | 'medium' | 'large';
+
+const COMMAND_BAR_SIZES: Record<CommandBarSizeMode, { width: number; minHeight: number; scale: number }> = {
+  small:  { width: 300, minHeight: 35, scale: 1.0 },
+  medium: { width: 375, minHeight: 42, scale: 1.25 },
+  large:  { width: 450, minHeight: 50, scale: 1.5 },
+};
+
+let currentSizeMode: CommandBarSizeMode = 'small';
+let currentCommandBarWidth = COMMAND_BAR_SIZES.small.width;
+let currentCommandBarMinHeight = COMMAND_BAR_SIZES.small.minHeight;
+
 let lastAgentAreaHeight = 0; // Track agent area height for upward growth delta
 
 // Default keyboard shortcuts
@@ -122,9 +132,9 @@ function createCommandBarWindow() {
   const { height: screenHeight } = display.workAreaSize;
 
   commandBarWindow = new BrowserWindow({
-    width: DEFAULT_COMMAND_BAR_WIDTH,
-    height: DEFAULT_COMMAND_BAR_HEIGHT,
-    x: Math.round((screenWidth - DEFAULT_COMMAND_BAR_WIDTH) / 2),
+    width: currentCommandBarWidth,
+    height: currentCommandBarMinHeight,
+    x: Math.round((screenWidth - currentCommandBarWidth) / 2),
     y: Math.round(screenHeight - 200),
     frame: false,
     transparent: true,
@@ -271,15 +281,15 @@ function cacheCommandBarPosition() {
 
   // Check for saved position
   const savedPosition = getCommandBarSettings();
-  if (savedPosition && savedPosition.width === DEFAULT_COMMAND_BAR_WIDTH) {
+  if (savedPosition && savedPosition.width === currentCommandBarWidth) {
     cachedCommandBarPosition = {
-      x: Math.round(Math.max(0, Math.min(savedPosition.x, screenWidth - DEFAULT_COMMAND_BAR_WIDTH))),
+      x: Math.round(Math.max(0, Math.min(savedPosition.x, screenWidth - currentCommandBarWidth))),
       y: Math.round(Math.max(0, Math.min(savedPosition.y, screenHeight - 200)))
     };
   } else {
     // Default: center horizontally, near bottom of screen
     cachedCommandBarPosition = {
-      x: Math.round((screenWidth - DEFAULT_COMMAND_BAR_WIDTH) / 2),
+      x: Math.round((screenWidth - currentCommandBarWidth) / 2),
       y: Math.round(screenHeight - 200)
     };
   }
@@ -482,7 +492,7 @@ async function resetCommandBar() {
   const { width: screenWidth } = display.bounds;  // Use full display width for perfect centering
   const { height: screenHeight } = display.workAreaSize;
   cachedCommandBarPosition = {
-    x: Math.round((screenWidth - DEFAULT_COMMAND_BAR_WIDTH) / 2),
+    x: Math.round((screenWidth - currentCommandBarWidth) / 2),
     y: Math.round(screenHeight - 200)
   };
 
@@ -502,7 +512,7 @@ async function resetCommandBar() {
   }
 
   // Reset window size and position
-  commandBarWindow?.setSize(DEFAULT_COMMAND_BAR_WIDTH, DEFAULT_COMMAND_BAR_HEIGHT);
+  commandBarWindow?.setSize(currentCommandBarWidth, currentCommandBarMinHeight);
   positionCommandBar();
 
   // Send reset event to renderer to clear all state
@@ -580,7 +590,7 @@ function moveCommandBar(direction: 'up' | 'down' | 'left' | 'right') {
     const db = initDatabase();
     db.prepare('INSERT OR REPLACE INTO settings (key, value) VALUES (?, ?)').run(
       'commandBarPosition',
-      JSON.stringify({ x: newX, y: newY, width: DEFAULT_COMMAND_BAR_WIDTH })
+      JSON.stringify({ x: newX, y: newY, width: currentCommandBarWidth })
     );
     savePositionTimer = null;
   }, 300);
@@ -609,6 +619,60 @@ function changeTransparency(increase: boolean) {
     );
     saveOpacityTimer = null;
   }, 300);
+}
+
+// Load saved command bar size on startup
+function loadSavedSize() {
+  const db = initDatabase();
+  const row = db.prepare('SELECT value FROM settings WHERE key = ?').get('commandBarSize') as { value: string } | undefined;
+  if (row?.value && row.value in COMMAND_BAR_SIZES) {
+    currentSizeMode = row.value as CommandBarSizeMode;
+    const config = COMMAND_BAR_SIZES[currentSizeMode];
+    currentCommandBarWidth = config.width;
+    currentCommandBarMinHeight = config.minHeight;
+  }
+}
+
+// Apply a new command bar size (resize window, broadcast to renderer)
+function applyCommandBarSize(sizeStr: string) {
+  if (!(sizeStr in COMMAND_BAR_SIZES)) return;
+
+  const newSize = sizeStr as CommandBarSizeMode;
+  const config = COMMAND_BAR_SIZES[newSize];
+
+  currentSizeMode = newSize;
+  currentCommandBarWidth = config.width;
+  currentCommandBarMinHeight = config.minHeight;
+
+  if (!commandBarWindow) return;
+
+  const [oldWidth, currentHeight] = commandBarWindow.getSize();
+  const [oldX, y] = commandBarWindow.getPosition();
+
+  // Re-center horizontally by shifting x by half the width delta
+  const widthDelta = config.width - oldWidth;
+  const newX = Math.max(0, oldX - Math.round(widthDelta / 2));
+
+  // Clamp height to at least the new minimum
+  const newHeight = Math.max(currentHeight, config.minHeight);
+
+  commandBarWindow.setBounds({ x: newX, y, width: config.width, height: newHeight });
+
+  // Update cached position
+  cachedCommandBarPosition = { x: newX, y };
+
+  // Save updated position
+  const db = initDatabase();
+  db.prepare('INSERT OR REPLACE INTO settings (key, value) VALUES (?, ?)').run(
+    'commandBarPosition',
+    JSON.stringify({ x: newX, y, width: config.width })
+  );
+
+  // Reset agent area tracking so next resize measurement is clean
+  lastAgentAreaHeight = 0;
+
+  // Broadcast to command bar renderer
+  commandBarWindow.webContents.send('settings:size-change', newSize);
 }
 
 // Load saved opacity on startup
@@ -757,13 +821,23 @@ function setupIPC() {
     if (themeKeys.includes(key)) {
       broadcastThemeChange();
     }
-    
+
+    // Apply command bar size change
+    if (key === 'commandBarSize') {
+      applyCommandBarSize(value);
+    }
+
     return { success: true };
   });
 
   // Get current theme data (including colors)
   ipcMain.handle('settings:getThemeData', () => {
     return getThemeData();
+  });
+
+  // Get current command bar size mode
+  ipcMain.handle('settings:getSizeMode', () => {
+    return currentSizeMode;
   });
 
   // Get default prompt
@@ -911,14 +985,14 @@ function setupIPC() {
 
   // Track dropdown state for resize coordination
   let isDropdownOpen = false;
-  let baseContentHeight = DEFAULT_COMMAND_BAR_HEIGHT;
+  let baseContentHeight = currentCommandBarMinHeight;
   const DROPDOWN_EXTRA_HEIGHT = 80;
 
   ipcMain.on('command-bar:resize', (_event, height: number, agentAreaHeight: number) => {
     if (commandBarWindow) {
       const [width] = commandBarWindow.getSize();
       const maxHeight = Math.round(screen.getPrimaryDisplay().workAreaSize.height / 2);
-      const clampedHeight = Math.min(Math.max(height, 35), maxHeight);
+      const clampedHeight = Math.min(Math.max(height, currentCommandBarMinHeight), maxHeight);
       baseContentHeight = clampedHeight;
 
       // Calculate how much the agent area height changed to grow/shrink upward
@@ -1012,6 +1086,7 @@ async function initializeServices() {
 app.whenReady().then(async () => {
   await initializeServices();
   createMainWindow();
+  loadSavedSize(); // Load saved size before position caching and window creation
   cacheCommandBarPosition(); // Cache position before creating window
   loadSavedOpacity(); // Load saved opacity before creating window
   createCommandBarWindow();
