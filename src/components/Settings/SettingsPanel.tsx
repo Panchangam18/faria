@@ -326,6 +326,9 @@ function SettingsPanel({ currentTheme, onThemeChange }: SettingsPanelProps) {
     integrations: 'enabled',
   });
 
+  // Command bar size
+  const [commandBarSize, setCommandBarSize] = useState<'small' | 'medium' | 'large'>('small');
+
   // Keyboard shortcuts
   const [commandBarShortcut, setCommandBarShortcut] = useState(DEFAULT_COMMAND_BAR_SHORTCUT);
   const [resetCommandBarShortcut, setResetCommandBarShortcut] = useState(DEFAULT_RESET_COMMAND_BAR_SHORTCUT);
@@ -445,6 +448,12 @@ function SettingsPanel({ currentTheme, onThemeChange }: SettingsPanelProps) {
         }
       }
     }
+    // Load command bar size
+    const savedCommandBarSize = await window.faria.settings.get('commandBarSize');
+    if (savedCommandBarSize === 'small' || savedCommandBarSize === 'medium' || savedCommandBarSize === 'large') {
+      setCommandBarSize(savedCommandBarSize);
+    }
+
     // Load keyboard shortcuts
     const savedCommandBarShortcut = await window.faria.settings.get('commandBarShortcut');
     if (savedCommandBarShortcut) setCommandBarShortcut(savedCommandBarShortcut);
@@ -966,6 +975,53 @@ function SettingsPanel({ currentTheme, onThemeChange }: SettingsPanelProps) {
             </button>
             <span style={{ fontSize: 'var(--font-size-sm)' }}>Transparency</span>
           </div>
+        </div>
+      </section>
+
+      {/* Command Bar Size Section */}
+      <section style={{ marginBottom: 'var(--spacing-xl)' }}>
+        <div style={{
+          fontSize: 'var(--font-size-sm)',
+          color: 'var(--color-text-muted)',
+          marginBottom: 'var(--spacing-md)',
+          textTransform: 'uppercase',
+          letterSpacing: '0.05em',
+          fontWeight: 500
+        }}>
+          Command Bar Size
+        </div>
+
+        <div style={{
+          display: 'flex',
+          gap: 'var(--spacing-sm)',
+          marginLeft: 'var(--spacing-md)',
+        }}>
+          {(['small', 'medium', 'large'] as const).map((size) => {
+            const isSelected = commandBarSize === size;
+            return (
+              <button
+                key={size}
+                onClick={() => {
+                  setCommandBarSize(size);
+                  saveSettings('commandBarSize', size);
+                }}
+                style={{
+                  padding: 'var(--spacing-xs) var(--spacing-md)',
+                  fontSize: 'var(--font-size-sm)',
+                  background: isSelected ? 'var(--color-accent)' : 'var(--color-background)',
+                  color: isSelected ? 'var(--color-background)' : 'var(--color-text)',
+                  border: '1px solid var(--color-border)',
+                  borderRadius: 'var(--radius-sm)',
+                  cursor: 'pointer',
+                  transition: 'all 0.15s ease',
+                  textTransform: 'capitalize',
+                  fontWeight: isSelected ? 600 : 400,
+                }}
+              >
+                {size}
+              </button>
+            );
+          })}
         </div>
       </section>
 

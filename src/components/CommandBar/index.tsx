@@ -78,15 +78,37 @@ function getCaretRect(textarea: HTMLTextAreaElement): { top: number; left: numbe
   return { top, left };
 }
 
-// Line height is 14px (font-size-sm) * 1.5 = 21px
-const LINE_HEIGHT = 21;
+// Size-dependent layout constants for small / medium / large command bar
+type CommandBarSize = 'small' | 'medium' | 'large';
+
+const SIZE_CONFIGS: Record<CommandBarSize, {
+  lineHeight: number;
+  controlsGap: number;
+  baseHeight: number;
+  responseLineHeight: number;
+}> = {
+  small: {
+    lineHeight: 21,        // ~13px * 1.5 (+ rounding)
+    controlsGap: 4,
+    baseHeight: 18,        // 8+8 padding + 2 border
+    responseLineHeight: 17.6, // 11px * 1.6
+  },
+  medium: {
+    lineHeight: 27,        // 18px * 1.5
+    controlsGap: 5,
+    baseHeight: 24,        // 11+11 padding + 2 border
+    responseLineHeight: 24, // 15px * 1.6
+  },
+  large: {
+    lineHeight: 33,        // 22px * 1.5
+    controlsGap: 7,
+    baseHeight: 30,        // 14+14 padding + 2 border
+    responseLineHeight: 30.4, // 19px * 1.6
+  },
+};
+
 const MAX_LINES = 3;
-const MAX_TEXTAREA_HEIGHT = LINE_HEIGHT * MAX_LINES; // 63px for 3 lines
-const CONTROLS_GAP = 4; // Breathing room between text and inline controls
-const BASE_HEIGHT = 18; // Input area padding (8 top + 8 bottom) + border (2)
-const RESPONSE_LINE_HEIGHT = 17.6; // 11px (font-size-xs) * 1.6 line-height
 const MAX_RESPONSE_LINES = 5;
-const MAX_RESPONSE_HEIGHT = RESPONSE_LINE_HEIGHT * MAX_RESPONSE_LINES; // 88px
 
 // Default theme colors (fallback only)
 const DEFAULT_COLORS = { background: '#272932', text: '#EAE0D5', accent: '#C6AC8F' };
@@ -142,6 +164,7 @@ function CommandBar() {
   const [streamingResponse, setStreamingResponse] = useState('');
   const [status, setStatus] = useState('');
   const [isProcessing, setIsProcessing] = useState(false);
+  const [commandBarSize, setCommandBarSize] = useState<CommandBarSize>('small');
 
   // History navigation state
   const [historyIndex, setHistoryIndex] = useState(-1); // -1 = not navigating history
@@ -162,6 +185,15 @@ function CommandBar() {
   const responseRef = useRef<HTMLDivElement>(null);
   const toolApprovalRef = useRef<HTMLDivElement>(null);
   const agentAreaRef = useRef<HTMLDivElement>(null);
+
+  // Derive layout constants from current size
+  const sizeConfig = SIZE_CONFIGS[commandBarSize];
+  const LINE_HEIGHT = sizeConfig.lineHeight;
+  const MAX_TEXTAREA_HEIGHT = LINE_HEIGHT * MAX_LINES;
+  const CONTROLS_GAP = sizeConfig.controlsGap;
+  const BASE_HEIGHT = sizeConfig.baseHeight;
+  const RESPONSE_LINE_HEIGHT = sizeConfig.responseLineHeight;
+  const MAX_RESPONSE_HEIGHT = RESPONSE_LINE_HEIGHT * MAX_RESPONSE_LINES;
 
   // Check if the last visual line of text collides with the inline controls.
   // Uses a mirror div with an appended marker span to find the x-position
@@ -324,9 +356,14 @@ function CommandBar() {
     });
 
     return () => cancelAnimationFrame(rafId);
-  }, [query, response, streamingResponse, pendingToolApproval, toolApprovalExpanded, pendingAuth, status, wouldControlsCollide, selectedTextLength]);
+  }, [query, response, streamingResponse, pendingToolApproval, toolApprovalExpanded, pendingAuth, status, wouldControlsCollide, selectedTextLength, commandBarSize, LINE_HEIGHT, MAX_TEXTAREA_HEIGHT, BASE_HEIGHT, MAX_RESPONSE_HEIGHT]);
 
-  // Load theme on mount
+  // Apply data-size attribute to document root so CSS variables kick in
+  useEffect(() => {
+    document.documentElement.setAttribute('data-size', commandBarSize);
+  }, [commandBarSize]);
+
+  // Load theme and size on mount
   useEffect(() => {
     const loadSettings = async () => {
       try {
@@ -339,6 +376,12 @@ function CommandBar() {
         const savedOpacity = await window.faria.settings.get('commandBarOpacity');
         if (savedOpacity) {
           setOpacity(parseFloat(savedOpacity));
+        }
+
+        // Load command bar size setting
+        const savedSize = await window.faria.settings.get('commandBarSize');
+        if (savedSize && (savedSize === 'small' || savedSize === 'medium' || savedSize === 'large')) {
+          setCommandBarSize(savedSize as CommandBarSize);
         }
       } catch (e) {
         console.error('[CommandBar] Error loading settings:', e);
@@ -358,9 +401,17 @@ function CommandBar() {
       setOpacity(newOpacity);
     });
 
+    // Listen for size changes from settings panel
+    const cleanupSize = window.faria.settings.onSizeChange((newSize) => {
+      if (newSize === 'small' || newSize === 'medium' || newSize === 'large') {
+        setCommandBarSize(newSize as CommandBarSize);
+      }
+    });
+
     return () => {
       cleanupTheme();
       cleanupOpacity();
+      cleanupSize();
     };
   }, []);
 
