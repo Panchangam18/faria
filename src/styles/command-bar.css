@@ -13,6 +13,61 @@ html, body, #root {
   overflow: hidden;
 }
 
+/* Command Bar Size Variables — small is the default (matches :root in theme.css) */
+:root {
+  --cb-input-min-height: 21px;
+  --cb-response-max-height: 88px;
+  --cb-scrollbar-width: 4px;
+  --cb-spinner-size: 12px;
+  --cb-spinner-border: 2px;
+  --cb-chevron-sm: 10px;
+  --cb-chevron-md: 12px;
+  --cb-shortcut-font: 10px;
+  --cb-detail-max-height: 150px;
+}
+
+/* Medium size (~1.35x proportional scale) */
+html[data-size="medium"] {
+  --font-size-xs: 15px;
+  --font-size-sm: 18px;
+  --spacing-xs: 5px;
+  --spacing-sm: 11px;
+  --spacing-md: 22px;
+  --radius-lg: 8px;
+  --radius-md: 11px;
+  --radius-sm: 5px;
+  --cb-input-min-height: 27px;
+  --cb-response-max-height: 120px;
+  --cb-scrollbar-width: 5px;
+  --cb-spinner-size: 16px;
+  --cb-spinner-border: 2.5px;
+  --cb-chevron-sm: 14px;
+  --cb-chevron-md: 16px;
+  --cb-shortcut-font: 13px;
+  --cb-detail-max-height: 200px;
+}
+
+/* Large size (~1.7x proportional scale) */
+html[data-size="large"] {
+  --font-size-xs: 19px;
+  --font-size-sm: 22px;
+  --spacing-xs: 7px;
+  --spacing-sm: 14px;
+  --spacing-md: 27px;
+  --radius-lg: 10px;
+  --radius-md: 14px;
+  --radius-sm: 7px;
+  --cb-input-min-height: 33px;
+  --cb-response-max-height: 152px;
+  --cb-scrollbar-width: 6px;
+  --cb-spinner-size: 20px;
+  --cb-spinner-border: 3px;
+  --cb-chevron-sm: 17px;
+  --cb-chevron-md: 20px;
+  --cb-shortcut-font: 17px;
+  --cb-detail-max-height: 255px;
+}
+
 /* When dropdown is open, add top padding to push content down */
 .dropdown-open {
   padding-top: 80px;
@@ -65,7 +120,7 @@ html, body, #root {
 
 .command-bar-input {
   display: block;
-  width: calc(100% - var(--spacing-md) + 4px); /* Inset text from right edge to match left padding (4px accounts for scrollbar gutter) */
+  width: calc(100% - var(--spacing-md) + var(--cb-scrollbar-width)); /* Inset text from right edge to match left padding (scrollbar gutter offset) */
   background: transparent;
   border: none;
   color: var(--color-text);
@@ -74,7 +129,7 @@ html, body, #root {
   resize: none;
   line-height: 1.5;
   overflow: hidden; /* Never scrolls — wrapper handles scrolling */
-  min-height: 21px; /* At least one line (14px font * 1.5 line-height) */
+  min-height: var(--cb-input-min-height); /* At least one line */
   padding: 0; /* padding-bottom set dynamically by JS for inline controls */
   -webkit-app-region: no-drag; /* Allow text selection, not dragging */
 }
@@ -114,7 +169,7 @@ html, body, #root {
 
 /* Scrollbar styling (on scroll wrapper) */
 .command-bar-input-scroll::-webkit-scrollbar {
-  width: 4px;
+  width: var(--cb-scrollbar-width);
 }
 
 .command-bar-input-scroll::-webkit-scrollbar-track {
@@ -152,7 +207,7 @@ html, body, #root {
   line-height: 1.6;
   color: var(--color-accent);
   -webkit-app-region: no-drag; /* Allow scrolling, not dragging */
-  max-height: 88px; /* Cap at 5 lines: 11px font * 1.6 line-height = 17.6px per line */
+  max-height: var(--cb-response-max-height); /* Cap at 5 lines of response text */
 }
 
 .command-bar-response:empty {
@@ -249,9 +304,9 @@ html, body, #root {
 }
 
 .status-spinner {
-  width: 12px;
-  height: 12px;
-  border: 2px solid var(--color-accent);
+  width: var(--cb-spinner-size);
+  height: var(--cb-spinner-size);
+  border: var(--cb-spinner-border) solid var(--color-accent);
   border-top-color: transparent;
   border-radius: 50%;
   animation: spin 0.8s linear infinite;
@@ -491,8 +546,8 @@ html, body, #root {
 
 /* Chevron Icon */
 .chevron {
-  width: 10px;
-  height: 10px;
+  width: var(--cb-chevron-sm);
+  height: var(--cb-chevron-sm);
   transition: transform var(--transition-fast);
 }
 
@@ -502,7 +557,7 @@ html, body, #root {
 
 /* Scrollbar for response */
 .command-bar-response::-webkit-scrollbar {
-  width: 4px;
+  width: var(--cb-scrollbar-width);
 }
 
 .command-bar-response::-webkit-scrollbar-track {
@@ -567,7 +622,7 @@ html, body, #root {
 
 .button-shortcut {
   opacity: 0.7;
-  font-size: 10px;
+  font-size: var(--cb-shortcut-font);
   margin-right: 2px;
 }
 
@@ -590,7 +645,7 @@ html, body, #root {
 .tool-approval-toggle {
   display: flex;
   align-items: center;
-  gap: 4px;
+  gap: var(--spacing-xs);
   background: transparent;
   border: none;
   color: var(--color-accent);
@@ -606,8 +661,8 @@ html, body, #root {
 }
 
 .tool-approval-toggle .chevron {
-  width: 12px;
-  height: 12px;
+  width: var(--cb-chevron-md);
+  height: var(--cb-chevron-md);
   flex-shrink: 0;
   transition: transform var(--transition-fast);
 }
@@ -617,7 +672,7 @@ html, body, #root {
 }
 
 .tool-approval-shortcut {
-  font-size: 10px;
+  font-size: var(--cb-shortcut-font);
   color: inherit;
   margin-right: 2px;
 }
@@ -649,18 +704,18 @@ html, body, #root {
 .tool-approval-details {
   display: block;
   margin-left: 2px;
-  padding-left: 10px;
+  padding-left: var(--spacing-sm);
   border-left: 2px solid var(--color-border);
   overflow-y: auto;
   overflow-x: hidden;
   margin-right: auto;
   max-width: calc(100% - 120px);
-  max-height: 150px;
+  max-height: var(--cb-detail-max-height);
   -webkit-app-region: no-drag;
 }
 
 .tool-approval-details::-webkit-scrollbar {
-  width: 4px;
+  width: var(--cb-scrollbar-width);
 }
 
 .tool-approval-details::-webkit-scrollbar-track {
