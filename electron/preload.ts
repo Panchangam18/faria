@@ -84,6 +84,15 @@ contextBridge.exposeInMainWorld('faria', {
     openExternal: (url: string) => ipcRenderer.invoke('shell:openExternal', url)
   },
 
+  // Onboarding - Permission checks
+  onboarding: {
+    checkAccessibility: () => ipcRenderer.invoke('onboarding:checkAccessibility') as Promise<boolean>,
+    requestAccessibility: () => ipcRenderer.invoke('onboarding:requestAccessibility') as Promise<boolean>,
+    openAccessibilitySettings: () => ipcRenderer.invoke('onboarding:openAccessibilitySettings') as Promise<void>,
+    checkScreenRecording: () => ipcRenderer.invoke('onboarding:checkScreenRecording') as Promise<string>,
+    openScreenRecordingSettings: () => ipcRenderer.invoke('onboarding:openScreenRecordingSettings') as Promise<void>,
+  },
+
   // Command Bar
   commandBar: {
     hide: () => ipcRenderer.send('command-bar:hide'),
@@ -180,6 +189,13 @@ export interface FariaAPI {
   };
   shell: {
     openExternal: (url: string) => Promise<void>;
+  };
+  onboarding: {
+    checkAccessibility: () => Promise<boolean>;
+    requestAccessibility: () => Promise<boolean>;
+    openAccessibilitySettings: () => Promise<void>;
+    checkScreenRecording: () => Promise<string>;
+    openScreenRecordingSettings: () => Promise<void>;
   };
   commandBar: {
     hide: () => void;

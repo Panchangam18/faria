@@ -6,6 +6,9 @@
   "scripts": {
     "dev": "npm run build:native && vite",
     "build": "npm run build:native && tsc && vite build && electron-builder",
+    "build:mac": "npm run build:native && tsc && vite build && electron-builder --mac",
+    "build:mac:arm64": "npm run build:native && tsc && vite build && electron-builder --mac --arm64",
+    "build:mac:x64": "npm run build:native && tsc && vite build && electron-builder --mac --x64",
     "build:native": "swiftc -O -o native/ax-extract native/ax-extract.swift && npx node-gyp rebuild -C native",
     "preview": "vite preview",
     "typecheck": "tsc --noEmit"
@@ -56,18 +59,62 @@
   "build": {
     "appId": "com.faria.app",
     "productName": "Faria",
+    "directories": {
+      "output": "release"
+    },
+    "files": [
+      "dist/**/*",
+      "dist-electron/**/*"
+    ],
     "mac": {
       "category": "public.app-category.productivity",
+      "icon": "build/icon.icns",
       "target": [
-        "dmg"
+        {
+          "target": "dmg",
+          "arch": [
+            "arm64",
+            "x64"
+          ]
+        },
+        {
+          "target": "zip",
+          "arch": [
+            "arm64",
+            "x64"
+          ]
+        }
       ],
       "hardenedRuntime": true,
+      "gatekeeperAssess": false,
       "entitlements": "build/entitlements.mac.plist",
       "entitlementsInherit": "build/entitlements.mac.plist",
+      "notarize": false,
       "extendInfo": {
         "NSAppleEventsUsageDescription": "Faria needs to send AppleScript commands to control applications.",
-        "NSAccessibilityUsageDescription": "Faria needs accessibility access to read screen content and automate input."
+        "NSAccessibilityUsageDescription": "Faria needs accessibility access to read screen content and automate input.",
+        "LSUIElement": true
       }
+    },
+    "dmg": {
+      "title": "${productName} ${version}",
+      "iconSize": 80,
+      "window": {
+        "width": 540,
+        "height": 380
+      },
+      "contents": [
+        {
+          "x": 130,
+          "y": 220
+        },
+        {
+          "x": 410,
+          "y": 220,
+          "type": "link",
+          "path": "/Applications"
+        }
+      ]
     },
     "extraResources": [
       {
