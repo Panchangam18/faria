@@ -16,7 +16,7 @@ import { ToolResult, ToolContext } from './types';
 
 // Zod schema for the tool
 export const ReplaceSelectedTextSchema = z.object({
-  text: z.string().describe('The replacement text that will replace the current selection'),
+  text: z.string().describe('The replacement text that will replace the current selection. This tool only works if the user has text selected.'),
 });
 
 /**
