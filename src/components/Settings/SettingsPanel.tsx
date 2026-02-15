@@ -190,73 +190,41 @@ const ThemePreview = ({ colors, isSelected, name, onDelete, isHovered }: { color
   return (
     <div style={{
       width: '100%',
-      height: 52,
+      height: 32,
       borderRadius: 6,
-      overflow: 'hidden',
       background: colors.background,
       position: 'relative',
       boxShadow: isSelected ? `0 0 0 2px ${colors.accent}` : 'none',
       transition: 'all 0.3s cubic-bezier(0.4, 0, 0.2, 1)',
       border: `1px solid ${colors.text}26`,
       display: 'flex',
-      flexDirection: 'column',
+      alignItems: 'center',
+      padding: '0 8px',
     }}>
-      {/* Command bar input area */}
-      <div style={{
+      {/* Text and send button on one line */}
+      <span style={{
         flex: 1,
-        padding: '8px 12px 4px 12px',
-        display: 'flex',
-        alignItems: 'center',
+        fontSize: 10,
+        color: colors.text,
+        overflow: 'hidden',
+        whiteSpace: 'nowrap',
       }}>
-        <span style={{
-          fontSize: 11,
-          color: colors.text,
-        }}>
-          {name || 'Preview'}
-        </span>
-      </div>
-
-      {/* Command bar footer */}
+        {name || 'Preview'}
+      </span>
       <div style={{
+        width: 12,
+        height: 12,
+        flexShrink: 0,
         display: 'flex',
         alignItems: 'center',
-        justifyContent: 'flex-end',
-        padding: '2px 8px 6px 8px',
+        justifyContent: 'center',
+        color: colors.accent,
+        marginLeft: 4,
       }}>
-        {/* Send button icon */}
-        <div style={{
-          width: 14,
-          height: 14,
-          display: 'flex',
-          alignItems: 'center',
-          justifyContent: 'center',
-          color: colors.accent,
-        }}>
-          <svg width="12" height="12" viewBox="0 0 24 24" fill="currentColor">
-            <path d="M2.01 21L23 12 2.01 3 2 10l15 2-15 2z" />
-          </svg>
-        </div>
+        <svg width="10" height="10" viewBox="0 0 24 24" fill="currentColor">
+          <path d="M2.01 21L23 12 2.01 3 2 10l15 2-15 2z" />
+        </svg>
       </div>
-
-      {/* Selection indicator (checkmark) */}
-      {isSelected && (
-        <div style={{
-          position: 'absolute',
-          top: 4,
-          right: 4,
-          width: 16,
-          height: 16,
-          borderRadius: '50%',
-          background: colors.accent,
-          display: 'flex',
-          alignItems: 'center',
-          justifyContent: 'center',
-        }}>
-          <svg width="8" height="8" viewBox="0 0 24 24" fill="none" stroke={colors.background} strokeWidth="3" strokeLinecap="round" strokeLinejoin="round">
-            <polyline points="20 6 9 17 4 12" />
-          </svg>
-        </div>
-      )}
 
       {/* Delete button (X) - only shown for custom themes when not selected and hovered */}
       {!isSelected && onDelete && isHovered && (
@@ -266,8 +234,9 @@ const ThemePreview = ({ colors, isSelected, name, onDelete, isHovered }: { color
           onMouseLeave={(e) => { e.currentTarget.style.background = 'rgba(0,0,0,0.6)'; }}
           style={{
             position: 'absolute',
-            top: 4,
+            top: '50%',
             right: 4,
+            transform: 'translateY(-50%)',
             width: 16,
             height: 16,
             borderRadius: '50%',
@@ -1063,7 +1032,7 @@ function SettingsPanel({ currentTheme, onThemeChange }: SettingsPanelProps) {
               onMouseLeave={() => setHoveredTheme(null)}
               style={{
                 width: 'calc((100% - 4 * var(--spacing-sm)) / 5)',
-                height: 52,
+                height: 32,
                 borderRadius: 6,
                 border: '1px solid var(--color-border)',
                 display: 'flex',
@@ -1096,29 +1065,26 @@ function SettingsPanel({ currentTheme, onThemeChange }: SettingsPanelProps) {
           letterSpacing: '0.05em',
           fontWeight: 500
         }}>
-          Command Bar Size
+          Size
         </div>
         <div style={{
           display: 'flex',
           flexDirection: 'column',
           gap: 'var(--spacing-sm)',
           marginLeft: 'var(--spacing-md)',
-          alignItems: 'center',
+          alignItems: 'flex-start',
         }}>
           {(['small', 'medium', 'large'] as const).map((size) => {
             const isSelected = commandBarSize === size;
             const isHovered = hoveredSize === size;
             const labels: Record<string, string> = { small: 'Small', medium: 'Medium', large: 'Large' };
-            // Scale factors relative to the preview container
-            const scales: Record<string, number> = { small: 1.0, medium: 1.25, large: 1.5 };
-            const scale = scales[size];
-            // Base preview dimensions (small)
-            const baseWidth = 180;
-            const baseHeight = 36;
-            const baseFontSize = 10;
-            const baseIconSize = 10;
-            const basePadding = 6;
-            const baseRadius = 4;
+            // Actual values from COMMAND_BAR_SIZES and SIZE_CONFIGS
+            const specs: Record<string, { w: number; h: number; fontSize: number; radius: number; iconSize: number }> = {
+              small:  { w: 300, h: 35, fontSize: 13, radius: 6, iconSize: 12 },
+              medium: { w: 375, h: 42, fontSize: 16, radius: 8, iconSize: 14 },
+              large:  { w: 450, h: 50, fontSize: 20, radius: 9, iconSize: 16 },
+            };
+            const { w, h, fontSize, radius, iconSize } = specs[size];
 
             return (
               <div
@@ -1130,86 +1096,35 @@ function SettingsPanel({ currentTheme, onThemeChange }: SettingsPanelProps) {
                 onMouseEnter={() => setHoveredSize(size)}
                 onMouseLeave={() => setHoveredSize(null)}
                 style={{
-                  cursor: 'pointer',
-                  transform: isHovered ? 'translateY(-2px)' : 'translateY(0)',
-                  transition: 'all 0.2s cubic-bezier(0.4, 0, 0.2, 1)',
-                  display: 'flex',
-                  flexDirection: 'column',
-                  alignItems: 'center',
-                  gap: 4,
-                }}
-              >
-                {/* Mini command bar mockup at proportional scale */}
-                <div style={{
-                  width: Math.round(baseWidth * scale),
-                  height: Math.round(baseHeight * scale),
-                  borderRadius: Math.round(baseRadius * scale),
-                  overflow: 'hidden',
+                  width: w,
+                  height: h,
+                  borderRadius: radius,
                   background: 'var(--color-background)',
                   border: `1px solid ${isSelected ? 'var(--color-accent)' : 'var(--color-border)'}`,
                   boxShadow: isSelected ? '0 0 0 1px var(--color-accent)' : 'none',
                   display: 'flex',
-                  flexDirection: 'column',
-                  position: 'relative',
-                }}>
-                  {/* Input area */}
-                  <div style={{
-                    flex: 1,
-                    padding: `${Math.round(basePadding * scale)}px ${Math.round((basePadding + 4) * scale)}px`,
-                    display: 'flex',
-                    alignItems: 'center',
-                  }}>
-                    <span style={{
-                      fontSize: Math.round(baseFontSize * scale),
-                      color: 'var(--color-text-muted)',
-                    }}>
-                      What do you seek?
-                    </span>
-                  </div>
-                  {/* Footer with send icon */}
-                  <div style={{
-                    display: 'flex',
-                    alignItems: 'center',
-                    justifyContent: 'flex-end',
-                    padding: `${Math.round(2 * scale)}px ${Math.round(basePadding * scale)}px ${Math.round(4 * scale)}px`,
-                  }}>
-                    <svg
-                      width={Math.round(baseIconSize * scale)}
-                      height={Math.round(baseIconSize * scale)}
-                      viewBox="0 0 24 24"
-                      fill="var(--color-accent)"
-                    >
-                      <path d="M2.01 21L23 12 2.01 3 2 10l15 2-15 2z" />
-                    </svg>
-                  </div>
-                  {/* Selected checkmark */}
-                  {isSelected && (
-                    <div style={{
-                      position: 'absolute',
-                      top: 3,
-                      right: 3,
-                      width: 14,
-                      height: 14,
-                      borderRadius: '50%',
-                      background: 'var(--color-accent)',
-                      display: 'flex',
-                      alignItems: 'center',
-                      justifyContent: 'center',
-                    }}>
-                      <svg width="7" height="7" viewBox="0 0 24 24" fill="none" stroke="var(--color-background)" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round">
-                        <polyline points="20 6 9 17 4 12" />
-                      </svg>
-                    </div>
-                  )}
-                </div>
-                {/* Label */}
+                  alignItems: 'center',
+                  justifyContent: 'space-between',
+                  padding: `0 ${Math.round(w * 0.05)}px`,
+                  cursor: 'pointer',
+                  transform: isHovered ? 'translateY(-2px)' : 'translateY(0)',
+                  transition: 'all 0.2s cubic-bezier(0.4, 0, 0.2, 1)',
+                }}
+              >
                 <span style={{
-                  fontSize: 'var(--font-size-xs)',
-                  color: isSelected ? 'var(--color-accent)' : 'var(--color-text-muted)',
-                  fontWeight: isSelected ? 500 : 400,
+                  fontSize,
+                  color: isSelected ? 'var(--color-text)' : 'var(--color-text-muted)',
                 }}>
                   {labels[size]}
                 </span>
+                <svg
+                  width={iconSize}
+                  height={iconSize}
+                  viewBox="0 0 24 24"
+                  fill="var(--color-accent)"
+                >
+                  <path d="M2.01 21L23 12 2.01 3 2 10l15 2-15 2z" />
+                </svg>
               </div>
             );
           })}
@@ -1761,7 +1676,7 @@ function SettingsPanel({ currentTheme, onThemeChange }: SettingsPanelProps) {
               <ThemePreview
                 colors={{ background: newPalette.background, text: newPalette.text, accent: newPalette.accent }}
                 isSelected={false}
-                name={newPalette.name || 'Preview'}
+                name={newPalette.name || '...'}
               />
             </div>
 
