@@ -1,125 +1,43 @@
-import { Memory, MemoryAgentInput, MemoryAgentOutput } from '../services/memory/types';
-import { addMemory, deleteMemory, getAllMemories } from '../services/memory/storage';
-import { createNativeClient, getSelectedModel } from '../services/models';
-
-const MEMORY_AGENT_PROMPT = `You are a memory management agent. Your job is to analyze interactions and decide what to remember.
-
-You will be given:
-1. The user's query
-2. The agent's response
-3. All current memories
-
-Your task:
-- Identify NEW information worth remembering (user preferences, facts about their setup, successful patterns)
-- Identify OUTDATED memories that should be deleted (contradicted by new info, no longer relevant)
-- Be selective - only store truly useful memories, not every interaction
-
-Output your decisions in this exact JSON format:
-{
-  "newMemories": ["memory 1 text", "memory 2 text"],
-  "deleteMemoryIds": ["id1", "id2"]
-}
-
-Guidelines for new memories:
-- User preferences: "User prefers dark mode", "User's default browser is Chrome"
-- Workflow patterns: "User often sends Slack messages to John about project updates"
-- Facts about their setup: "User has VS Code installed", "User's email is john@example.com"
-- Successful task patterns: "For sending iMessage, use computer_actions with type applescript"
-
-DO NOT remember:
-- One-off queries with no reuse value
-- Obvious/generic information
-- Information that changes frequently
-
-Keep memories concise (under 100 words each).`;
+import { existsSync, appendFileSync, writeFileSync, mkdirSync } from 'fs';
+import { join } from 'path';
+import { getMemoryRoot } from '../services/memory/memory-index';
 
 /**
- * Run the background memory agent to analyze an interaction and manage memories
+ * Append an interaction summary to the daily memory log.
+ * No LLM call needed — hybrid search handles relevance filtering.
+ *
+ * Format: - [HH:MM] <query summary> → <response summary> (tools: x, y)
  */
-export async function runMemoryAgent(input: MemoryAgentInput): Promise<void> {
-  const modelName = getSelectedModel('selectedModel');
-  if (modelName === 'none') return;
-
-  const client = createNativeClient(modelName);
-  if (!client) return;
-
-  // Format all memories for context
-  const memoriesContext = input.memories.length > 0
-    ? input.memories.map(m => `[${m.id}] ${m.content}`).join('\n')
-    : '(no memories stored yet)';
-
-  const userMessage = `## User Query
-${input.query}
-
-## Agent Response
-${input.response}
-
-## Tools Used
-${input.toolsUsed?.join(', ') || 'none'}
-
-## Current Memories
-${memoriesContext}
-
-Analyze this interaction and output your memory management decisions as JSON.`;
-
+export function appendToDailyLog(
+  query: string,
+  response: string,
+  toolsUsed: string[],
+): void {
   try {
-    let responseText: string;
+    const memoryRoot = getMemoryRoot();
+    if (!existsSync(memoryRoot)) mkdirSync(memoryRoot, { recursive: true });
 
-    if (client.provider === 'anthropic') {
-      const response = await client.client.messages.create({
-        model: client.model,
-        max_tokens: 1024,
-        system: MEMORY_AGENT_PROMPT,
-        messages: [{ role: 'user', content: userMessage }]
-      });
+    const dateStr = new Date().toISOString().slice(0, 10);
+    const dailyFile = join(memoryRoot, `${dateStr}.md`);
 
-      const textBlock = response.content.find(b => b.type === 'text');
-      responseText = textBlock?.text || '{}';
-    } else {
-      // Google
-      const chat = client.model.startChat({
-        systemInstruction: { role: 'user', parts: [{ text: MEMORY_AGENT_PROMPT }] }
-      });
-      const response = await chat.sendMessage(userMessage);
-      responseText = response.response.text();
+    if (!existsSync(dailyFile)) {
+      writeFileSync(dailyFile, `# ${dateStr}\n\n`);
     }
 
-    // Parse the JSON response
-    const jsonMatch = responseText.match(/\{[\s\S]*\}/);
-    if (!jsonMatch) {
-      console.log('[MemoryAgent] No valid JSON in response');
-      return;
-    }
-
-    const output: MemoryAgentOutput = JSON.parse(jsonMatch[0]);
-
-    // Apply memory operations
-    for (const memoryText of output.newMemories || []) {
-      if (memoryText.trim()) {
-        await addMemory(memoryText.trim());
-        console.log('[MemoryAgent] Added memory:', memoryText.slice(0, 50));
-      }
-    }
-
-    for (const id of output.deleteMemoryIds || []) {
-      if (deleteMemory(id)) {
-        console.log('[MemoryAgent] Deleted memory:', id);
-      }
-    }
-
-  } catch (error) {
-    console.error('[MemoryAgent] Error:', error);
-    // Silent failure - don't affect user experience
-  }
-}
-
-/**
- * Trigger memory agent in the background (non-blocking)
- */
-export function triggerMemoryAgent(input: MemoryAgentInput): void {
-  setImmediate(() => {
-    runMemoryAgent(input).catch(err => {
-      console.error('[MemoryAgent] Background error:', err);
+    const timestamp = new Date().toLocaleTimeString('en-US', {
+      hour12: false,
+      hour: '2-digit',
+      minute: '2-digit',
     });
-  });
+
+    const querySummary = query.slice(0, 200).replace(/\n/g, ' ');
+    const responseSummary = response.slice(0, 300).replace(/\n/g, ' ');
+    const toolsList = toolsUsed.length > 0 ? ` (tools: ${toolsUsed.join(', ')})` : '';
+
+    appendFileSync(dailyFile, `- [${timestamp}] ${querySummary} → ${responseSummary}${toolsList}\n`);
+    console.log('[MemoryAgent] Appended to daily log:', dailyFile);
+  } catch (error) {
+    console.error('[MemoryAgent] Failed to append to daily log:', error);
+    // Silent failure — don't affect user experience
+  }
 }

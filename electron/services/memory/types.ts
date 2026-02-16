@@ -1,5 +1,7 @@
+// ── Legacy types (kept for migration compatibility) ──
+
 /**
- * A single memory stored in the system
+ * A single memory stored in the system (legacy JSON format)
  */
 export interface Memory {
   id: string;
@@ -9,12 +11,14 @@ export interface Memory {
 }
 
 /**
- * The memory store structure (JSON file format)
+ * The memory store structure (legacy JSON file format)
  */
 export interface MemoryStore {
   version: number;
   memories: Memory[];
 }
+
+// ── Context manager types ──
 
 /**
  * A message tracked by the context manager
@@ -25,6 +29,8 @@ export interface ContextMessage {
   tokenCount: number;
   timestamp: number;
 }
+
+// ── Legacy memory agent types (kept for migration) ──
 
 /**
  * Input to the background memory agent
@@ -42,4 +48,37 @@ export interface MemoryAgentInput {
 export interface MemoryAgentOutput {
   newMemories: string[];
   deleteMemoryIds: string[];
+}
+
+// ── New memory index types (v2) ──
+
+export interface MemorySearchResult {
+  path: string;
+  startLine: number;
+  endLine: number;
+  score: number;
+  snippet: string;
+  citation: string;
+}
+
+export interface MemoryChunk {
+  startLine: number;
+  endLine: number;
+  text: string;
+  hash: string;
+}
+
+export interface MemoryFileEntry {
+  path: string;       // relative to memory root
+  absPath: string;
+  mtimeMs: number;
+  size: number;
+  hash: string;
+}
+
+export interface EmbeddingProvider {
+  readonly model: string;
+  readonly dimensions: number;
+  embedQuery(text: string): Promise<number[]>;
+  embedBatch(texts: string[]): Promise<number[][]>;
 }
