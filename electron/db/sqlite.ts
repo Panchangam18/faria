@@ -2,6 +2,7 @@ import Database from 'better-sqlite3';
 import { app } from 'electron';
 import { join } from 'path';
 import { existsSync, mkdirSync } from 'fs';
+import { ensureMemorySchema } from '../services/memory/memory-schema';
 
 let db: Database.Database | null = null;
 
@@ -88,6 +89,14 @@ export function initDatabase(): Database.Database {
   if (!historyColumns.some(col => col.name === 'context_text')) {
     db.exec('ALTER TABLE history ADD COLUMN context_text TEXT');
     console.log('[DB] Added context_text column to history table');
+  }
+
+  // Memory index tables (v2)
+  const memoryResult = ensureMemorySchema(db);
+  if (memoryResult.ftsAvailable) {
+    console.log('[DB] Memory index schema ready (FTS5 available)');
+  } else {
+    console.log('[DB] Memory index schema ready (FTS5 unavailable:', memoryResult.ftsError || 'unknown', ')');
   }
 
   return db;

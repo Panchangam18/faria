@@ -16,8 +16,12 @@ import {
   ToolSettings,
   BoundModel
 } from '../services/models';
-import { searchMemories, getAllMemories, ContextManager, estimateTokens } from '../services/memory';
-import { triggerMemoryAgent } from './memory-agent';
+import { ContextManager, estimateTokens } from '../services/memory';
+import { createHFEmbeddingProvider } from '../services/memory/embeddings';
+import { getOrCreateMemoryIndexManager } from '../services/memory/memory-index';
+import { createMemorySearchTool, createMemoryGetTool } from './tools/memory-tools';
+import { appendToDailyLog } from './memory-agent';
+import { shouldRunMemoryFlush, runMemoryFlush, recordFlush, resetFlushTracking } from './memory-flush';
 import { ComposioService } from '../services/composio';
 import { showClickIndicator, hideClickIndicator } from '../services/click-indicator';
 
@@ -67,7 +71,7 @@ const DEFAULT_CONFIG: AgentConfig = {
  * Now uses LangChain for LangSmith tracing
  */
 // Tools that don't require approval (informational/read-only or user-initiated)
-const SAFE_TOOLS = new Set(['get_state', 'web_search', 'insert_image']);
+const SAFE_TOOLS = new Set(['get_state', 'web_search', 'insert_image', 'memory_search', 'memory_get']);
 // Composio tools that don't require approval (management/search tools)
 const SAFE_COMPOSIO_TOOLS = new Set(['COMPOSIO_SEARCH_TOOLS', 'COMPOSIO_MANAGE_CONNECTIONS']);
 
@@ -259,14 +263,8 @@ export class AgentLoop {
       let state = await this.stateExtractor.extractState(selectedText || undefined);
       this.toolExecutor.setCurrentState(state);
 
-      // Get relevant memories via semantic search
-      const relevantMemories = await searchMemories(query, 7);
-      const memoryContext = relevantMemories.length > 0
-        ? `=== Relevant Memories ===\n${relevantMemories.map(m => `- ${m.content}`).join('\n')}`
-        : '';
-
-      // Build initial messages for LangChain
-      const userPrompt = this.buildUserPrompt(query, state, memoryContext);
+      // Build initial messages for LangChain (memory is now tool-based, not injected)
+      const userPrompt = this.buildUserPrompt(query, state);
       const systemPrompt = getAgentSystemPrompt();
       const messages: (SystemMessage | HumanMessage | AIMessage | ToolMessage)[] = [
         new SystemMessage(systemPrompt),
@@ -280,8 +278,12 @@ export class AgentLoop {
       console.log(`[Faria] Tool settings:`, toolSettings);
 
       // Get built-in tools (now DynamicStructuredTool instances like Composio)
-      const builtinTools = this.toolExecutor.getTools(toolSettings);
-      console.log(`[Faria] Loaded ${builtinTools.length} built-in tools`);
+      const memoryDb = initDatabase();
+      const embeddingProvider = createHFEmbeddingProvider();
+      const memoryManager = getOrCreateMemoryIndexManager(memoryDb, embeddingProvider);
+      const memoryTools = [createMemorySearchTool(memoryManager), createMemoryGetTool(memoryManager)];
+      const builtinTools = [...this.toolExecutor.getTools(toolSettings), ...memoryTools];
+      console.log(`[Faria] Loaded ${builtinTools.length} built-in tools (incl. memory)`);
 
       // Get Composio tools (already in LangChain DynamicStructuredTool format)
       let composioTools: Awaited<ReturnType<typeof this.composioService.getTools>> = [];
@@ -297,6 +299,8 @@ export class AgentLoop {
 
       // Initialize context manager for 50% FIFO context limit
       const contextManager = new ContextManager(modelName);
+      resetFlushTracking();
+      let flushRunning = false;
 
       const estimateTokensForContext = (msg: SystemMessage | HumanMessage | AIMessage | ToolMessage): number => {
         if (typeof msg.content === 'string') {
@@ -345,6 +349,27 @@ export class AgentLoop {
       // Helper to add message with context tracking and FIFO eviction
       const addMessage = (msg: SystemMessage | HumanMessage | AIMessage | ToolMessage) => {
         const tokens = estimateTokensForContext(msg);
+
+        // Pre-eviction memory flush: save durable facts before context is lost
+        if (!flushRunning && shouldRunMemoryFlush(contextManager)) {
+          flushRunning = true;
+          const summary = messages
+            .filter((m) => !(m instanceof SystemMessage))
+            .map((m) => {
+              const role = m.getType();
+              const text = typeof m.content === 'string' ? m.content : JSON.stringify(m.content);
+              return `${role}: ${text.slice(0, 500)}`;
+            })
+            .join('\n');
+          runMemoryFlush(summary)
+            .then(() => {
+              recordFlush(contextManager.getCurrentTokens());
+            })
+            .catch((err) => console.error('[MemoryFlush] Background flush error:', err))
+            .finally(() => {
+              flushRunning = false;
+            });
+        }
 
         // FIFO: Remove oldest non-system messages if we'd exceed limit
         while (contextManager.getCurrentTokens() + tokens > contextManager.getMaxTokens() && messages.length > 1) {
@@ -645,14 +670,9 @@ export class AgentLoop {
         return '';
       }
 
-      // Trigger background memory agent to analyze and store memories
+      // Append interaction summary to daily memory log (non-blocking)
       if (finalResponse) {
-        triggerMemoryAgent({
-          query,
-          response: finalResponse,
-          memories: getAllMemories(),
-          toolsUsed
-        });
+        appendToDailyLog(query, finalResponse, toolsUsed);
       }
 
       // Save to history
@@ -894,13 +914,8 @@ export class AgentLoop {
    * Build the user prompt with state context
    * Returns multimodal content if screenshot is present
    */
-  private buildUserPrompt(query: string, state: AppState, memoryContext: string): string | Array<{ type: string; text?: string; image_url?: { url: string } }> {
+  private buildUserPrompt(query: string, state: AppState): string | Array<{ type: string; text?: string; image_url?: { url: string } }> {
     const parts: string[] = [];
-
-    if (memoryContext) {
-      parts.push(memoryContext);
-      parts.push('');
-    }
 
     parts.push(this.stateExtractor.formatForAgent(state));
     parts.push('');

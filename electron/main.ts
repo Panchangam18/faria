@@ -8,7 +8,8 @@ import { ComposioService } from './services/composio';
 import { getSelectedText } from './services/text-extraction';
 import { exec } from 'child_process';
 import { promisify } from 'util';
-import { initEmbeddings, migrateFromSQLite } from './services/memory';
+import { initEmbeddings } from './services/memory';
+import { migrateToMarkdownMemory } from './services/memory/migrate-v2';
 
 const execAsync = promisify(exec);
 
@@ -1063,9 +1064,9 @@ async function initializeServices() {
     console.error('[Memory] Failed to init embeddings:', err);
   });
 
-  // Migrate from SQLite in background (don't block startup)
-  migrateFromSQLite().catch(err => {
-    console.error('[Memory] Failed to migrate:', err);
+  // Migrate memories from JSON to markdown (v2) in background
+  migrateToMarkdownMemory().catch((err: Error) => {
+    console.error('[Memory] Failed to migrate to v2:', err);
   });
 
   // Initialize Composio for external integrations (Gmail, GitHub, Slack, etc.)
