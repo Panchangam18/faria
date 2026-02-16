@@ -107,7 +107,10 @@ function App() {
 
   if (!onboardingCompleted) {
     return (
-      <Onboarding onComplete={() => setOnboardingCompleted(true)} />
+      <Onboarding onComplete={() => {
+        setOnboardingCompleted(true);
+        setActiveTab('settings');
+      }} />
     );
   }
 

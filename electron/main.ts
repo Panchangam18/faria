@@ -1,5 +1,6 @@
 import { app, BrowserWindow, globalShortcut, ipcMain, screen, shell, systemPreferences } from 'electron';
 import { join } from 'path';
+import { config as dotenvConfig } from 'dotenv';
 import { initDatabase } from './db/sqlite';
 import { StateExtractor } from './services/state-extractor';
 import { AgentLoop } from './agent/loop';
@@ -10,6 +11,9 @@ import { exec } from 'child_process';
 import { promisify } from 'util';
 import { initEmbeddings } from './services/memory';
 import { migrateToMarkdownMemory } from './services/memory/migrate-v2';
+
+// Load .env from project root
+dotenvConfig();
 
 const execAsync = promisify(exec);
 
@@ -364,6 +368,15 @@ async function toggleCommandBar() {
   const thisSessionId = ++commandBarSessionId;
 
   showCommandBar();
+
+  // Check if onboarding is in progress and notify main window
+  const onboardingCheck = db.prepare('SELECT value FROM settings WHERE key = ?').get('onboardingCompleted') as { value: string } | undefined;
+  if (onboardingCheck?.value !== 'true') {
+    // Notify main window that command bar was opened during onboarding
+    mainWindow?.webContents.send('onboarding:command-bar-opened');
+    // Pre-fill command bar with tutorial query
+    commandBarWindow?.webContents.send('command-bar:set-query', 'What can you do?');
+  }
 
   // Send detecting state to UI (shows loading indicator)
   setImmediate(() => {
@@ -859,6 +872,10 @@ function setupIPC() {
   });
 
   // Onboarding IPC
+  ipcMain.on('onboarding:demo-submit', () => {
+    mainWindow?.webContents.send('onboarding:query-submitted');
+  });
+
   ipcMain.handle('onboarding:checkAccessibility', async () => {
     if (process.platform === 'darwin') {
       return systemPreferences.isTrustedAccessibilityClient(false);
@@ -1057,7 +1074,45 @@ function setupIPC() {
 
 async function initializeServices() {
   // Initialize database
-  initDatabase();
+  const db = initDatabase();
+
+  // Seed API keys from environment variables on first launch (before onboarding)
+  const onboardingRow = db.prepare('SELECT value FROM settings WHERE key = ?').get('onboardingCompleted') as { value: string } | undefined;
+  if (onboardingRow?.value !== 'true') {
+    // Check for Google API key in env
+    const envGoogleKey = process.env.GOOGLE_API_KEY;
+    if (envGoogleKey) {
+      const existingGoogleKey = db.prepare('SELECT value FROM settings WHERE key = ?').get('googleKey') as { value: string } | undefined;
+      if (!existingGoogleKey?.value) {
+        db.prepare('INSERT OR REPLACE INTO settings (key, value) VALUES (?, ?)').run('googleKey', envGoogleKey);
+        console.log('[Faria] Seeded Google API key from environment');
+      }
+    }
+
+    // Check for Anthropic API key in env
+    const envAnthropicKey = process.env.ANTHROPIC_API_KEY;
+    if (envAnthropicKey) {
+      const existingAnthropicKey = db.prepare('SELECT value FROM settings WHERE key = ?').get('anthropicKey') as { value: string } | undefined;
+      if (!existingAnthropicKey?.value) {
+        db.prepare('INSERT OR REPLACE INTO settings (key, value) VALUES (?, ?)').run('anthropicKey', envAnthropicKey);
+        console.log('[Faria] Seeded Anthropic API key from environment');
+      }
+    }
+
+    // Set default model to Gemini 3 Flash if google key is available and no model is set
+    const existingModel = db.prepare('SELECT value FROM settings WHERE key = ?').get('selectedModel') as { value: string } | undefined;
+    if (!existingModel?.value || existingModel.value === 'none') {
+      const googleKeyAvailable = db.prepare('SELECT value FROM settings WHERE key = ?').get('googleKey') as { value: string } | undefined;
+      const anthropicKeyAvailable = db.prepare('SELECT value FROM settings WHERE key = ?').get('anthropicKey') as { value: string } | undefined;
+      if (googleKeyAvailable?.value) {
+        db.prepare('INSERT OR REPLACE INTO settings (key, value) VALUES (?, ?)').run('selectedModel', 'gemini-3-flash-preview');
+        console.log('[Faria] Set default model to Gemini 3 Flash');
+      } else if (anthropicKeyAvailable?.value) {
+        db.prepare('INSERT OR REPLACE INTO settings (key, value) VALUES (?, ?)').run('selectedModel', 'claude-3-5-sonnet-20241022');
+        console.log('[Faria] Set default model to Claude 3.5 Sonnet');
+      }
+    }
+  }
 
   // Initialize embedding model in background (don't block startup)
   initEmbeddings().catch(err => {
