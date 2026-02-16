@@ -12,6 +12,7 @@ import { createChainActionsTool } from './computer-actions';
 import { createWebSearchTool } from './web-search';
 import { createReplaceSelectedTextTool } from './replace-text';
 import { createExecutePythonTool } from './execute-python';
+import { createExecuteBashTool } from './execute-bash';
 
 /**
  * Tool Executor - handles execution of all built-in and custom tools
@@ -80,6 +81,7 @@ export class ToolExecutor {
       createChainActionsTool(context, toolSettings),
       createWebSearchTool(),
       createExecutePythonTool(),
+      createExecuteBashTool(),
     ];
 
     // Only include replace_selected_text if not disabled

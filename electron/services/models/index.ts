@@ -180,6 +180,7 @@ export function getToolDisplayName(toolName: string): string {
     web_search: 'Searching the web',
     insert_image: 'Inserting image',
     replace_selected_text: 'Replacing text',
+    execute_bash: 'Running command',
     // Composio meta-tools (hidden from user as "Composio")
     COMPOSIO_SEARCH_TOOLS: 'Searching integrations',
     COMPOSIO_MANAGE_CONNECTIONS: 'Checking connections',

@@ -161,6 +161,10 @@ function generateBuiltinApprovalInfo(toolName: string, args: Record<string, unkn
       if (args.code) details['Code'] = String(args.code);
       return { displayName: 'Execute Python', details };
 
+    case 'execute_bash':
+      if (args.command) details['Command'] = String(args.command);
+      return { displayName: 'Execute Bash', details };
+
     default:
       return { displayName: formatToolSlug(toolName), details };
   }
@@ -517,7 +521,7 @@ export class AgentLoop {
             // Check if this is a Composio tool
             const isComposioTool = !SAFE_TOOLS.has(toolCall.name) &&
                                     !['get_state', 'computer_actions', 'web_search',
-                                      'insert_image', 'replace_selected_text', 'execute_python'].includes(toolCall.name);
+                                      'insert_image', 'replace_selected_text', 'execute_python', 'execute_bash'].includes(toolCall.name);
 
             // Determine if approval is needed based on tool settings
             const needsApproval = this.checkIfApprovalNeeded(
