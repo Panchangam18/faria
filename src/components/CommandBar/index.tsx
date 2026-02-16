@@ -564,13 +564,6 @@ function CommandBar() {
       setIsProcessing(false);
       setStatus('');
       setPendingAuth(null);
-      // Refocus input after error
-      setTimeout(() => inputRef.current?.focus(), 0);
-      // Clear error after 3 seconds
-      setTimeout(() => {
-        setErrorMessage(null);
-        setResponse('');
-      }, 3000);
     });
 
     // Listen for reset event (clears all state completely)
@@ -656,7 +649,7 @@ function CommandBar() {
   }, [pendingToolApproval, isProcessing]);
 
   const handleSubmit = useCallback(async () => {
-    if (!query.trim() || isProcessing) return;
+    if (!query.trim() || isProcessing || errorMessage) return;
 
     // During onboarding, don't submit to agent — just trigger the demo
     if (isOnboardingRef.current) {
@@ -684,7 +677,7 @@ function CommandBar() {
       setIsProcessing(false);
       setStatus('');
     }
-  }, [query, isProcessing]);
+  }, [query, isProcessing, errorMessage]);
 
   const handleInputChange = (e: React.ChangeEvent<HTMLTextAreaElement>) => {
     // Block editing during onboarding demo
@@ -944,7 +937,7 @@ function CommandBar() {
             value={query}
             onChange={handleInputChange}
             onKeyDown={handleKeyDown}
-            disabled={isProcessing}
+            disabled={isProcessing || !!errorMessage}
             rows={1}
           />
         </div>
@@ -964,7 +957,7 @@ function CommandBar() {
             <button
               className="send-button"
               onClick={handleSubmit}
-              disabled={!query.trim()}
+              disabled={!query.trim() || !!errorMessage}
               title="Send message"
             >
               <IoMdSend />

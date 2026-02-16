@@ -349,13 +349,6 @@ async function toggleCommandBar() {
     setImmediate(() => {
       if (commandBarWindow && isCommandBarVisible) {
         commandBarWindow.webContents.send('command-bar:error', 'Please choose a model in Settings');
-        // Hide after showing error
-        setTimeout(() => {
-          if (commandBarWindow && isCommandBarVisible) {
-            commandBarWindow.hide();
-            isCommandBarVisible = false;
-          }
-        }, 3000);
       }
     });
     return;
@@ -368,6 +361,9 @@ async function toggleCommandBar() {
   const thisSessionId = ++commandBarSessionId;
 
   showCommandBar();
+
+  // Reset renderer state (clears any lingering error from e.g. a previous no-model session)
+  commandBarWindow?.webContents.send('command-bar:reset');
 
   // Check if onboarding is in progress and notify main window
   const onboardingCheck = db.prepare('SELECT value FROM settings WHERE key = ?').get('onboardingCompleted') as { value: string } | undefined;
