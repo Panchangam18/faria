@@ -586,6 +586,12 @@ function CommandBar() {
       historyRef.current = [];
     });
 
+    // Listen for set-query event (e.g. from onboarding tutorial)
+    const cleanupSetQuery = window.faria.commandBar.onSetQuery((text: string) => {
+      setQuery(text);
+      setTimeout(() => inputRef.current?.focus(), 0);
+    });
+
     // Cleanup all listeners on unmount
     return () => {
       cleanupWillHide();
@@ -598,6 +604,7 @@ function CommandBar() {
       cleanupToolApproval();
       cleanupError();
       cleanupReset();
+      cleanupSetQuery();
     };
   }, []);
 

@@ -97,6 +97,11 @@ contextBridge.exposeInMainWorld('faria', {
     requestAccessibility: () => ipcRenderer.invoke('onboarding:requestAccessibility'),
     openAccessibilitySettings: () => ipcRenderer.invoke('onboarding:openAccessibilitySettings'),
     openScreenRecordingSettings: () => ipcRenderer.invoke('onboarding:openScreenRecordingSettings'),
+    onCommandBarOpened: (callback: () => void) => {
+      const handler = () => callback();
+      ipcRenderer.on('onboarding:command-bar-opened', handler);
+      return () => ipcRenderer.removeListener('onboarding:command-bar-opened', handler);
+    },
   },
 
   // Command Bar
@@ -134,6 +139,11 @@ contextBridge.exposeInMainWorld('faria', {
       const handler = () => callback();
       ipcRenderer.on('command-bar:reset', handler);
       return () => ipcRenderer.removeListener('command-bar:reset', handler);
+    },
+    onSetQuery: (callback: (query: string) => void) => {
+      const handler = (_event: Electron.IpcRendererEvent, query: string) => callback(query);
+      ipcRenderer.on('command-bar:set-query', handler);
+      return () => ipcRenderer.removeListener('command-bar:set-query', handler);
     }
   }
 });
@@ -201,6 +211,7 @@ export interface FariaAPI {
     requestAccessibility: () => Promise<void>;
     openAccessibilitySettings: () => Promise<void>;
     openScreenRecordingSettings: () => Promise<void>;
+    onCommandBarOpened: (callback: () => void) => () => void;
   };
   shell: {
     openExternal: (url: string) => Promise<void>;
@@ -216,6 +227,7 @@ export interface FariaAPI {
     onError: (callback: (error: string) => void) => () => void;
     onWillHide: (callback: () => void) => () => void;
     onReset: (callback: () => void) => () => void;
+    onSetQuery: (callback: (query: string) => void) => () => void;
   };
 }
 
