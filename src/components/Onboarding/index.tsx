@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import FariaLogo from '../FariaLogo';
+import FariaWordmark from '../FariaWordmark';
 
 interface OnboardingProps {
   onComplete: () => void;
@@ -50,7 +50,7 @@ const TOOLS = [
 
 type ToolSetting = 'enabled' | 'disabled' | 'auto-approve';
 
-const TOTAL_STEPS = 5;
+const TOTAL_STEPS = 4;
 
 // Derive accent colors from a base accent hex
 const deriveAccentColors = (accent: string): { hover: string; active: string } => {
@@ -190,8 +190,6 @@ function Onboarding({ onComplete }: OnboardingProps) {
     onComplete();
   };
 
-  const hasApiKey = !!(anthropicKey.trim() || googleKey.trim());
-
   // Shared styles
   const containerStyle: React.CSSProperties = {
     height: '100%',
@@ -306,23 +304,31 @@ function Onboarding({ onComplete }: OnboardingProps) {
   const renderStepDots = () => (
     <div style={{
       display: 'flex',
-      gap: 8,
-      justifyContent: 'center',
+      flexDirection: 'column',
+      alignItems: 'center',
+      gap: 16,
       marginBottom: 40,
     }}>
-      {Array.from({ length: TOTAL_STEPS }).map((_, i) => (
-        <div
-          key={i}
-          style={{
-            width: i === step ? 24 : 8,
-            height: 8,
-            borderRadius: 4,
-            background: i === step ? 'var(--color-accent)' : i < step ? 'var(--color-accent)' : 'var(--color-border)',
-            opacity: i < step ? 0.5 : 1,
-            transition: 'all 0.3s ease',
-          }}
-        />
-      ))}
+      <FariaWordmark height={56} />
+      <div style={{
+        display: 'flex',
+        gap: 8,
+        justifyContent: 'center',
+      }}>
+        {Array.from({ length: TOTAL_STEPS }).map((_, i) => (
+          <div
+            key={i}
+            style={{
+              width: i === step ? 24 : 8,
+              height: 8,
+              borderRadius: 4,
+              background: i === step ? 'var(--color-accent)' : i < step ? 'var(--color-accent)' : 'var(--color-border)',
+              opacity: i < step ? 0.5 : 1,
+              transition: 'all 0.3s ease',
+            }}
+          />
+        ))}
+      </div>
     </div>
   );
 
@@ -354,115 +360,23 @@ function Onboarding({ onComplete }: OnboardingProps) {
 
   // ---- STEP RENDERS ----
 
-  const renderWelcome = () => (
-    <div style={cardStyle}>
-      <div style={{ textAlign: 'center' }}>
-        <FariaLogo size={80} style={{ marginBottom: 12 }} />
-        <div style={{
-          fontSize: 48,
-          fontWeight: 700,
-          color: 'var(--color-accent)',
-          marginBottom: 4,
-          letterSpacing: '-0.03em',
-        }}>
-          Faria
-        </div>
-        <div style={{
-          fontSize: 15,
-          color: 'var(--color-text-muted)',
-          marginBottom: 40,
-          fontStyle: 'italic',
-        }}>
-          Your AI copilot for computer automation
-        </div>
+  const renderApiKeys = () => {
+    const selectedProvider = MODELS.find(m => m.id === selectedModel)?.provider;
+    const needsAnthropicKey = selectedProvider === 'anthropic';
+    const needsGoogleKey = selectedProvider === 'google';
+    const relevantKeyProvided = (needsAnthropicKey && anthropicKey.trim()) || (needsGoogleKey && googleKey.trim());
+    const canProceed = selectedModel !== 'none' && relevantKeyProvided;
 
-        <div style={{
-          fontSize: 14,
-          color: 'var(--color-text)',
-          lineHeight: 1.8,
-          marginBottom: 48,
-          maxWidth: 420,
-          marginLeft: 'auto',
-          marginRight: 'auto',
-        }}>
-          Faria helps you accomplish tasks across any Mac application using natural language.
-          Describe what you want to do, and Faria takes care of it — typing, clicking,
-          reading screens, and automating workflows.
-        </div>
+    return (
+      <div style={cardStyle}>
+        {renderStepDots()}
+        <h2 style={headingStyle}>Connect to AI</h2>
+        <p style={subheadingStyle}>
+          Choose your preferred model, then provide the API key for it.
+        </p>
 
-        <button
-          style={primaryButtonStyle}
-          onClick={() => goToStep(1)}
-          onMouseEnter={e => { e.currentTarget.style.opacity = '0.9'; }}
-          onMouseLeave={e => { e.currentTarget.style.opacity = '1'; }}
-        >
-          Get Started
-        </button>
-
-        <div style={{
-          marginTop: 16,
-          fontSize: 12,
-          color: 'var(--color-text-muted)',
-          opacity: 0.6,
-        }}>
-          Takes about a minute to set up
-        </div>
-      </div>
-    </div>
-  );
-
-  const renderApiKeys = () => (
-    <div style={cardStyle}>
-      {renderStepDots()}
-      <h2 style={headingStyle}>Connect to AI</h2>
-      <p style={subheadingStyle}>
-        Faria uses AI models to understand and execute your requests.
-        Add at least one API key to get started.
-      </p>
-
-      {/* Anthropic Key */}
-      <div>
-        <label style={labelStyle}>Anthropic API Key</label>
-        <div style={inputWrapperStyle}>
-          <input
-            type={showAnthropicKey ? 'text' : 'password'}
-            value={anthropicKey}
-            onChange={e => setAnthropicKey(e.target.value)}
-            placeholder="sk-ant-..."
-            style={inputStyle}
-          />
-          <button
-            style={eyeButtonStyle}
-            onClick={() => setShowAnthropicKey(!showAnthropicKey)}
-          >
-            <EyeIcon visible={showAnthropicKey} />
-          </button>
-        </div>
-      </div>
-
-      {/* Google Key */}
-      <div>
-        <label style={labelStyle}>Google AI API Key</label>
-        <div style={inputWrapperStyle}>
-          <input
-            type={showGoogleKey ? 'text' : 'password'}
-            value={googleKey}
-            onChange={e => setGoogleKey(e.target.value)}
-            placeholder="AIxxxx..."
-            style={inputStyle}
-          />
-          <button
-            style={eyeButtonStyle}
-            onClick={() => setShowGoogleKey(!showGoogleKey)}
-          >
-            <EyeIcon visible={showGoogleKey} />
-          </button>
-        </div>
-      </div>
-
-      {/* Model Selection */}
-      {hasApiKey && (
-        <div style={{ marginTop: 8 }}>
+        {/* Model Selection */}
+        <div>
           <label style={labelStyle}>Model</label>
           <select
             value={selectedModel}
@@ -479,33 +393,76 @@ function Onboarding({ onComplete }: OnboardingProps) {
               fontFamily: 'var(--font-family)',
             }}
           >
-            {getAvailableModels().map(model => (
+            <option value="none" disabled>Select a model...</option>
+            {MODELS.map(model => (
               <option key={model.id} value={model.id}>{model.name}</option>
             ))}
           </select>
         </div>
-      )}
 
-      <div style={footerStyle}>
-        <button style={secondaryButtonStyle} onClick={() => goToStep(0)}>
-          Back
-        </button>
-        <button
-          style={{
-            ...primaryButtonStyle,
-            opacity: hasApiKey ? 1 : 0.4,
-            cursor: hasApiKey ? 'pointer' : 'not-allowed',
-          }}
-          disabled={!hasApiKey}
-          onClick={() => goToStep(2)}
-          onMouseEnter={e => { if (hasApiKey) e.currentTarget.style.opacity = '0.9'; }}
-          onMouseLeave={e => { if (hasApiKey) e.currentTarget.style.opacity = '1'; }}
-        >
-          Next
-        </button>
+        {/* Anthropic Key - shown when an Anthropic model is selected */}
+        {needsAnthropicKey && (
+          <div style={{ marginTop: 8 }}>
+            <label style={labelStyle}>Anthropic API Key</label>
+            <div style={inputWrapperStyle}>
+              <input
+                type={showAnthropicKey ? 'text' : 'password'}
+                value={anthropicKey}
+                onChange={e => setAnthropicKey(e.target.value)}
+                placeholder="sk-ant-..."
+                style={inputStyle}
+              />
+              <button
+                style={eyeButtonStyle}
+                onClick={() => setShowAnthropicKey(!showAnthropicKey)}
+              >
+                <EyeIcon visible={showAnthropicKey} />
+              </button>
+            </div>
+          </div>
+        )}
+
+        {/* Google Key - shown when a Google model is selected */}
+        {needsGoogleKey && (
+          <div style={{ marginTop: 8 }}>
+            <label style={labelStyle}>Google AI API Key</label>
+            <div style={inputWrapperStyle}>
+              <input
+                type={showGoogleKey ? 'text' : 'password'}
+                value={googleKey}
+                onChange={e => setGoogleKey(e.target.value)}
+                placeholder="AIxxxx..."
+                style={inputStyle}
+              />
+              <button
+                style={eyeButtonStyle}
+                onClick={() => setShowGoogleKey(!showGoogleKey)}
+              >
+                <EyeIcon visible={showGoogleKey} />
+              </button>
+            </div>
+          </div>
+        )}
+
+        <div style={footerStyle}>
+          <div />
+          <button
+            style={{
+              ...primaryButtonStyle,
+              opacity: canProceed ? 1 : 0.4,
+              cursor: canProceed ? 'pointer' : 'not-allowed',
+            }}
+            disabled={!canProceed}
+            onClick={() => goToStep(1)}
+            onMouseEnter={e => { if (canProceed) e.currentTarget.style.opacity = '0.9'; }}
+            onMouseLeave={e => { if (canProceed) e.currentTarget.style.opacity = '1'; }}
+          >
+            Next
+          </button>
+        </div>
       </div>
-    </div>
-  );
+    );
+  };
 
   const renderPermissions = () => (
     <div style={cardStyle}>
@@ -661,12 +618,12 @@ function Onboarding({ onComplete }: OnboardingProps) {
       </div>
 
       <div style={footerStyle}>
-        <button style={secondaryButtonStyle} onClick={() => goToStep(1)}>
+        <button style={secondaryButtonStyle} onClick={() => goToStep(0)}>
           Back
         </button>
         <button
           style={primaryButtonStyle}
-          onClick={() => goToStep(3)}
+          onClick={() => goToStep(2)}
           onMouseEnter={e => { e.currentTarget.style.opacity = '0.9'; }}
           onMouseLeave={e => { e.currentTarget.style.opacity = '1'; }}
         >
@@ -785,12 +742,12 @@ function Onboarding({ onComplete }: OnboardingProps) {
       </div>
 
       <div style={footerStyle}>
-        <button style={secondaryButtonStyle} onClick={() => goToStep(2)}>
+        <button style={secondaryButtonStyle} onClick={() => goToStep(1)}>
           Back
         </button>
         <button
           style={primaryButtonStyle}
-          onClick={() => goToStep(4)}
+          onClick={() => goToStep(3)}
           onMouseEnter={e => { e.currentTarget.style.opacity = '0.9'; }}
           onMouseLeave={e => { e.currentTarget.style.opacity = '1'; }}
         >
@@ -891,7 +848,7 @@ function Onboarding({ onComplete }: OnboardingProps) {
       } as unknown as React.CSSProperties} />
 
       {/* Skip button */}
-      {step > 0 && step < TOTAL_STEPS - 1 && (
+      {step < TOTAL_STEPS - 1 && (
         <button
           onClick={handleComplete}
           style={{
@@ -907,7 +864,8 @@ function Onboarding({ onComplete }: OnboardingProps) {
             padding: '4px 8px',
             fontFamily: 'var(--font-family)',
             transition: 'color 0.15s ease',
-          }}
+            WebkitAppRegion: 'no-drag',
+          } as unknown as React.CSSProperties}
           onMouseEnter={e => { e.currentTarget.style.color = 'var(--color-text)'; }}
           onMouseLeave={e => { e.currentTarget.style.color = 'var(--color-text-muted)'; }}
         >
@@ -915,11 +873,10 @@ function Onboarding({ onComplete }: OnboardingProps) {
         </button>
       )}
 
-      {step === 0 && renderWelcome()}
-      {step === 1 && renderApiKeys()}
-      {step === 2 && renderPermissions()}
-      {step === 3 && renderTheme()}
-      {step === 4 && renderReady()}
+      {step === 0 && renderApiKeys()}
+      {step === 1 && renderPermissions()}
+      {step === 2 && renderTheme()}
+      {step === 3 && renderReady()}
     </div>
   );
 }

@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import Sidebar from './components/Sidebar';
 import HistoryPanel from './components/Sidebar/HistoryPanel';
 import SettingsPanel from './components/Settings/SettingsPanel';
+import Onboarding from './components/Onboarding';
 
 type Tab = 'history' | 'settings';
 
@@ -83,15 +84,18 @@ const applyThemeColors = (colors: { background: string; text: string; accent: st
 function App() {
   const [activeTab, setActiveTab] = useState<Tab>('history');
   const [theme, setTheme] = useState<string>('default');
+  const [onboardingCompleted, setOnboardingCompleted] = useState<boolean | null>(null);
 
   useEffect(() => {
-    const loadTheme = async () => {
-      // Get theme data from main process (single source of truth for colors)
+    const init = async () => {
+      const completed = await window.faria.settings.get('onboardingCompleted');
+      setOnboardingCompleted(completed === 'true');
+
       const themeData = await window.faria.settings.getThemeData();
       setTheme(themeData.theme);
       applyThemeColors(themeData.colors, themeData.theme);
     };
-    loadTheme();
+    init();
   }, []);
 
   const handleThemeChange = async (newTheme: string) => {
@@ -99,19 +103,27 @@ function App() {
     await window.faria.settings.set('theme', newTheme);
   };
 
+  if (onboardingCompleted === null) return null;
+
+  if (!onboardingCompleted) {
+    return (
+      <Onboarding onComplete={() => setOnboardingCompleted(true)} />
+    );
+  }
+
   return (
     <div className="app">
       <div className="app-header"></div>
-      
+
       <div className="app-content">
         <Sidebar activeTab={activeTab} onTabChange={setActiveTab} />
-        
+
         <main className="main-panel">
           {activeTab === 'history' && <HistoryPanel />}
           {activeTab === 'settings' && (
-            <SettingsPanel 
-              currentTheme={theme} 
-              onThemeChange={handleThemeChange} 
+            <SettingsPanel
+              currentTheme={theme}
+              onThemeChange={handleThemeChange}
             />
           )}
         </main>
