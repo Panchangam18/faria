@@ -65,6 +65,29 @@
       "!dist/*.blockmap",
       "dist-electron/**/*"
     ],
+    "artifactName": "Faria.${ext}",
+    "dmg": {
+      "background": "build/background.png",
+      "iconSize": 80,
+      "iconTextSize": 12,
+      "window": {
+        "width": 380,
+        "height": 440
+      },
+      "contents": [
+        {
+          "x": 190,
+          "y": 90,
+          "type": "file"
+        },
+        {
+          "x": 190,
+          "y": 310,
+          "type": "link",
+          "path": "/Applications"
+        }
+      ]
+    },
     "mac": {
       "category": "public.app-category.productivity",
       "target": [
