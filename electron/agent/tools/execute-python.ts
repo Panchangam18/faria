@@ -2,26 +2,26 @@ import { tool } from '@langchain/core/tools';
 import { DynamicStructuredTool } from '@langchain/core/tools';
 import { z } from 'zod';
 import { spawn, execSync } from 'child_process';
-import { writeFile, unlink, mkdtemp, mkdir, access } from 'fs/promises';
+import { writeFile, mkdtemp, mkdir, access, rm } from 'fs/promises';
 import { tmpdir, homedir } from 'os';
 import { join } from 'path';
 import { ToolResult } from './types';
+import { buildSandboxProfile, isSandboxAvailable, getSandboxExecPath } from './sandbox';
 
 const VENV_DIR = join(homedir(), '.faria', 'python-venv');
 const installedPackages = new Set<string>();
+const MAX_OUTPUT_BYTES = 512 * 1024; // 512KB max stdout/stderr
 
 // Zod schema for the tool
 export const ExecutePythonSchema = z.object({
   code: z.string().describe('Python code to execute'),
   packages: z.array(z.string()).optional().describe('List of pip packages to install before running (e.g. ["pandas", "requests"]). Cached between runs.'),
-  sandboxed: z.boolean().optional().describe('If true, runs in isolated temp directory with restricted environment. Default: true'),
   timeout: z.number().optional().describe('Timeout in milliseconds. Default: 30000'),
 });
 
 export interface ExecutePythonParams {
   code: string;
   packages?: string[];
-  sandboxed?: boolean;
   timeout?: number;
 }
 
@@ -79,13 +79,13 @@ async function installPackages(pythonPath: string, packages: string[]): Promise<
 }
 
 export async function executePython(params: ExecutePythonParams): Promise<ToolResult> {
-  const { code, packages = [], sandboxed = true, timeout = 30000 } = params;
+  const { code, packages = [], timeout = 30000 } = params;
 
   try {
     // Ensure venv exists and get python path
     const pythonPath = await ensureVenv();
 
-    // Install packages if needed
+    // Install packages if needed (unsandboxed — needs network + venv writes)
     if (packages.length > 0) {
       const installError = await installPackages(pythonPath, packages);
       if (installError) {
@@ -100,22 +100,20 @@ export async function executePython(params: ExecutePythonParams): Promise<ToolRe
     try {
       await writeFile(scriptPath, code, 'utf-8');
 
-      const env = sandboxed
-        ? {
-            PATH: process.env.PATH,
-            PYTHONIOENCODING: 'utf-8',
-            VIRTUAL_ENV: VENV_DIR,
-          }
-        : { ...process.env, PYTHONIOENCODING: 'utf-8', VIRTUAL_ENV: VENV_DIR };
+      const env: NodeJS.ProcessEnv = {
+        PATH: join(VENV_DIR, 'bin') + ':/usr/bin:/bin',
+        PYTHONIOENCODING: 'utf-8',
+        VIRTUAL_ENV: VENV_DIR,
+        PYTHONDONTWRITEBYTECODE: '1',
+      };
 
-      const cwd = sandboxed ? tempDir : process.cwd();
-
-      const result = await runPython(pythonPath, scriptPath, { env, cwd, timeout });
+      const sandboxProfile = isSandboxAvailable() ? buildSandboxProfile(tempDir) : null;
+      const result = await runPython(pythonPath, scriptPath, { env, cwd: tempDir, timeout, sandboxProfile });
       return result;
     } finally {
-      // Cleanup temp file
+      // Cleanup entire temp directory
       try {
-        await unlink(scriptPath);
+        await rm(tempDir, { recursive: true });
       } catch {
         // Ignore cleanup errors
       }
@@ -131,13 +129,13 @@ export async function executePython(params: ExecutePythonParams): Promise<ToolRe
 export function createExecutePythonTool(): DynamicStructuredTool {
   return tool(
     async (input) => {
-      const { code, packages = [], sandboxed = true, timeout = 30000 } = input;
+      const { code, packages = [], timeout = 30000 } = input;
 
       try {
         // Ensure venv exists and get python path
         const pythonPath = await ensureVenv();
 
-        // Install packages if needed
+        // Install packages if needed (unsandboxed — needs network + venv writes)
         if (packages.length > 0) {
           const installError = await installPackages(pythonPath, packages);
           if (installError) {
@@ -152,22 +150,20 @@ export function createExecutePythonTool(): DynamicStructuredTool {
         try {
           await writeFile(scriptPath, code, 'utf-8');
 
-          const env = sandboxed
-            ? {
-                PATH: process.env.PATH,
-                PYTHONIOENCODING: 'utf-8',
-                VIRTUAL_ENV: VENV_DIR,
-              }
-            : { ...process.env, PYTHONIOENCODING: 'utf-8', VIRTUAL_ENV: VENV_DIR };
+          const env: NodeJS.ProcessEnv = {
+            PATH: join(VENV_DIR, 'bin') + ':/usr/bin:/bin',
+            PYTHONIOENCODING: 'utf-8',
+            VIRTUAL_ENV: VENV_DIR,
+            PYTHONDONTWRITEBYTECODE: '1',
+          };
 
-          const cwd = sandboxed ? tempDir : process.cwd();
-
-          const result = await runPythonInternal(pythonPath, scriptPath, { env, cwd, timeout });
+          const sandboxProfile = isSandboxAvailable() ? buildSandboxProfile(tempDir) : null;
+          const result = await runPythonInternal(pythonPath, scriptPath, { env, cwd: tempDir, timeout, sandboxProfile });
           return result;
         } finally {
-          // Cleanup temp file
+          // Cleanup entire temp directory
           try {
-            await unlink(scriptPath);
+            await rm(tempDir, { recursive: true });
           } catch {
             // Ignore cleanup errors
           }
@@ -187,10 +183,15 @@ export function createExecutePythonTool(): DynamicStructuredTool {
 function runPython(
   pythonPath: string,
   scriptPath: string,
-  options: { env: NodeJS.ProcessEnv; cwd: string; timeout: number }
+  options: { env: NodeJS.ProcessEnv; cwd: string; timeout: number; sandboxProfile: string | null }
 ): Promise<ToolResult> {
   return new Promise((resolve) => {
-    const proc = spawn(pythonPath, [scriptPath], {
+    const command = options.sandboxProfile ? getSandboxExecPath() : pythonPath;
+    const args = options.sandboxProfile
+      ? ['-p', options.sandboxProfile, pythonPath, scriptPath]
+      : [scriptPath];
+
+    const proc = spawn(command, args, {
       env: options.env,
       cwd: options.cwd,
     });
@@ -199,11 +200,15 @@ function runPython(
     let stderr = '';
 
     proc.stdout.on('data', (data) => {
-      stdout += data.toString();
+      if (stdout.length < MAX_OUTPUT_BYTES) {
+        stdout += data.toString();
+      }
     });
 
     proc.stderr.on('data', (data) => {
-      stderr += data.toString();
+      if (stderr.length < MAX_OUTPUT_BYTES) {
+        stderr += data.toString();
+      }
     });
 
     const timer = setTimeout(() => {
@@ -215,9 +220,10 @@ function runPython(
       clearTimeout(timer);
 
       if (code === 0) {
+        const truncated = stdout.length >= MAX_OUTPUT_BYTES;
         resolve({
           success: true,
-          result: stdout || '(no output)',
+          result: (truncated ? stdout.slice(0, MAX_OUTPUT_BYTES) + '\n...(output truncated)' : stdout) || '(no output)',
         });
       } else {
         resolve({
@@ -239,10 +245,15 @@ function runPython(
 function runPythonInternal(
   pythonPath: string,
   scriptPath: string,
-  options: { env: NodeJS.ProcessEnv; cwd: string; timeout: number }
+  options: { env: NodeJS.ProcessEnv; cwd: string; timeout: number; sandboxProfile: string | null }
 ): Promise<string> {
   return new Promise((resolve, reject) => {
-    const proc = spawn(pythonPath, [scriptPath], {
+    const command = options.sandboxProfile ? getSandboxExecPath() : pythonPath;
+    const args = options.sandboxProfile
+      ? ['-p', options.sandboxProfile, pythonPath, scriptPath]
+      : [scriptPath];
+
+    const proc = spawn(command, args, {
       env: options.env,
       cwd: options.cwd,
     });
@@ -251,11 +262,15 @@ function runPythonInternal(
     let stderr = '';
 
     proc.stdout.on('data', (data) => {
-      stdout += data.toString();
+      if (stdout.length < MAX_OUTPUT_BYTES) {
+        stdout += data.toString();
+      }
     });
 
     proc.stderr.on('data', (data) => {
-      stderr += data.toString();
+      if (stderr.length < MAX_OUTPUT_BYTES) {
+        stderr += data.toString();
+      }
     });
 
     const timer = setTimeout(() => {
@@ -267,7 +282,8 @@ function runPythonInternal(
       clearTimeout(timer);
 
       if (code === 0) {
-        resolve(stdout || '(no output)');
+        const truncated = stdout.length >= MAX_OUTPUT_BYTES;
+        resolve((truncated ? stdout.slice(0, MAX_OUTPUT_BYTES) + '\n...(output truncated)' : stdout) || '(no output)');
       } else {
         reject(new Error(stderr || `Process exited with code ${code}`));
       }
