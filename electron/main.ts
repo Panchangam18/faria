@@ -871,6 +871,10 @@ function setupIPC() {
   });
 
   // Onboarding IPC
+  ipcMain.on('onboarding:demo-submit', () => {
+    mainWindow?.webContents.send('onboarding:query-submitted');
+  });
+
   ipcMain.handle('onboarding:checkAccessibility', async () => {
     if (process.platform === 'darwin') {
       return systemPreferences.isTrustedAccessibilityClient(false);

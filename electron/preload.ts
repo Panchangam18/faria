@@ -102,6 +102,12 @@ contextBridge.exposeInMainWorld('faria', {
       ipcRenderer.on('onboarding:command-bar-opened', handler);
       return () => ipcRenderer.removeListener('onboarding:command-bar-opened', handler);
     },
+    onQuerySubmitted: (callback: () => void) => {
+      const handler = () => callback();
+      ipcRenderer.on('onboarding:query-submitted', handler);
+      return () => ipcRenderer.removeListener('onboarding:query-submitted', handler);
+    },
+    demoSubmit: () => ipcRenderer.send('onboarding:demo-submit'),
   },
 
   // Command Bar
@@ -212,6 +218,8 @@ export interface FariaAPI {
     openAccessibilitySettings: () => Promise<void>;
     openScreenRecordingSettings: () => Promise<void>;
     onCommandBarOpened: (callback: () => void) => () => void;
+    onQuerySubmitted: (callback: () => void) => () => void;
+    demoSubmit: () => void;
   };
   shell: {
     openExternal: (url: string) => Promise<void>;

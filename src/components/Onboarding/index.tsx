@@ -23,8 +23,10 @@ function Onboarding({ onComplete }: OnboardingProps) {
   const [step, setStep] = useState(0);
   const [fade, setFade] = useState(true);
   const [typedText, setTypedText] = useState('');
+  const [isTyping, setIsTyping] = useState(false);
   const [typingComplete, setTypingComplete] = useState(false);
   const typingIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  const textareaRef = useRef<HTMLTextAreaElement>(null);
 
   // Animated step transition
   const goToStep = (newStep: number) => {
@@ -46,12 +48,21 @@ function Onboarding({ onComplete }: OnboardingProps) {
     return cleanup;
   }, [step]);
 
-  // Typewriter effect for step 1
+  // Listen for query submission to start typing
   useEffect(() => {
-    if (step !== 1) return;
+    if (step !== 1 || isTyping || typingComplete) return;
 
+    const cleanup = window.faria.onboarding.onQuerySubmitted(() => {
+      startTyping();
+    });
+
+    return cleanup;
+  }, [step, isTyping, typingComplete]);
+
+  const startTyping = () => {
     let charIndex = 0;
     setTypedText('');
+    setIsTyping(true);
     setTypingComplete(false);
 
     typingIntervalRef.current = setInterval(() => {
@@ -63,17 +74,21 @@ function Onboarding({ onComplete }: OnboardingProps) {
           clearInterval(typingIntervalRef.current);
           typingIntervalRef.current = null;
         }
+        setIsTyping(false);
         setTypingComplete(true);
       }
     }, 12);
+  };
 
+  // Cleanup typing interval on unmount
+  useEffect(() => {
     return () => {
       if (typingIntervalRef.current) {
         clearInterval(typingIntervalRef.current);
         typingIntervalRef.current = null;
       }
     };
-  }, [step]);
+  }, []);
 
   const handleComplete = async () => {
     // Save default settings
@@ -81,14 +96,20 @@ function Onboarding({ onComplete }: OnboardingProps) {
     onComplete();
   };
 
-  const skipTyping = () => {
-    if (typingIntervalRef.current) {
-      clearInterval(typingIntervalRef.current);
-      typingIntervalRef.current = null;
-    }
-    setTypedText(FARIA_DESCRIPTION);
-    setTypingComplete(true);
-  };
+  // Allow Enter to advance when typing is complete
+  useEffect(() => {
+    if (!typingComplete) return;
+
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Enter') {
+        e.preventDefault();
+        handleComplete();
+      }
+    };
+
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [typingComplete]);
 
   // Shared styles
   const containerStyle: React.CSSProperties = {
@@ -111,34 +132,20 @@ function Onboarding({ onComplete }: OnboardingProps) {
     transition: 'opacity 0.2s ease, transform 0.2s ease',
   };
 
-  const headingStyle: React.CSSProperties = {
-    fontSize: 32,
-    fontWeight: 600,
-    color: 'var(--color-text)',
-    marginBottom: 12,
-    letterSpacing: '-0.02em',
-    textAlign: 'center',
-  };
-
-  const subheadingStyle: React.CSSProperties = {
-    fontSize: 15,
-    color: 'var(--color-text-muted)',
-    marginBottom: 40,
-    lineHeight: 1.6,
-    textAlign: 'center',
-  };
-
   const primaryButtonStyle: React.CSSProperties = {
-    padding: '14px 40px',
-    fontSize: 15,
+    padding: '4px 10px',
+    fontSize: 11,
     fontWeight: 500,
     background: 'var(--color-accent)',
     color: 'var(--color-background)',
     border: 'none',
-    borderRadius: 8,
+    borderRadius: 4,
     cursor: 'pointer',
     transition: 'all 0.15s ease',
     fontFamily: 'var(--font-family)',
+    display: 'inline-flex',
+    alignItems: 'center',
+    gap: 4,
   };
 
   const renderWelcome = () => (
@@ -153,11 +160,6 @@ function Onboarding({ onComplete }: OnboardingProps) {
         <FariaWordmark height={64} />
       </div>
 
-      <h2 style={headingStyle}>Welcome to Faria</h2>
-      <p style={subheadingStyle}>
-        Your AI copilot for work on a computer.
-      </p>
-
       <div style={{
         display: 'flex',
         flexDirection: 'column',
@@ -170,51 +172,22 @@ function Onboarding({ onComplete }: OnboardingProps) {
           fontWeight: 500,
           textAlign: 'center',
         }}>
-          Open the command bar to get started
-        </p>
-
-        <div style={{
-          display: 'flex',
-          alignItems: 'center',
-          gap: 8,
-          padding: '12px 24px',
-          background: 'var(--color-surface)',
-          borderRadius: 10,
-          border: '1px solid var(--color-border)',
-        }}>
-          <div style={{
-            padding: '4px 10px',
-            background: 'var(--color-background)',
+          <span style={{
+            display: 'inline-block',
+            padding: '2px 10px',
+            background: 'var(--color-surface)',
             borderRadius: 6,
             border: '1px solid var(--color-border)',
-            fontSize: 14,
+            fontWeight: 600,
+            margin: '0 4px',
             fontFamily: 'system-ui',
-            color: 'var(--color-text)',
+            fontSize: 15
           }}>
-            &#8984; Enter
-          </div>
-        </div>
+            &#8984; + return
+          </span> to get started
+        </p>
 
-        <div style={{
-          marginTop: 16,
-          display: 'flex',
-          alignItems: 'center',
-          gap: 8,
-        }}>
-          <div style={{
-            width: 6,
-            height: 6,
-            borderRadius: '50%',
-            background: 'var(--color-accent)',
-            animation: 'pulse 2s infinite',
-          }} />
-          <span style={{
-            fontSize: 12,
-            color: 'var(--color-text-muted)',
-          }}>
-            Waiting for command bar...
-          </span>
-        </div>
+
       </div>
 
       <style>{`
@@ -231,84 +204,59 @@ function Onboarding({ onComplete }: OnboardingProps) {
       ...cardStyle,
       maxWidth: 680,
     }}>
-      <div style={{
-        display: 'flex',
-        flexDirection: 'column',
-        alignItems: 'center',
-        gap: 8,
-        marginBottom: 24,
-      }}>
-        <FariaWordmark height={40} />
-      </div>
-
-      {/* Text area showing Faria's typed description */}
-      <div
-        onClick={!typingComplete ? skipTyping : undefined}
-        style={{
-          background: 'var(--color-surface)',
-          border: '1px solid var(--color-border)',
-          borderRadius: 12,
-          padding: '24px 28px',
-          minHeight: 280,
-          position: 'relative',
-          cursor: !typingComplete ? 'pointer' : 'default',
-        }}
-      >
-        <pre style={{
-          fontSize: 14,
-          lineHeight: 1.7,
-          color: 'var(--color-text)',
-          fontFamily: 'var(--font-family)',
-          whiteSpace: 'pre-wrap',
-          wordBreak: 'break-word',
-          margin: 0,
-        }}>
-          {typedText}
-          {!typingComplete && (
-            <span style={{
-              display: 'inline-block',
-              width: 2,
-              height: '1em',
-              background: 'var(--color-accent)',
-              marginLeft: 1,
-              animation: 'blink 0.8s infinite',
-              verticalAlign: 'text-bottom',
-            }} />
-          )}
-        </pre>
-
-        {!typingComplete && (
-          <div style={{
+      <div style={{ position: 'relative' }}>
+        <textarea
+          ref={textareaRef}
+          value={typedText}
+          onChange={e => { if (typingComplete) setTypedText(e.target.value); }}
+          readOnly={!typingComplete}
+          style={{
+            width: '100%',
+            height: 380,
+            fontSize: 14,
+            lineHeight: 1.7,
+            color: 'var(--color-text)',
+            background: 'transparent',
+            fontFamily: 'var(--font-family)',
+            border: 'none',
+            outline: 'none',
+            resize: 'none',
+            overflow: 'hidden',
+            caretColor: typingComplete ? 'var(--color-text)' : 'transparent',
+          }}
+        />
+        {!isTyping && !typingComplete && (
+          <span style={{
             position: 'absolute',
-            bottom: 12,
-            right: 16,
-            fontSize: 11,
-            color: 'var(--color-text-muted)',
-            opacity: 0.6,
-          }}>
-            Click to skip
-          </div>
+            top: 0,
+            left: 0,
+            display: 'inline-block',
+            width: 2,
+            height: '1em',
+            background: 'var(--color-text)',
+            animation: 'blink 0.8s infinite',
+            pointerEvents: 'none',
+          }} />
         )}
       </div>
 
       <div style={{
         display: 'flex',
-        justifyContent: 'center',
-        marginTop: 28,
-        opacity: typingComplete ? 1 : 0.3,
-        transition: 'opacity 0.3s ease',
+        justifyContent: 'flex-end',
+        marginTop: 16,
+        height: 24,
+        opacity: typingComplete ? 1 : 0,
+        transition: 'opacity 0.4s ease',
       }}>
         <button
-          style={{
-            ...primaryButtonStyle,
-            cursor: typingComplete ? 'pointer' : 'not-allowed',
-          }}
-          disabled={!typingComplete}
+          style={primaryButtonStyle}
           onClick={handleComplete}
+          disabled={!typingComplete}
           onMouseEnter={e => { if (typingComplete) e.currentTarget.style.opacity = '0.9'; }}
           onMouseLeave={e => { if (typingComplete) e.currentTarget.style.opacity = '1'; }}
         >
           Next
+          <span style={{ fontSize: 11, lineHeight: 1 }}>&#9166;</span>
         </button>
       </div>
 
@@ -333,30 +281,6 @@ function Onboarding({ onComplete }: OnboardingProps) {
         WebkitAppRegion: 'drag',
         zIndex: 10,
       } as unknown as React.CSSProperties} />
-
-      {/* Skip button */}
-      <button
-        onClick={handleComplete}
-        style={{
-          position: 'absolute',
-          top: 14,
-          right: 20,
-          fontSize: 12,
-          color: 'var(--color-text-muted)',
-          background: 'none',
-          border: 'none',
-          cursor: 'pointer',
-          zIndex: 20,
-          padding: '4px 8px',
-          fontFamily: 'var(--font-family)',
-          transition: 'color 0.15s ease',
-          WebkitAppRegion: 'no-drag',
-        } as unknown as React.CSSProperties}
-        onMouseEnter={e => { e.currentTarget.style.color = 'var(--color-text)'; }}
-        onMouseLeave={e => { e.currentTarget.style.color = 'var(--color-text-muted)'; }}
-      >
-        Skip setup
-      </button>
 
       {step === 0 && renderWelcome()}
       {step === 1 && renderDemo()}
