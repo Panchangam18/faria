@@ -1070,12 +1070,12 @@ function SettingsPanel({ currentTheme, onThemeChange }: SettingsPanelProps) {
           {(() => {
             const sizes = ['small', 'medium', 'large'] as const;
             const labels: Record<string, string> = { small: 'Small', medium: 'Medium', large: 'Large' };
-            const specs: Record<string, { w: number; h: number; fontSize: number; radius: number; iconSize: number }> = {
-              small:  { w: 300, h: 35, fontSize: 13, radius: 6, iconSize: 12 },
-              medium: { w: 375, h: 42, fontSize: 16, radius: 8, iconSize: 14 },
-              large:  { w: 450, h: 50, fontSize: 20, radius: 9, iconSize: 16 },
+            const specs: Record<string, { w: number; h: number; fontSize: number; radius: number; iconSize: number; padV: number; padH: number }> = {
+              small:  { w: 300, h: 39, fontSize: 13, radius: 6, iconSize: 13, padV: 8, padH: 16 },
+              medium: { w: 375, h: 47, fontSize: 16, radius: 8, iconSize: 16, padV: 10, padH: 20 },
+              large:  { w: 450, h: 56, fontSize: 20, radius: 9, iconSize: 20, padV: 12, padH: 24 },
             };
-            const { w, h, fontSize, radius, iconSize } = specs[commandBarSize];
+            const { w, h, fontSize, radius, iconSize, padV, padH } = specs[commandBarSize];
 
             return (
               <div
@@ -1093,9 +1093,9 @@ function SettingsPanel({ currentTheme, onThemeChange }: SettingsPanelProps) {
                   border: '1px solid var(--color-border)',
                   boxShadow: 'none',
                   display: 'flex',
-                  alignItems: 'center',
+                  alignItems: 'flex-start',
                   justifyContent: 'space-between',
-                  padding: `0 ${Math.round(w * 0.05)}px`,
+                  padding: `${padV}px ${padH}px`,
                   cursor: 'pointer',
                   transform: hoveredTheme === 'size-preview' ? 'translateY(-2px)' : 'translateY(0)',
                   transition: 'all 0.2s cubic-bezier(0.4, 0, 0.2, 1)',
@@ -1105,11 +1105,13 @@ function SettingsPanel({ currentTheme, onThemeChange }: SettingsPanelProps) {
               >
                 <span style={{
                   fontSize,
+                  lineHeight: 1.5,
                   color: 'var(--color-text)',
                 }}>
                   {labels[commandBarSize]}
                 </span>
                 <svg
+                  style={{ marginTop: Math.round((fontSize * 1.5 - iconSize) / 2) }}
                   width={iconSize}
                   height={iconSize}
                   viewBox="0 0 24 24"

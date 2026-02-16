@@ -59,9 +59,9 @@ let isMainWindowVisible = false;
 type CommandBarSizeMode = 'small' | 'medium' | 'large';
 
 const COMMAND_BAR_SIZES: Record<CommandBarSizeMode, { width: number; minHeight: number; scale: number }> = {
-  small:  { width: 300, minHeight: 35, scale: 1.0 },
-  medium: { width: 375, minHeight: 42, scale: 1.25 },
-  large:  { width: 450, minHeight: 50, scale: 1.5 },
+  small:  { width: 300, minHeight: 39, scale: 1.0 },   // baseHeight(18) + lineHeight(21)
+  medium: { width: 375, minHeight: 47, scale: 1.25 },   // baseHeight(22) + lineHeight(25)
+  large:  { width: 450, minHeight: 56, scale: 1.5 },    // baseHeight(26) + lineHeight(30)
 };
 
 let currentSizeMode: CommandBarSizeMode = 'small';
