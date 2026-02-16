@@ -362,8 +362,8 @@ async function toggleCommandBar() {
 
   showCommandBar();
 
-  // Reset renderer state (clears any lingering error from e.g. a previous no-model session)
-  commandBarWindow?.webContents.send('command-bar:reset');
+  // Clear any lingering error from a previous no-model session (without resetting conversation state)
+  commandBarWindow?.webContents.send('command-bar:clear-error');
 
   // Check if onboarding is in progress and notify main window
   const onboardingCheck = db.prepare('SELECT value FROM settings WHERE key = ?').get('onboardingCompleted') as { value: string } | undefined;

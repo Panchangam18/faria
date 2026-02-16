@@ -566,6 +566,13 @@ function CommandBar() {
       setPendingAuth(null);
     });
 
+    // Listen for clear-error (clears error without resetting conversation state)
+    const cleanupClearError = window.faria.commandBar.onClearError(() => {
+      setErrorMessage(null);
+      // Only clear response if it was the error message itself
+      setResponse(prev => prev.startsWith('Error:') ? '' : prev);
+    });
+
     // Listen for reset event (clears all state completely)
     const cleanupReset = window.faria.commandBar.onReset(() => {
       setQuery('');
@@ -600,6 +607,7 @@ function CommandBar() {
       cleanupAuth();
       cleanupToolApproval();
       cleanupError();
+      cleanupClearError();
       cleanupReset();
       cleanupSetQuery();
     };

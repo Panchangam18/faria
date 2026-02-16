@@ -136,6 +136,11 @@ contextBridge.exposeInMainWorld('faria', {
       ipcRenderer.on('command-bar:error', handler);
       return () => ipcRenderer.removeListener('command-bar:error', handler);
     },
+    onClearError: (callback: () => void) => {
+      const handler = () => callback();
+      ipcRenderer.on('command-bar:clear-error', handler);
+      return () => ipcRenderer.removeListener('command-bar:clear-error', handler);
+    },
     onWillHide: (callback: () => void) => {
       const handler = () => callback();
       ipcRenderer.on('command-bar:will-hide', handler);
@@ -233,6 +238,7 @@ export interface FariaAPI {
     onDetecting: (callback: () => void) => () => void;
     onReady: (callback: (data: { hasSelectedText: boolean; selectedTextLength: number }) => void) => () => void;
     onError: (callback: (error: string) => void) => () => void;
+    onClearError: (callback: () => void) => () => void;
     onWillHide: (callback: () => void) => () => void;
     onReset: (callback: () => void) => () => void;
     onSetQuery: (callback: (query: string) => void) => () => void;
