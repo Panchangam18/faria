@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { MdDescription, MdChevronRight, MdExpandMore } from 'react-icons/md';
+import { marked } from 'marked';
 
 interface ActionData {
   tool: string;
@@ -445,16 +446,17 @@ function HistoryPanel() {
 
                       {/* Final response */}
                       {item.response && (
-                        <div style={{
-                          marginTop: 'var(--spacing-sm)',
-                          color: 'var(--color-accent)',
-                          fontSize: 'var(--font-size-xs)',
-                          lineHeight: 1.5,
-                          wordBreak: 'break-word',
-                          whiteSpace: 'pre-wrap'
-                        }}>
-                          {item.response}
-                        </div>
+                        <div
+                          className="markdown-content"
+                          style={{
+                            marginTop: 'var(--spacing-sm)',
+                            color: 'var(--color-accent)',
+                            fontSize: 'var(--font-size-xs)',
+                            lineHeight: 1.5,
+                            wordBreak: 'break-word',
+                          }}
+                          dangerouslySetInnerHTML={{ __html: marked.parse(item.response, { async: false, breaks: true, gfm: true }) as string }}
+                        />
                       )}
                     </div>
                   )}
