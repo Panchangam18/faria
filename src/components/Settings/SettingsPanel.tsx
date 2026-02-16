@@ -1097,8 +1097,11 @@ function SettingsPanel({ currentTheme, onThemeChange }: SettingsPanelProps) {
                   justifyContent: 'space-between',
                   padding: `0 ${Math.round(w * 0.05)}px`,
                   cursor: 'pointer',
+                  transform: hoveredTheme === 'size-preview' ? 'translateY(-2px)' : 'translateY(0)',
                   transition: 'all 0.2s cubic-bezier(0.4, 0, 0.2, 1)',
                 }}
+                onMouseEnter={() => setHoveredTheme('size-preview')}
+                onMouseLeave={() => setHoveredTheme(null)}
               >
                 <span style={{
                   fontSize,

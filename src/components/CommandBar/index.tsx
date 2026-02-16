@@ -612,12 +612,6 @@ function CommandBar() {
     };
   }, []);
 
-  // Auto-scroll response to bottom as streaming content arrives
-  useEffect(() => {
-    if (responseRef.current && streamingResponse) {
-      responseRef.current.scrollTop = responseRef.current.scrollHeight;
-    }
-  }, [streamingResponse]);
 
   // Reset expanded state when tool approval changes
   useEffect(() => {
