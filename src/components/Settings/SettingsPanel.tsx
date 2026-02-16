@@ -281,8 +281,7 @@ function SettingsPanel({ currentTheme, onThemeChange }: SettingsPanelProps) {
 
   const [hasLoadedSettings, setHasLoadedSettings] = useState(false);
   const [hoverAgentModel, setHoverAgentModel] = useState(false);
-  const [commandBarSize, setCommandBarSize] = useState('small');
-  const [hoveredSize, setHoveredSize] = useState<string | null>(null);
+  const [commandBarSize, setCommandBarSize] = useState<'small' | 'medium' | 'large'>('small');
   const [agentPrompt, setAgentPrompt] = useState('');
 
   // Tool settings - 'enabled' | 'disabled' | 'auto-approve'
@@ -431,7 +430,7 @@ function SettingsPanel({ currentTheme, onThemeChange }: SettingsPanelProps) {
 
     // Load command bar size
     const savedSize = await window.faria.settings.get('commandBarSize');
-    if (savedSize) setCommandBarSize(savedSize);
+    if (savedSize === 'small' || savedSize === 'medium' || savedSize === 'large') setCommandBarSize(savedSize);
 
     // Load tool settings
     const savedToolSettings = await window.faria.settings.get('toolSettings');
@@ -1067,55 +1066,45 @@ function SettingsPanel({ currentTheme, onThemeChange }: SettingsPanelProps) {
         }}>
           Size
         </div>
-        <div style={{
-          display: 'flex',
-          flexDirection: 'column',
-          gap: 'var(--spacing-sm)',
-          marginLeft: 'var(--spacing-md)',
-          alignItems: 'flex-start',
-        }}>
-          {(['small', 'medium', 'large'] as const).map((size) => {
-            const isSelected = commandBarSize === size;
-            const isHovered = hoveredSize === size;
+        <div style={{ marginLeft: 'var(--spacing-md)' }}>
+          {(() => {
+            const sizes = ['small', 'medium', 'large'] as const;
             const labels: Record<string, string> = { small: 'Small', medium: 'Medium', large: 'Large' };
-            // Actual values from COMMAND_BAR_SIZES and SIZE_CONFIGS
             const specs: Record<string, { w: number; h: number; fontSize: number; radius: number; iconSize: number }> = {
               small:  { w: 300, h: 35, fontSize: 13, radius: 6, iconSize: 12 },
               medium: { w: 375, h: 42, fontSize: 16, radius: 8, iconSize: 14 },
               large:  { w: 450, h: 50, fontSize: 20, radius: 9, iconSize: 16 },
             };
-            const { w, h, fontSize, radius, iconSize } = specs[size];
+            const { w, h, fontSize, radius, iconSize } = specs[commandBarSize];
 
             return (
               <div
-                key={size}
                 onClick={() => {
-                  setCommandBarSize(size);
-                  saveSettings('commandBarSize', size);
+                  const nextIndex = (sizes.indexOf(commandBarSize) + 1) % sizes.length;
+                  const nextSize = sizes[nextIndex];
+                  setCommandBarSize(nextSize);
+                  saveSettings('commandBarSize', nextSize);
                 }}
-                onMouseEnter={() => setHoveredSize(size)}
-                onMouseLeave={() => setHoveredSize(null)}
                 style={{
                   width: w,
                   height: h,
                   borderRadius: radius,
                   background: 'var(--color-background)',
-                  border: `1px solid ${isSelected ? 'var(--color-accent)' : 'var(--color-border)'}`,
-                  boxShadow: isSelected ? '0 0 0 1px var(--color-accent)' : 'none',
+                  border: '1px solid var(--color-border)',
+                  boxShadow: 'none',
                   display: 'flex',
                   alignItems: 'center',
                   justifyContent: 'space-between',
                   padding: `0 ${Math.round(w * 0.05)}px`,
                   cursor: 'pointer',
-                  transform: isHovered ? 'translateY(-2px)' : 'translateY(0)',
                   transition: 'all 0.2s cubic-bezier(0.4, 0, 0.2, 1)',
                 }}
               >
                 <span style={{
                   fontSize,
-                  color: isSelected ? 'var(--color-text)' : 'var(--color-text-muted)',
+                  color: 'var(--color-text)',
                 }}>
-                  {labels[size]}
+                  {labels[commandBarSize]}
                 </span>
                 <svg
                   width={iconSize}
@@ -1127,7 +1116,7 @@ function SettingsPanel({ currentTheme, onThemeChange }: SettingsPanelProps) {
                 </svg>
               </div>
             );
-          })}
+          })()}
         </div>
       </section>
 
