@@ -56,6 +56,13 @@
   "build": {
     "appId": "com.faria.app",
     "productName": "Faria",
+    "files": [
+      "dist/**/*",
+      "!dist/mac-arm64",
+      "!dist/Faria-*",
+      "!dist/*.blockmap",
+      "dist-electron/**/*"
+    ],
     "mac": {
       "category": "public.app-category.productivity",
       "target": [

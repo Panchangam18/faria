@@ -90,6 +90,15 @@ contextBridge.exposeInMainWorld('faria', {
     openExternal: (url: string) => ipcRenderer.invoke('shell:openExternal', url)
   },
 
+  // Onboarding
+  onboarding: {
+    checkAccessibility: () => ipcRenderer.invoke('onboarding:checkAccessibility'),
+    checkScreenRecording: () => ipcRenderer.invoke('onboarding:checkScreenRecording'),
+    requestAccessibility: () => ipcRenderer.invoke('onboarding:requestAccessibility'),
+    openAccessibilitySettings: () => ipcRenderer.invoke('onboarding:openAccessibilitySettings'),
+    openScreenRecordingSettings: () => ipcRenderer.invoke('onboarding:openScreenRecordingSettings'),
+  },
+
   // Command Bar
   commandBar: {
     hide: () => ipcRenderer.send('command-bar:hide'),
@@ -185,6 +194,13 @@ export interface FariaAPI {
       categories?: string[];
     }>>;
     initiateConnection: (appName: string) => Promise<{ redirectUrl: string } | null>;
+  };
+  onboarding: {
+    checkAccessibility: () => Promise<boolean>;
+    checkScreenRecording: () => Promise<'granted' | 'denied' | 'not-determined'>;
+    requestAccessibility: () => Promise<void>;
+    openAccessibilitySettings: () => Promise<void>;
+    openScreenRecordingSettings: () => Promise<void>;
   };
   shell: {
     openExternal: (url: string) => Promise<void>;

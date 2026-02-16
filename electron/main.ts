@@ -1,4 +1,4 @@
-import { app, BrowserWindow, globalShortcut, ipcMain, screen, shell } from 'electron';
+import { app, BrowserWindow, globalShortcut, ipcMain, screen, shell, systemPreferences } from 'electron';
 import { join } from 'path';
 import { initDatabase } from './db/sqlite';
 import { StateExtractor } from './services/state-extractor';
@@ -95,7 +95,7 @@ function createMainWindow() {
     mainWindow.loadURL('http://localhost:5173');
     mainWindow.webContents.openDevTools();
   } else {
-    mainWindow.loadFile(join(__dirname, '../index.html'));
+    mainWindow.loadFile(join(__dirname, '../dist/index.html'));
   }
 
   mainWindow.on('closed', () => {
@@ -176,7 +176,7 @@ function createCommandBarWindow() {
   if (isDev) {
     commandBarWindow.loadURL('http://localhost:5173/command-bar.html');
   } else {
-    commandBarWindow.loadFile(join(__dirname, '../command-bar.html'));
+    commandBarWindow.loadFile(join(__dirname, '../dist/command-bar.html'));
   }
 
   commandBarWindow.on('blur', () => {
@@ -855,6 +855,35 @@ function setupIPC() {
       console.error('[Faria] Failed to re-register shortcuts:', error);
       return { success: false, error: String(error) };
     }
+  });
+
+  // Onboarding IPC
+  ipcMain.handle('onboarding:checkAccessibility', async () => {
+    if (process.platform === 'darwin') {
+      return systemPreferences.isTrustedAccessibilityClient(false);
+    }
+    return true;
+  });
+
+  ipcMain.handle('onboarding:checkScreenRecording', async () => {
+    if (process.platform === 'darwin') {
+      return systemPreferences.getMediaAccessStatus('screen');
+    }
+    return 'granted';
+  });
+
+  ipcMain.handle('onboarding:requestAccessibility', async () => {
+    if (process.platform === 'darwin') {
+      systemPreferences.isTrustedAccessibilityClient(true);
+    }
+  });
+
+  ipcMain.handle('onboarding:openAccessibilitySettings', async () => {
+    await shell.openExternal('x-apple.systempreferences:com.apple.preference.security?Privacy_Accessibility');
+  });
+
+  ipcMain.handle('onboarding:openScreenRecordingSettings', async () => {
+    await shell.openExternal('x-apple.systempreferences:com.apple.preference.security?Privacy_ScreenCapture');
   });
 
   // History IPC
