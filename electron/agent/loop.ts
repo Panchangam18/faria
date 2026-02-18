@@ -418,6 +418,70 @@ export class AgentLoop {
         return { tokens: removedTokens, role: removed.getType() };
       };
 
+      const repairToolMessageOrdering = (
+        stack: Array<SystemMessage | HumanMessage | AIMessage | ToolMessage>,
+        manager: ContextManager
+      ): void => {
+        let activeToolCallIds: Set<string> | null = null;
+        let i = 1;
+        while (i < stack.length) {
+          const prev = stack[i - 1];
+          const msg = stack[i];
+
+          if (msg instanceof AIMessage && msg.tool_calls?.length) {
+            const prevIsValid = prev instanceof HumanMessage || prev instanceof ToolMessage;
+            if (!prevIsValid) {
+              const ai = stack.splice(i, 1)[0] as AIMessage;
+              const aiTokens = estimateTokensForContext(ai);
+              (manager as any).currentTokens -= aiTokens;
+              console.log(`[Context] Removed orphaned AI tool_call (${aiTokens} tokens)`);
+
+              const ids = new Set(
+                (ai.tool_calls ?? [])
+                  .map(call => call.id)
+                  .filter((id): id is string => typeof id === 'string')
+              );
+              while (i < stack.length && stack[i] instanceof ToolMessage) {
+                const toolMsg = stack[i] as ToolMessage;
+                if (ids.has(toolMsg.tool_call_id)) {
+                  const toolTokens = estimateTokensForContext(toolMsg);
+                  stack.splice(i, 1);
+                  (manager as any).currentTokens -= toolTokens;
+                } else {
+                  break;
+                }
+              }
+              activeToolCallIds = null;
+              continue;
+            }
+
+            activeToolCallIds = new Set(
+              msg.tool_calls
+                .map(call => call.id)
+                .filter((id): id is string => typeof id === 'string')
+            );
+            i++;
+            continue;
+          }
+
+          if (msg instanceof ToolMessage) {
+            const isValid = activeToolCallIds?.has(msg.tool_call_id) ?? false;
+            if (!isValid) {
+              const orphan = stack.splice(i, 1)[0];
+              const orphanTokens = estimateTokensForContext(orphan);
+              (manager as any).currentTokens -= orphanTokens;
+              console.log(`[Context] Removed orphaned tool result (${orphanTokens} tokens)`);
+              continue;
+            }
+            i++;
+            continue;
+          }
+
+          activeToolCallIds = null;
+          i++;
+        }
+      };
+
       // Truncate oversized tool results in restored history before token accounting
       for (const msg of messages) {
         if (msg instanceof ToolMessage && typeof msg.content === 'string') {
@@ -435,7 +499,10 @@ export class AgentLoop {
       while (contextManager.getCurrentTokens() > contextManager.getMaxTokens() && messages.length > 1) {
         const removed = removeOldestMessage(messages, contextManager);
         console.log(`[Context] Trimmed restored message (${removed.tokens} tokens, role: ${removed.role})`);
+        repairToolMessageOrdering(messages, contextManager);
       }
+
+      repairToolMessageOrdering(messages, contextManager);
 
       if (messages.length > 1) {
         console.log(`[Faria] Restored ${messages.length - 1} messages from conversation history (${contextManager.getCurrentTokens()} tokens)`);
@@ -473,6 +540,7 @@ export class AgentLoop {
         while (contextManager.getCurrentTokens() + tokens > contextManager.getMaxTokens() && messages.length > 1) {
           const removed = removeOldestMessage(messages, contextManager);
           console.log(`[Context] Removed old message (${removed.tokens} tokens, role: ${removed.role})`);
+          repairToolMessageOrdering(messages, contextManager);
         }
 
         messages.push(msg);
