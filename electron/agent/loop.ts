@@ -29,6 +29,21 @@ import { showClickIndicator, hideClickIndicator } from '../services/click-indica
 import 'dotenv/config';
 
 /**
+ * Cap a single tool result so it doesn't blow the context window.
+ * Mirrors openclaw's approach: keep head + tail, discard the middle.
+ */
+const MAX_TOOL_RESULT_CHARS = 100_000; // ~25K tokens
+const TOOL_HEAD_CHARS = 40_000;
+const TOOL_TAIL_CHARS = 10_000;
+
+function truncateToolResult(content: string): string {
+  if (content.length <= MAX_TOOL_RESULT_CHARS) return content;
+  const head = content.slice(0, TOOL_HEAD_CHARS);
+  const tail = content.slice(-TOOL_TAIL_CHARS);
+  return `${head}\n\n... [tool result trimmed: kept first ${TOOL_HEAD_CHARS} and last ${TOOL_TAIL_CHARS} of ${content.length} chars] ...\n\n${tail}`;
+}
+
+/**
  * Parse Composio tool result to check if authentication is required
  */
 interface ComposioAuthRequired {
@@ -331,42 +346,69 @@ export class AgentLoop {
         return estimateTokens(JSON.stringify(msg.content));
       };
 
-      // Seed context manager with token count from existing conversation history
-      for (const msg of messages) {
-        (contextManager as any).currentTokens += estimateTokensForContext(msg);
-      }
-
-      // FIFO-trim restored history if it exceeds the current model's context limit
-      while (contextManager.getCurrentTokens() > contextManager.getMaxTokens() && messages.length > 1) {
-        const removed = messages.splice(1, 1)[0];
-        const removedTokens = estimateTokensForContext(removed);
-        (contextManager as any).currentTokens -= removedTokens;
-        console.log(`[Context] Trimmed restored message (${removedTokens} tokens, role: ${removed.getType()})`);
-      }
-
-      if (messages.length > 1) {
-        console.log(`[Faria] Restored ${messages.length - 1} messages from conversation history (${contextManager.getCurrentTokens()} tokens)`);
-      }
-
       const removeOldestMessage = (
         stack: Array<SystemMessage | HumanMessage | AIMessage | ToolMessage>,
         manager: ContextManager
       ): { tokens: number; role: string } => {
         const removed = stack.splice(1, 1)[0];
-        const removedTokens = estimateTokensForContext(removed);
+        let removedTokens = estimateTokensForContext(removed);
         (manager as any).currentTokens -= removedTokens;
 
+        // If we removed an AIMessage with tool calls, also remove its ToolMessage results
         if (removed instanceof AIMessage && removed.tool_calls?.length) {
-          const ids = removed.tool_calls
-            .map(call => call.id)
-            .filter((id): id is string => typeof id === 'string');
+          const ids = new Set(
+            removed.tool_calls
+              .map(call => call.id)
+              .filter((id): id is string => typeof id === 'string')
+          );
 
           while (stack.length > 1) {
             const next = stack[1];
-            if (next instanceof ToolMessage && ids.includes(next.tool_call_id)) {
+            if (next instanceof ToolMessage && ids.has(next.tool_call_id)) {
               const toolTokens = estimateTokensForContext(next);
               stack.splice(1, 1);
               (manager as any).currentTokens -= toolTokens;
+              removedTokens += toolTokens;
+            } else {
+              break;
+            }
+          }
+        }
+
+        // If removing a non-tool message exposed a ToolMessage at position 1,
+        // that tool result is now orphaned (its AIMessage was already evicted
+        // or is no longer adjacent). Remove orphaned ToolMessages to prevent
+        // "function response turn comes immediately after a function call" errors.
+        while (stack.length > 1 && stack[1] instanceof ToolMessage) {
+          const orphan = stack.splice(1, 1)[0];
+          const orphanTokens = estimateTokensForContext(orphan);
+          (manager as any).currentTokens -= orphanTokens;
+          removedTokens += orphanTokens;
+          console.log(`[Context] Removed orphaned tool result (${orphanTokens} tokens)`);
+        }
+
+        // If removing messages left an AIMessage with tool_calls at position 1,
+        // it also needs to go (along with its tool results) since there's no
+        // preceding user message to make it valid.
+        if (stack.length > 1 && stack[1] instanceof AIMessage && (stack[1] as AIMessage).tool_calls?.length) {
+          const ai = stack.splice(1, 1)[0] as AIMessage;
+          const aiTokens = estimateTokensForContext(ai);
+          (manager as any).currentTokens -= aiTokens;
+          removedTokens += aiTokens;
+          console.log(`[Context] Removed orphaned AI tool_call (${aiTokens} tokens)`);
+
+          const ids = new Set(
+            ai.tool_calls!
+              .map(call => call.id)
+              .filter((id): id is string => typeof id === 'string')
+          );
+          while (stack.length > 1 && stack[1] instanceof ToolMessage) {
+            const toolMsg = stack[1] as ToolMessage;
+            if (ids.has(toolMsg.tool_call_id)) {
+              const toolTokens = estimateTokensForContext(toolMsg);
+              stack.splice(1, 1);
+              (manager as any).currentTokens -= toolTokens;
+              removedTokens += toolTokens;
             } else {
               break;
             }
@@ -376,8 +418,34 @@ export class AgentLoop {
         return { tokens: removedTokens, role: removed.getType() };
       };
 
+      // Truncate oversized tool results in restored history before token accounting
+      for (const msg of messages) {
+        if (msg instanceof ToolMessage && typeof msg.content === 'string') {
+          msg.content = truncateToolResult(msg.content);
+        }
+      }
+
+      // Seed context manager with token count from existing conversation history
+      for (const msg of messages) {
+        (contextManager as any).currentTokens += estimateTokensForContext(msg);
+      }
+
+      // FIFO-trim restored history if it exceeds the current model's context limit.
+      // Uses removeOldestMessage to keep tool_call/tool_result pairs together.
+      while (contextManager.getCurrentTokens() > contextManager.getMaxTokens() && messages.length > 1) {
+        const removed = removeOldestMessage(messages, contextManager);
+        console.log(`[Context] Trimmed restored message (${removed.tokens} tokens, role: ${removed.role})`);
+      }
+
+      if (messages.length > 1) {
+        console.log(`[Faria] Restored ${messages.length - 1} messages from conversation history (${contextManager.getCurrentTokens()} tokens)`);
+      }
+
       // Helper to add message with context tracking and FIFO eviction
       const addMessage = (msg: SystemMessage | HumanMessage | AIMessage | ToolMessage) => {
+        if (msg instanceof ToolMessage && typeof msg.content === 'string') {
+          msg.content = truncateToolResult(msg.content);
+        }
         const tokens = estimateTokensForContext(msg);
 
         // Pre-eviction memory flush: save durable facts before context is lost
