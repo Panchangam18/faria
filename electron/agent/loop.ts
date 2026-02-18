@@ -180,6 +180,7 @@ export class AgentLoop {
   private pendingAuthResolve: (() => void) | null = null;
   private pendingToolApprovalResolve: ((approved: boolean) => void) | null = null;
   private computerUseApproved = false; // Tracks if computer use has been approved for this invocation
+  private conversationHistory: (SystemMessage | HumanMessage | AIMessage | ToolMessage)[] = [];
 
   constructor(stateExtractor: StateExtractor, toolExecutor: ToolExecutor, composioService: ComposioService) {
     this.stateExtractor = stateExtractor;
@@ -267,15 +268,23 @@ export class AgentLoop {
       let state = await this.stateExtractor.extractState(selectedText || undefined);
       this.toolExecutor.setCurrentState(state);
 
-      // Build initial messages for LangChain (memory is now tool-based, not injected)
+      // Build user message and append to conversation history
       const userPrompt = this.buildUserPrompt(query, state);
       const systemPrompt = getAgentSystemPrompt();
-      const messages: (SystemMessage | HumanMessage | AIMessage | ToolMessage)[] = [
-        new SystemMessage(systemPrompt),
-        typeof userPrompt === 'string'
-          ? new HumanMessage(userPrompt)
-          : new HumanMessage({ content: userPrompt }),
-      ];
+      const userMessage = typeof userPrompt === 'string'
+        ? new HumanMessage(userPrompt)
+        : new HumanMessage({ content: userPrompt });
+
+      if (this.conversationHistory.length === 0) {
+        // First turn: initialize with system prompt + user message
+        this.conversationHistory = [new SystemMessage(systemPrompt), userMessage];
+      } else {
+        // Follow-up turn: update system prompt, append new user message
+        this.conversationHistory[0] = new SystemMessage(systemPrompt);
+        this.conversationHistory.push(userMessage);
+      }
+
+      const messages = this.conversationHistory;
 
       // Check tool settings
       const toolSettings = getToolSettings();
@@ -321,6 +330,23 @@ export class AgentLoop {
         }
         return estimateTokens(JSON.stringify(msg.content));
       };
+
+      // Seed context manager with token count from existing conversation history
+      for (const msg of messages) {
+        (contextManager as any).currentTokens += estimateTokensForContext(msg);
+      }
+
+      // FIFO-trim restored history if it exceeds the current model's context limit
+      while (contextManager.getCurrentTokens() > contextManager.getMaxTokens() && messages.length > 1) {
+        const removed = messages.splice(1, 1)[0];
+        const removedTokens = estimateTokensForContext(removed);
+        (contextManager as any).currentTokens -= removedTokens;
+        console.log(`[Context] Trimmed restored message (${removedTokens} tokens, role: ${removed.getType()})`);
+      }
+
+      if (messages.length > 1) {
+        console.log(`[Faria] Restored ${messages.length - 1} messages from conversation history (${contextManager.getCurrentTokens()} tokens)`);
+      }
 
       const removeOldestMessage = (
         stack: Array<SystemMessage | HumanMessage | AIMessage | ToolMessage>,
@@ -702,6 +728,11 @@ export class AgentLoop {
   /**
    * Cancel the current run
    */
+  clearHistory(): void {
+    this.conversationHistory = [];
+    console.log('[Faria] Conversation history cleared');
+  }
+
   cancel(): void {
     console.log('[Faria] Cancel requested');
     this.shouldCancel = true;

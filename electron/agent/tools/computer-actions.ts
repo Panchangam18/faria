@@ -55,14 +55,14 @@ export const ChainActionsSchema = z.object({
   actions: z.array(
     z.object({
       type: z.enum(ALL_ACTION_TYPES),
-      app: z.string().optional(),
-      script: z.string().optional(),
-      modifiers: z.array(z.string()).optional(),
-      key: z.string().optional(),
-      text: z.string().optional(),
+      app: z.string().optional().describe('App name (for activate)'),
+      script: z.string().optional().describe('AppleScript code (for applescript)'),
+      modifiers: z.array(z.string()).optional().describe('Modifier keys: cmd, ctrl, alt, shift (for key)'),
+      key: z.string().optional().describe('Key to press, supports combos like "cmd+shift+f4" (for key)'),
+      text: z.string().optional().describe('Text to type (for type)'),
       x: z.number().optional(),
       y: z.number().optional(),
-      coordinate: z.array(z.number()).length(2).optional(),
+      coordinate: z.array(z.number()).length(2).optional().describe('Click/move target [x, y]'),
       start_coordinate: z.array(z.number()).length(2).optional(),
       end_coordinate: z.array(z.number()).length(2).optional(),
       start_x: z.number().optional(),
@@ -74,9 +74,9 @@ export const ChainActionsSchema = z.object({
       scroll_direction: z.enum(['up', 'down', 'left', 'right']).optional(),
       scroll_amount: z.number().optional(),
       duration: z.number().optional(),
-      query: z.string().optional(),
+      query: z.string().optional().describe('Search query (for insert_image only)'),
     })
-  ).describe('List of actions to execute in sequence. Types: activate, applescript, click, right_click, double_click, type, key, mouse_move, scroll, drag, wait, screenshot, insert_image. Use app for activate, script for applescript. Use x+y or coordinate for points; start/end coordinate or start_x/start_y/end_x/end_y for drag. direction/scroll_direction + amount/scroll_amount for scroll; amount/duration for wait.'),
+  ).describe('List of actions to execute in sequence. Types: activate, applescript, click, right_click, double_click, type, key, mouse_move, scroll, drag, wait, screenshot, insert_image. click/right_click/double_click REQUIRE coordinate or x+y (no text queries). key supports modifiers via "cmd+shift+k" syntax or separate modifiers array. Use app for activate, script for applescript.'),
 });
 
 /**
@@ -166,7 +166,7 @@ interface Action {
   scroll_direction?: 'up' | 'down' | 'left' | 'right';
   scroll_amount?: number;
   duration?: number;      // For wait (ms)
-  query?: string;         // For insert_image (search query)
+  query?: string;         // For insert_image only (search query) — NOT for click
 }
 
 export interface ChainActionsParams {
@@ -199,14 +199,14 @@ function createDynamicSchema(toolSettings: ToolSettings) {
     actions: z.array(
       z.object({
         type: z.enum(enabledActions as [string, ...string[]]),
-        app: z.string().optional(),
-        script: z.string().optional(),
-        modifiers: z.array(z.string()).optional(),
-        key: z.string().optional(),
-        text: z.string().optional(),
+        app: z.string().optional().describe('App name (for activate)'),
+        script: z.string().optional().describe('AppleScript code (for applescript)'),
+        modifiers: z.array(z.string()).optional().describe('Modifier keys: cmd, ctrl, alt, shift (for key)'),
+        key: z.string().optional().describe('Key to press, supports combos like "cmd+shift+f4" (for key)'),
+        text: z.string().optional().describe('Text to type (for type)'),
         x: z.number().optional(),
         y: z.number().optional(),
-        coordinate: z.array(z.number()).length(2).optional(),
+        coordinate: z.array(z.number()).length(2).optional().describe('Click/move target [x, y]'),
         start_coordinate: z.array(z.number()).length(2).optional(),
         end_coordinate: z.array(z.number()).length(2).optional(),
         start_x: z.number().optional(),
@@ -218,9 +218,9 @@ function createDynamicSchema(toolSettings: ToolSettings) {
         scroll_direction: z.enum(['up', 'down', 'left', 'right']).optional(),
         scroll_amount: z.number().optional(),
         duration: z.number().optional(),
-        query: z.string().optional(),
+        query: z.string().optional().describe('Search query (for insert_image only)'),
       })
-    ).describe(`List of actions to execute in sequence. Available actions: ${enabledActions.join(', ')}.`),
+    ).describe(`List of actions to execute in sequence. Available actions: ${enabledActions.join(', ')}. click/right_click/double_click REQUIRE coordinate or x+y (no text queries). key supports modifiers via "cmd+shift+k" syntax or separate modifiers array.`),
   });
 }
 
@@ -381,22 +381,17 @@ async function executeAction(
     case 'key': {
       if (!action.key) throw new Error('Key required');
 
+      // Parse combo keys like "cmd+shift+f4" into modifiers + key
       const parts = action.key.split('+').map(part => part.trim()).filter(Boolean);
       const comboKey = parts.length > 1 ? parts.pop()! : null;
       const comboModifiers = parts.length > 0 ? parts : [];
       const extraModifiers = action.modifiers || [];
-      const finalModifiers = comboKey ? comboModifiers.concat(extraModifiers) : extraModifiers;
+      const allModifiers = comboKey
+        ? comboModifiers.concat(extraModifiers)
+        : extraModifiers;
+      const finalKey = comboKey || action.key;
 
-      if (comboKey && finalModifiers.length > 0) {
-        await cliclick.sendHotkey(finalModifiers, comboKey);
-        return { message: `Pressed ${finalModifiers.join('+')}+${comboKey}` };
-      }
-
-      if (!comboKey && extraModifiers.length > 0) {
-        await cliclick.sendHotkey(extraModifiers, action.key);
-        return { message: `Pressed ${extraModifiers.join('+')}+${action.key}` };
-      }
-      
+      // macOS key code map for special keys
       const keyCodeMap: Record<string, number> = {
         'return': 36, 'enter': 36,
         'tab': 48,
@@ -406,20 +401,38 @@ async function executeAction(
         'up': 126, 'down': 125, 'left': 123, 'right': 124,
         'home': 115, 'end': 119,
         'pageup': 116, 'pagedown': 121,
+        'f1': 122, 'f2': 120, 'f3': 99, 'f4': 118,
+        'f5': 96, 'f6': 97, 'f7': 98, 'f8': 100,
+        'f9': 101, 'f10': 109, 'f11': 103, 'f12': 111,
+        'f13': 105, 'f14': 107, 'f15': 113, 'f16': 106,
       };
-      
-      const keyCode = keyCodeMap[action.key.toLowerCase()];
+
+      // AppleScript modifier name map
+      const asModMap: Record<string, string> = {
+        cmd: 'command down', command: 'command down',
+        ctrl: 'control down', control: 'control down',
+        alt: 'option down', option: 'option down',
+        shift: 'shift down',
+      };
+
+      const keyCode = keyCodeMap[finalKey.toLowerCase()];
+      const modClause = allModifiers.length > 0
+        ? ` using {${allModifiers.map(m => asModMap[m.toLowerCase()] || `${m} down`).join(', ')}}`
+        : '';
+
       let script: string;
-      
       if (keyCode !== undefined) {
-        script = `tell application "System Events" to key code ${keyCode}`;
+        script = `tell application "System Events" to key code ${keyCode}${modClause}`;
       } else {
-        script = `tell application "System Events" to keystroke "${action.key}"`;
+        script = `tell application "System Events" to keystroke "${finalKey}"${modClause}`;
       }
-      
+
+      const label = allModifiers.length > 0
+        ? `${allModifiers.join('+')}+${finalKey}`
+        : finalKey;
       console.log(`[Faria] Executing key script: ${script}`);
       await runAppleScript(script);
-      return { message: `Pressed ${action.key}` };
+      return { message: `Pressed ${label}` };
     }
     
     case 'click': {
@@ -610,14 +623,19 @@ async function waitForActionComplete(
     }
     
     case 'click': {
-      // After click, brief wait for UI response
-      await sleep(MIN_DELAYS.afterClick);
+      // If next action is type or key, we likely clicked into a field/console — wait for focus
+      if (next.type === 'type' || next.type === 'key') {
+        await waitForUISettle(TIMEOUTS.uiSettle);
+      } else {
+        await sleep(MIN_DELAYS.afterClick);
+      }
       break;
     }
 
     case 'right_click':
     case 'double_click': {
-      await sleep(MIN_DELAYS.afterClick);
+      // Context menus / double-click selections need time to appear
+      await waitForUISettle(TIMEOUTS.uiSettle);
       break;
     }
     

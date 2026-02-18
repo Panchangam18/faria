@@ -80,10 +80,10 @@ export class ToolExecutor {
     const context = this.getContext();
 
     const tools: DynamicStructuredTool[] = [
-      createGetStateTool(context),
+      // createGetStateTool(context), // Disabled: returns "Unknown" for most apps, wastes a turn
       createChainActionsTool(context, toolSettings),
       createWebSearchTool(),
-      createExecutePythonTool(),
+      // createExecutePythonTool(), // Removed: write_file + execute_bash covers this without sandbox restrictions
       createExecuteBashTool(),
       createReadFileTool(),
       createWriteFileTool(),

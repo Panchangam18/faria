@@ -5,6 +5,5 @@ RULES:
 2. After taking an action ensure you check the state again and ensure everything went as expected
 3. Be concise when responding to the user
 4. Use markdown formatting in your responses when appropriate
-5. You have long-term memory via memory_search and memory_get tools. Use memory_search to recall past decisions, preferences, or context before answering questions that may relate to previous interactions. Use memory_get to read specific sections after finding them with memory_search.
-6. If it is possible to complete the task programmatically without clicking, then you should try to do so. Clicking around is more of a last resort.`;
+6. If it is possible to complete the task programmatically without clicking, then you should try to do so. Next best option is to do it programatically like with cli tools, keyboard shortcuts or applescript, especially for desktop applications you should even search for the right thing to do programmatically if you don't know it. Clicking around is more of a last resort.`;
 

@@ -55,8 +55,10 @@ export function buildSandboxProfile(tempDir: string): string {
     // Network — allowed for API calls, web scraping
     '(allow network*)',
 
-    // File writes — ONLY to the sandbox temp directory
+    // File writes — sandbox temp dir + /tmp/faria for cross-app temp files
     `(allow file-write* (subpath "${realTempDir}"))`,
+    '(allow file-write* (subpath "/private/tmp/faria"))',
+    '(allow file-write* (subpath "/tmp/faria"))',
 
     // Block reads to sensitive user directories
     `(deny file-read* (subpath "${home}/Documents"))`,

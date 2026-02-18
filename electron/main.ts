@@ -491,8 +491,9 @@ function showCommandBar() {
 // Reset the command bar to its default position and clear all state
 async function resetCommandBar() {
   console.log('[Faria] resetCommandBar called, cancelling agent');
-  // Cancel any running agent
+  // Cancel any running agent and clear conversation history
   agentLoop.cancel();
+  agentLoop.clearHistory();
 
   // Increment session ID to cancel any pending async operations
   commandBarSessionId++;
