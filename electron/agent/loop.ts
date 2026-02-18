@@ -71,7 +71,7 @@ const DEFAULT_CONFIG: AgentConfig = {
  * Now uses LangChain for LangSmith tracing
  */
 // Tools that don't require approval (informational/read-only or user-initiated)
-const SAFE_TOOLS = new Set(['get_state', 'web_search', 'insert_image', 'memory_search', 'memory_get']);
+const SAFE_TOOLS = new Set(['get_state', 'web_search', 'insert_image', 'memory_search', 'memory_get', 'read_file']);
 // Composio tools that don't require approval (management/search tools)
 const SAFE_COMPOSIO_TOOLS = new Set(['COMPOSIO_SEARCH_TOOLS', 'COMPOSIO_MANAGE_CONNECTIONS']);
 
@@ -869,6 +869,17 @@ export class AgentLoop {
       }
       if (toolSettings.replaceText === 'disabled') {
         return false; // Will be blocked elsewhere
+      }
+      return true; // 'enabled' requires approval
+    }
+
+    // Code editing tools - check codeEditing setting
+    if (toolName === 'write_file' || toolName === 'edit_file') {
+      if (toolSettings.codeEditing === 'auto-approve') {
+        return false;
+      }
+      if (toolSettings.codeEditing === 'disabled') {
+        return false;
       }
       return true; // 'enabled' requires approval
     }

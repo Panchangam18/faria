@@ -20,7 +20,14 @@ export function createExecuteBashTool(): DynamicStructuredTool {
       const cwd = workdir || homedir();
 
       return new Promise<string>((resolve) => {
-        const proc = spawn('bash', ['-c', command], {
+        // If command backgrounds a process (ends with &), redirect its stdio
+        // so the backgrounded child doesn't keep our pipes open
+        const isBackgrounded = /&\s*$/.test(command.trim());
+        const wrappedCommand = isBackgrounded
+          ? command.trim().replace(/&\s*$/, '>/dev/null 2>&1 &')
+          : command;
+
+        const proc = spawn('bash', ['-c', wrappedCommand], {
           cwd,
           env: { ...process.env },
           stdio: ['pipe', 'pipe', 'pipe'],
@@ -45,7 +52,15 @@ export function createExecuteBashTool(): DynamicStructuredTool {
 
         const timer = setTimeout(() => {
           proc.kill('SIGKILL');
-          resolve(`Error: Command timed out after ${timeout}ms`);
+          let result = '';
+          if (stdout) result += stdout;
+          if (stderr) result += (result ? '\n' : '') + `stderr: ${stderr}`;
+          if (result) {
+            result += `\n(process timed out after ${timeout}ms and was killed — output above was captured before timeout)`;
+          } else {
+            result = `(process timed out after ${timeout}ms with no output — it may still be running in the background)`;
+          }
+          resolve(result);
         }, timeout);
 
         proc.on('close', (code) => {

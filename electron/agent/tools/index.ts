@@ -13,6 +13,9 @@ import { createWebSearchTool } from './web-search';
 import { createReplaceSelectedTextTool } from './replace-text';
 import { createExecutePythonTool } from './execute-python';
 import { createExecuteBashTool } from './execute-bash';
+import { createReadFileTool } from './read-file';
+import { createWriteFileTool } from './write-file';
+import { createEditFileTool } from './edit-file';
 
 /**
  * Tool Executor - handles execution of all built-in and custom tools
@@ -82,6 +85,9 @@ export class ToolExecutor {
       createWebSearchTool(),
       createExecutePythonTool(),
       createExecuteBashTool(),
+      createReadFileTool(),
+      createWriteFileTool(),
+      createEditFileTool(),
     ];
 
     // Only include replace_selected_text if not disabled

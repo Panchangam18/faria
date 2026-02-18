@@ -73,6 +73,7 @@ export interface ToolSettings {
   clicking: ToolSetting;
   scrolling: ToolSetting;
   integrations: ToolSetting;
+  codeEditing: ToolSetting;
 }
 
 /**
@@ -86,6 +87,7 @@ const DEFAULT_TOOL_SETTINGS: ToolSettings = {
   clicking: 'enabled',
   scrolling: 'enabled',
   integrations: 'enabled',
+  codeEditing: 'auto-approve',
 };
 
 /**
@@ -181,6 +183,9 @@ export function getToolDisplayName(toolName: string): string {
     insert_image: 'Inserting image',
     replace_selected_text: 'Replacing text',
     execute_bash: 'Running command',
+    read_file: 'Reading file',
+    write_file: 'Writing file',
+    edit_file: 'Editing file',
     // Composio meta-tools (hidden from user as "Composio")
     COMPOSIO_SEARCH_TOOLS: 'Searching integrations',
     COMPOSIO_MANAGE_CONNECTIONS: 'Checking connections',
