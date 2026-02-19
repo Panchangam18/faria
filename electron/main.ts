@@ -103,6 +103,18 @@ function createMainWindow() {
     mainWindow.loadFile(join(__dirname, '../dist/index.html'));
   }
 
+  // Open links in the user's default browser instead of inside the app
+  mainWindow.webContents.setWindowOpenHandler(({ url }) => {
+    shell.openExternal(url);
+    return { action: 'deny' };
+  });
+  mainWindow.webContents.on('will-navigate', (event, url) => {
+    // Allow dev server reloads, block everything else and open externally
+    if (isDev && url.startsWith('http://localhost:')) return;
+    event.preventDefault();
+    shell.openExternal(url);
+  });
+
   mainWindow.on('closed', () => {
     mainWindow = null;
     isMainWindowVisible = false;
@@ -183,6 +195,17 @@ function createCommandBarWindow() {
   } else {
     commandBarWindow.loadFile(join(__dirname, '../dist/command-bar.html'));
   }
+
+  // Open links in the user's default browser instead of inside the command bar
+  commandBarWindow.webContents.setWindowOpenHandler(({ url }) => {
+    shell.openExternal(url);
+    return { action: 'deny' };
+  });
+  commandBarWindow.webContents.on('will-navigate', (event, url) => {
+    if (isDev && url.startsWith('http://localhost:')) return;
+    event.preventDefault();
+    shell.openExternal(url);
+  });
 
   commandBarWindow.on('blur', () => {
     // Don't hide on blur - only hide via hotkey
