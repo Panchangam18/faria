@@ -421,24 +421,10 @@ function HistoryPanel() {
                             <div key={idx} style={{
                               fontSize: 'var(--font-size-xs)',
                               marginBottom: 'var(--spacing-xs)',
-                              display: 'flex',
-                              alignItems: 'flex-start',
-                              gap: 'var(--spacing-xs)'
+                              color: 'var(--color-accent)',
+                              wordBreak: 'break-word'
                             }}>
-                              <span style={{
-                                color: 'var(--color-text-muted)',
-                                fontFamily: 'monospace',
-                                minWidth: '18px',
-                                flexShrink: 0
-                              }}>
-                                {idx + 1}.
-                              </span>
-                              <span style={{
-                                color: 'var(--color-accent)',
-                                wordBreak: 'break-word'
-                              }}>
-                                {formatAction(action)}
-                              </span>
+                              {formatAction(action)}
                             </div>
                           ))}
                         </div>
