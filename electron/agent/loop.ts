@@ -257,6 +257,10 @@ export class AgentLoop {
 
       this.sendResponse(result);
       return result;
+    } catch (err: any) {
+      console.error('[Faria] Agent loop error:', err?.message || err);
+      this.sendResponse(`Error: ${err?.message || 'Unknown error occurred'}`);
+      return '';
     } finally {
       this.isRunning = false;
     }
@@ -598,27 +602,54 @@ export class AgentLoop {
         
         // Stream the response for real-time display
         // Use LangChain's native AIMessageChunk merging to handle tool_call_chunks
+        // Retry on stream parse failures (Google SDK can fail mid-stream)
+        const MAX_STREAM_RETRIES = 2;
         let aggregatedChunk: any = null;
+        let streamError: Error | null = null;
 
-        const stream = await modelWithTools.stream(messages, invokeOptions);
+        for (let streamAttempt = 0; streamAttempt <= MAX_STREAM_RETRIES; streamAttempt++) {
+          try {
+            aggregatedChunk = null;
+            const stream = await modelWithTools.stream(messages, invokeOptions);
 
-        for await (const chunk of stream) {
-          if (this.shouldCancel) break;
+            for await (const chunk of stream) {
+              if (this.shouldCancel) break;
 
-          // LangChain native way: merge chunks using concat()
-          // This automatically handles tool_call_chunks merging
-          aggregatedChunk = aggregatedChunk ? aggregatedChunk.concat(chunk) : chunk;
+              // LangChain native way: merge chunks using concat()
+              // This automatically handles tool_call_chunks merging
+              aggregatedChunk = aggregatedChunk ? aggregatedChunk.concat(chunk) : chunk;
 
-          // Handle text content chunks for streaming display
-          if (typeof chunk.content === 'string' && chunk.content) {
-            this.sendChunk(chunk.content);
-          } else if (Array.isArray(chunk.content)) {
-            for (const part of chunk.content as any[]) {
-              if (part.type === 'text' && part.text) {
-                this.sendChunk(part.text);
+              // Handle text content chunks for streaming display
+              if (typeof chunk.content === 'string' && chunk.content) {
+                this.sendChunk(chunk.content);
+              } else if (Array.isArray(chunk.content)) {
+                for (const part of chunk.content as any[]) {
+                  if (part.type === 'text' && part.text) {
+                    this.sendChunk(part.text);
+                  }
+                }
               }
             }
+            streamError = null;
+            break; // success
+          } catch (err: any) {
+            streamError = err;
+            const isRetryable = err?.message?.includes('Failed to parse stream')
+              || err?.message?.includes('ECONNRESET')
+              || err?.message?.includes('socket hang up');
+
+            if (isRetryable && streamAttempt < MAX_STREAM_RETRIES && !this.shouldCancel) {
+              console.warn(`[Faria] Stream error (attempt ${streamAttempt + 1}/${MAX_STREAM_RETRIES + 1}), retrying: ${err.message}`);
+              this.sendStatus('Retrying...');
+              await new Promise(r => setTimeout(r, 1000 * (streamAttempt + 1)));
+            } else {
+              throw err;
+            }
           }
+        }
+
+        if (!aggregatedChunk) {
+          throw streamError || new Error('No response received from model');
         }
 
         // Build AIMessage from the fully merged chunk
