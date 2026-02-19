@@ -2,13 +2,13 @@ import { tool } from '@langchain/core/tools';
 import { DynamicStructuredTool } from '@langchain/core/tools';
 import { z } from 'zod';
 import { ToolResult, ToolContext } from './types';
-import { runAppleScript, focusApp } from '../../services/applescript';
+import { runAppleScript, focusApp, escapeForAppleScript } from '../../services/applescript';
 import { insertImageFromUrl } from '../../services/text-extraction';
 import * as cliclick from '../../services/cliclick';
 import { takeScreenshot, calculateResizeWidth } from '../../services/screenshot';
 // NOTE: calculateResizeWidth must use the same constants as screenshot.ts to keep
 // the coordinate conversion in sync with the actual screenshot dimensions.
-import { screen } from 'electron';
+import { screen, clipboard } from 'electron';
 import type { ToolSettings } from '../../services/models';
 
 // All possible action types
@@ -356,43 +356,68 @@ async function executeAction(
     case 'type': {
       if (!action.text) throw new Error('Text required for type');
 
-      // Split by newlines and type each line, pressing Return between them
-      const lines = action.text.split('\n');
+      const CLIPBOARD_THRESHOLD = 100;
 
-      for (let i = 0; i < lines.length; i++) {
-        const line = lines[i];
-        if (line.length > 0) {
-          // Chunk long lines to avoid keystroke queue overflow.
-          // AppleScript's keystroke returns before the target app finishes
-          // processing all characters, so we send in smaller chunks and
-          // wait between them to let the app catch up.
-          const CHUNK_SIZE = 20;
-          for (let j = 0; j < line.length; j += CHUNK_SIZE) {
-            const chunk = line.slice(j, j + CHUNK_SIZE);
-            const escapedChunk = chunk.replace(/\\/g, '\\\\').replace(/"/g, '\\"');
-            const script = `tell application "System Events" to keystroke "${escapedChunk}"`;
-            if (j === 0) {
-              console.log(`[Faria] Executing type script: ${script.slice(0, 100)}...`);
+      if (action.text.length > CLIPBOARD_THRESHOLD) {
+        // For long text, use clipboard paste — keystroke is slow and lossy
+        // for anything beyond a short string.
+        const savedClipboard = clipboard.readText();
+        clipboard.writeText(action.text);
+        await sleep(50);
+
+        const targetApp = context.targetApp;
+        if (targetApp) {
+          // Paste via Edit menu (more reliable than Cmd+V)
+          const script = `
+            tell application "System Events"
+              tell process "${escapeForAppleScript(targetApp)}"
+                click menu item "Paste" of menu "Edit" of menu bar 1
+              end tell
+            end tell
+          `;
+          console.log(`[Faria] Pasting ${action.text.length} chars via clipboard into ${targetApp}`);
+          await runAppleScript(script);
+        } else {
+          // Fallback: Cmd+V if we don't know the target app
+          console.log(`[Faria] Pasting ${action.text.length} chars via Cmd+V (no target app)`);
+          await runAppleScript(`tell application "System Events" to keystroke "v" using command down`);
+        }
+
+        await sleep(150);
+        clipboard.writeText(savedClipboard);
+      } else {
+        // For short text, use keystroke (better for search bars, form fields, etc.)
+        const lines = action.text.split('\n');
+
+        for (let i = 0; i < lines.length; i++) {
+          const line = lines[i];
+          if (line.length > 0) {
+            const CHUNK_SIZE = 20;
+            for (let j = 0; j < line.length; j += CHUNK_SIZE) {
+              const chunk = line.slice(j, j + CHUNK_SIZE);
+              const escapedChunk = chunk.replace(/\\/g, '\\\\').replace(/"/g, '\\"');
+              const script = `tell application "System Events" to keystroke "${escapedChunk}"`;
+              if (j === 0) {
+                console.log(`[Faria] Executing type script: ${script.slice(0, 100)}...`);
+              }
+              await runAppleScript(script);
+              if (j + CHUNK_SIZE < line.length) {
+                await sleep(50);
+              }
             }
-            await runAppleScript(script);
-            // Wait between chunks for the app to process keystrokes
-            if (j + CHUNK_SIZE < line.length) {
-              await sleep(50);
-            }
+          }
+
+          // Press Return for newlines (except after the last line)
+          if (i < lines.length - 1) {
+            await runAppleScript(`tell application "System Events" to key code 36`);
+            await sleep(MIN_DELAYS.afterKey);
           }
         }
 
-        // Press Return for newlines (except after the last line)
-        if (i < lines.length - 1) {
-          await runAppleScript(`tell application "System Events" to key code 36`);
-          await sleep(MIN_DELAYS.afterKey);
+        const totalLen = action.text.length;
+        if (totalLen > 10) {
+          await sleep(Math.min(totalLen * 5, 1000));
         }
-      }
-
-      // Wait proportionally to text length for the app to finish processing
-      const totalLen = action.text.length;
-      if (totalLen > 10) {
-        await sleep(Math.min(totalLen * 5, 1000));
       }
 
       return { message: `Typed "${action.text.slice(0, 30)}${action.text.length > 30 ? '...' : ''}"` };
