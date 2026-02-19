@@ -56,7 +56,7 @@ export const ChainActionsSchema = z.object({
     z.object({
       type: z.enum(ALL_ACTION_TYPES),
       app: z.string().optional().describe('App name (for activate)'),
-      script: z.string().optional().describe('AppleScript code (for applescript)'),
+      script: z.string().optional().describe('AppleScript code (for applescript). IMPORTANT: The script is passed to osascript via a shell command, so single quotes in the script body will break execution. Avoid single quotes/apostrophes in string literals — use curly quotes (\u2018 \u2019) or rephrase text to avoid them. For long or complex scripts, prefer setting variables and building strings in AppleScript rather than embedding raw text with special characters.'),
       modifiers: z.array(z.string()).optional().describe('Modifier keys: cmd, ctrl, alt, shift (for key)'),
       key: z.string().optional().describe('Key to press, supports combos like "cmd+shift+f4" (for key)'),
       text: z.string().optional().describe('Text to type (for type)'),
@@ -200,7 +200,7 @@ function createDynamicSchema(toolSettings: ToolSettings) {
       z.object({
         type: z.enum(enabledActions as [string, ...string[]]),
         app: z.string().optional().describe('App name (for activate)'),
-        script: z.string().optional().describe('AppleScript code (for applescript)'),
+        script: z.string().optional().describe('AppleScript code (for applescript). IMPORTANT: The script is passed to osascript via a shell command, so single quotes in the script body will break execution. Avoid single quotes/apostrophes in string literals — use curly quotes (\u2018 \u2019) or rephrase text to avoid them. For long or complex scripts, prefer setting variables and building strings in AppleScript rather than embedding raw text with special characters.'),
         modifiers: z.array(z.string()).optional().describe('Modifier keys: cmd, ctrl, alt, shift (for key)'),
         key: z.string().optional().describe('Key to press, supports combos like "cmd+shift+f4" (for key)'),
         text: z.string().optional().describe('Text to type (for type)'),
@@ -355,26 +355,46 @@ async function executeAction(
     
     case 'type': {
       if (!action.text) throw new Error('Text required for type');
-      
+
       // Split by newlines and type each line, pressing Return between them
       const lines = action.text.split('\n');
-      
+
       for (let i = 0; i < lines.length; i++) {
         const line = lines[i];
         if (line.length > 0) {
-          const escapedLine = line.replace(/\\/g, '\\\\').replace(/"/g, '\\"');
-          const script = `tell application "System Events" to keystroke "${escapedLine}"`;
-          console.log(`[Faria] Executing type script: ${script.slice(0, 100)}...`);
-          await runAppleScript(script);
+          // Chunk long lines to avoid keystroke queue overflow.
+          // AppleScript's keystroke returns before the target app finishes
+          // processing all characters, so we send in smaller chunks and
+          // wait between them to let the app catch up.
+          const CHUNK_SIZE = 20;
+          for (let j = 0; j < line.length; j += CHUNK_SIZE) {
+            const chunk = line.slice(j, j + CHUNK_SIZE);
+            const escapedChunk = chunk.replace(/\\/g, '\\\\').replace(/"/g, '\\"');
+            const script = `tell application "System Events" to keystroke "${escapedChunk}"`;
+            if (j === 0) {
+              console.log(`[Faria] Executing type script: ${script.slice(0, 100)}...`);
+            }
+            await runAppleScript(script);
+            // Wait between chunks for the app to process keystrokes
+            if (j + CHUNK_SIZE < line.length) {
+              await sleep(50);
+            }
+          }
         }
-        
+
         // Press Return for newlines (except after the last line)
         if (i < lines.length - 1) {
           await runAppleScript(`tell application "System Events" to key code 36`);
           await sleep(MIN_DELAYS.afterKey);
         }
       }
-      
+
+      // Wait proportionally to text length for the app to finish processing
+      const totalLen = action.text.length;
+      if (totalLen > 10) {
+        await sleep(Math.min(totalLen * 5, 1000));
+      }
+
       return { message: `Typed "${action.text.slice(0, 30)}${action.text.length > 30 ? '...' : ''}"` };
     }
     
@@ -607,7 +627,11 @@ async function waitForActionComplete(
       if (next.type === 'key' && ['return', 'enter'].includes(next.key?.toLowerCase() || '')) {
         await waitForUISettle(TIMEOUTS.uiSettle);
       } else {
-        await sleep(MIN_DELAYS.afterType);
+        // Wait proportionally to text length — keystroke events queue up and the
+        // target app may still be processing them when osascript returns.
+        const textLen = current.text?.length || 0;
+        const delay = Math.max(MIN_DELAYS.afterType, Math.min(textLen * 5, 1000));
+        await sleep(delay);
       }
       break;
     }

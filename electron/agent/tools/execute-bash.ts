@@ -5,12 +5,12 @@ import { spawn } from 'child_process';
 import { homedir } from 'os';
 
 const MAX_OUTPUT_BYTES = 512 * 1024; // 512KB max stdout/stderr
-const DEFAULT_TIMEOUT = 120_000; // 2 minutes
+const DEFAULT_TIMEOUT = 30_000; // 30 seconds
 
 const ExecuteBashSchema = z.object({
   command: z.string().describe('The shell command to execute'),
   workdir: z.string().optional().describe('Working directory. Defaults to home directory.'),
-  timeout: z.number().optional().describe('Timeout in milliseconds. Default: 120000'),
+  timeout: z.number().optional().describe('Timeout in milliseconds. Default: 30000'),
 });
 
 export function createExecuteBashTool(): DynamicStructuredTool {
@@ -88,7 +88,7 @@ export function createExecuteBashTool(): DynamicStructuredTool {
     },
     {
       name: 'execute_bash',
-      description: 'Execute a bash command on the system. Can run any shell command — install packages, manage files, run scripts, use git, curl, etc. Returns stdout and stderr.',
+      description: 'Execute a bash command on the system. Can run any shell command — install packages, manage files, run scripts, use git, curl, etc. Returns stdout and stderr. IMPORTANT: Working directory defaults to the home directory. Avoid recursive searches (grep -r, find) without specifying a narrow target directory — searching from ~ will be extremely slow and will time out.',
       schema: ExecuteBashSchema,
     }
   );

@@ -375,42 +375,47 @@ export class AgentLoop {
           }
         }
 
-        // If removing a non-tool message exposed a ToolMessage at position 1,
-        // that tool result is now orphaned (its AIMessage was already evicted
-        // or is no longer adjacent). Remove orphaned ToolMessages to prevent
-        // "function response turn comes immediately after a function call" errors.
-        while (stack.length > 1 && stack[1] instanceof ToolMessage) {
-          const orphan = stack.splice(1, 1)[0];
-          const orphanTokens = estimateTokensForContext(orphan);
-          (manager as any).currentTokens -= orphanTokens;
-          removedTokens += orphanTokens;
-          console.log(`[Context] Removed orphaned tool result (${orphanTokens} tokens)`);
-        }
+        // Cascade-remove orphaned messages at position 1.
+        // Removing one orphan can expose another (e.g. ToolMessage → AIMessage(tool_calls) → ToolMessage),
+        // so loop until position 1 is clean.
+        let changed = true;
+        while (changed && stack.length > 1) {
+          changed = false;
 
-        // If removing messages left an AIMessage with tool_calls at position 1,
-        // it also needs to go (along with its tool results) since there's no
-        // preceding user message to make it valid.
-        if (stack.length > 1 && stack[1] instanceof AIMessage && (stack[1] as AIMessage).tool_calls?.length) {
-          const ai = stack.splice(1, 1)[0] as AIMessage;
-          const aiTokens = estimateTokensForContext(ai);
-          (manager as any).currentTokens -= aiTokens;
-          removedTokens += aiTokens;
-          console.log(`[Context] Removed orphaned AI tool_call (${aiTokens} tokens)`);
-
-          const ids = new Set(
-            ai.tool_calls!
-              .map(call => call.id)
-              .filter((id): id is string => typeof id === 'string')
-          );
+          // Orphaned ToolMessages (their AIMessage was already evicted)
           while (stack.length > 1 && stack[1] instanceof ToolMessage) {
-            const toolMsg = stack[1] as ToolMessage;
-            if (ids.has(toolMsg.tool_call_id)) {
-              const toolTokens = estimateTokensForContext(toolMsg);
-              stack.splice(1, 1);
-              (manager as any).currentTokens -= toolTokens;
-              removedTokens += toolTokens;
-            } else {
-              break;
+            const orphan = stack.splice(1, 1)[0];
+            const orphanTokens = estimateTokensForContext(orphan);
+            (manager as any).currentTokens -= orphanTokens;
+            removedTokens += orphanTokens;
+            console.log(`[Context] Removed orphaned tool result (${orphanTokens} tokens)`);
+            changed = true;
+          }
+
+          // Orphaned AIMessage with tool_calls (no preceding user message)
+          if (stack.length > 1 && stack[1] instanceof AIMessage && (stack[1] as AIMessage).tool_calls?.length) {
+            const ai = stack.splice(1, 1)[0] as AIMessage;
+            const aiTokens = estimateTokensForContext(ai);
+            (manager as any).currentTokens -= aiTokens;
+            removedTokens += aiTokens;
+            console.log(`[Context] Removed orphaned AI tool_call (${aiTokens} tokens)`);
+            changed = true;
+
+            const ids = new Set(
+              ai.tool_calls!
+                .map(call => call.id)
+                .filter((id): id is string => typeof id === 'string')
+            );
+            while (stack.length > 1 && stack[1] instanceof ToolMessage) {
+              const toolMsg = stack[1] as ToolMessage;
+              if (ids.has(toolMsg.tool_call_id)) {
+                const toolTokens = estimateTokensForContext(toolMsg);
+                stack.splice(1, 1);
+                (manager as any).currentTokens -= toolTokens;
+                removedTokens += toolTokens;
+              } else {
+                break;
+              }
             }
           }
         }
