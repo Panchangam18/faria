@@ -135,6 +135,18 @@ html, body, #root {
   display: flex;
   flex-direction: column;
   overflow: hidden;
+  -webkit-app-region: drag; /* Re-assert drag — overflow:hidden breaks inheritance */
+  -webkit-user-select: none; /* Prevent text selection so drag-to-move works */
+  user-select: none;
+}
+
+/* Resize handle at top of agent area - drag to adjust response height */
+.command-bar-resize-handle {
+  height: 4px;
+  margin-top: -2px;
+  cursor: ns-resize;
+  -webkit-app-region: no-drag;
+  flex-shrink: 0;
 }
 
 /* Divider between agent area and user input */
@@ -142,6 +154,7 @@ html, body, #root {
   height: 1px;
   background: var(--color-border);
   flex-shrink: 0;
+  -webkit-app-region: drag;
 }
 
 /* Response Area */
@@ -151,8 +164,14 @@ html, body, #root {
   font-size: var(--font-size-xs);
   line-height: 1.6;
   color: var(--color-accent);
-  -webkit-app-region: no-drag; /* Allow scrolling, not dragging */
   max-height: var(--cb-max-response-height, 88px); /* Cap at ~5 lines */
+}
+
+/* Text content inside response: allow selection and prevent drag-to-move */
+.command-bar-response > * {
+  -webkit-app-region: no-drag;
+  -webkit-user-select: text;
+  user-select: text;
 }
 
 .command-bar-response:empty {
@@ -268,6 +287,7 @@ html, body, #root {
   display: flex;
   align-items: center;
   padding: var(--spacing-sm) var(--spacing-md);
+  -webkit-app-region: drag; /* Re-assert drag — parent overflow:hidden breaks inheritance */
 }
 
 /* Model Selector */

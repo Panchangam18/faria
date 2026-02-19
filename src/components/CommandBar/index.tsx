@@ -249,6 +249,9 @@ function CommandBar() {
   const [isVisible, setIsVisible] = useState(false); // Controls content visibility to prevent flash of old content
   const [sizeMode, setSizeMode] = useState<SizeMode>('small');
   const [isScrollable, setIsScrollable] = useState(false);
+  const [userMaxResponseHeight, setUserMaxResponseHeight] = useState<number | null>(null);
+  const userMaxResponseHeightRef = useRef<number | null>(null);
+  const dragStateRef = useRef<{ startY: number; startMaxHeight: number } | null>(null);
   const inputRef = useRef<HTMLTextAreaElement>(null);
   const scrollWrapperRef = useRef<HTMLDivElement>(null);
   const inlineControlsRef = useRef<HTMLDivElement>(null);
@@ -298,7 +301,10 @@ function CommandBar() {
     const MAX_TEXTAREA_HEIGHT = sc.maxTextareaHeight;
     const CONTROLS_GAP = sc.controlsGap;
     const BASE_HEIGHT = sc.baseHeight;
-    const MAX_RESPONSE_HEIGHT = sc.maxResponseHeight;
+    const MAX_RESPONSE_HEIGHT = userMaxResponseHeight ?? sc.maxResponseHeight;
+
+    // Sync CSS variable immediately so response div's max-height is current
+    document.documentElement.style.setProperty('--cb-max-response-height', `${MAX_RESPONSE_HEIGHT}px`);
 
     // Measure controls dimensions
     const controlsWidth = controlsEl ? controlsEl.offsetWidth + CONTROLS_GAP : 0;
@@ -428,7 +434,50 @@ function CommandBar() {
     });
 
     return () => cancelAnimationFrame(rafId);
-  }, [query, response, streamingResponse, pendingToolApproval, toolApprovalExpanded, pendingAuth, status, wouldControlsCollide, selectedTextLength, sizeMode]);
+  }, [query, response, streamingResponse, pendingToolApproval, toolApprovalExpanded, pendingAuth, status, wouldControlsCollide, selectedTextLength, sizeMode, userMaxResponseHeight]);
+
+  // Keep ref in sync for use in event handlers that close over stale state
+  userMaxResponseHeightRef.current = userMaxResponseHeight;
+
+  // Drag handler for resize handle at top of agent area
+  const handleResizeMouseDown = useCallback((e: React.MouseEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+
+    const currentMax = userMaxResponseHeightRef.current ?? SIZE_CONFIGS[sizeMode].maxResponseHeight;
+    dragStateRef.current = { startY: e.screenY, startMaxHeight: currentMax };
+
+    const handleMouseMove = (moveEvent: MouseEvent) => {
+      if (!dragStateRef.current) return;
+      // Dragging up (negative deltaY) = increasing height
+      const deltaY = dragStateRef.current.startY - moveEvent.screenY;
+      const sc = SIZE_CONFIGS[sizeMode];
+      const minHeight = sc.lineHeight * 2;
+      const maxHeight = 400;
+      const newMaxHeight = Math.max(minHeight, Math.min(maxHeight, dragStateRef.current.startMaxHeight + deltaY));
+      setUserMaxResponseHeight(newMaxHeight);
+    };
+
+    const handleMouseUp = () => {
+      dragStateRef.current = null;
+      // Persist the chosen height (read from ref to get latest value)
+      const current = userMaxResponseHeightRef.current;
+      if (current !== null) {
+        window.faria.settings.set('commandBarResponseHeight', String(current));
+      }
+      document.removeEventListener('mousemove', handleMouseMove);
+      document.removeEventListener('mouseup', handleMouseUp);
+    };
+
+    document.addEventListener('mousemove', handleMouseMove);
+    document.addEventListener('mouseup', handleMouseUp);
+  }, [sizeMode]);
+
+  // Double-click resize handle to reset to default height
+  const handleResizeDoubleClick = useCallback(() => {
+    setUserMaxResponseHeight(null);
+    window.faria.settings.set('commandBarResponseHeight', '');
+  }, []);
 
   // Load theme on mount
   useEffect(() => {
@@ -451,6 +500,12 @@ function CommandBar() {
           const mode = savedSize as SizeMode;
           setSizeMode(mode);
           applySizeMode(mode);
+        }
+
+        // Load saved response height override
+        const savedResponseHeight = await window.faria.settings.get('commandBarResponseHeight');
+        if (savedResponseHeight) {
+          setUserMaxResponseHeight(parseInt(savedResponseHeight, 10));
         }
       } catch (e) {
         console.error('[CommandBar] Error loading settings:', e);
@@ -476,6 +531,7 @@ function CommandBar() {
         const mode = newSize as SizeMode;
         setSizeMode(mode);
         applySizeMode(mode);
+        setUserMaxResponseHeight(null); // Reset user override on size change
       }
     });
 
@@ -847,6 +903,11 @@ function CommandBar() {
       {/* Agent area: appears above input, grows upward */}
       {hasAgentContent && (
         <div className="command-bar-agent-area" ref={agentAreaRef}>
+          <div
+            className="command-bar-resize-handle"
+            onMouseDown={handleResizeMouseDown}
+            onDoubleClick={handleResizeDoubleClick}
+          />
           {(response || streamingResponse || errorMessage) && (
             errorMessage ? (
               <div className="command-bar-response" ref={responseRef} style={{ color: 'var(--color-error, #ff4444)' }}>
