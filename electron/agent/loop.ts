@@ -24,6 +24,7 @@ import { appendToDailyLog } from './memory-agent';
 import { shouldRunMemoryFlush, runMemoryFlush, recordFlush, resetFlushTracking } from './memory-flush';
 import { ComposioService } from '../services/composio';
 import { showClickIndicator, hideClickIndicator } from '../services/click-indicator';
+import { calculateResizeWidth } from '../services/screenshot';
 
 // Load environment variables for LangSmith tracing
 import 'dotenv/config';
@@ -918,12 +919,22 @@ export class AgentLoop {
 
     if (x === undefined || y === undefined) return null;
 
-    // Convert Google's 0-1000 normalized coordinates to logical screen points
+    // Convert provider coordinates to logical screen points
     if (providerName === 'google' && x <= 1000 && y <= 1000) {
       const primaryDisplay = screen.getPrimaryDisplay();
       const { width: screenWidth, height: screenHeight } = primaryDisplay.size;
       x = Math.round((x / 1000) * screenWidth);
       y = Math.round((y / 1000) * screenHeight);
+    } else if (providerName === 'anthropic') {
+      const primaryDisplay = screen.getPrimaryDisplay();
+      const { width: screenWidth, height: screenHeight } = primaryDisplay.size;
+      const scaleFactor = primaryDisplay.scaleFactor || 1;
+      const nativeWidth = screenWidth * scaleFactor;
+      const nativeHeight = screenHeight * scaleFactor;
+      const ssWidth = calculateResizeWidth(nativeWidth, nativeHeight);
+      const ssHeight = Math.round(nativeHeight * (ssWidth / nativeWidth));
+      x = Math.round((x / ssWidth) * screenWidth);
+      y = Math.round((y / ssHeight) * screenHeight);
     }
 
     return { x, y };
