@@ -56,7 +56,7 @@ export const ChainActionsSchema = z.object({
     z.object({
       type: z.enum(ALL_ACTION_TYPES),
       app: z.string().optional().describe('App name (for activate)'),
-      script: z.string().optional().describe('AppleScript code (for applescript). IMPORTANT: The script is passed to osascript via a shell command, so single quotes in the script body will break execution. Avoid single quotes/apostrophes in string literals — use curly quotes (\u2018 \u2019) or rephrase text to avoid them. For long or complex scripts, prefer setting variables and building strings in AppleScript rather than embedding raw text with special characters.'),
+      script: z.string().optional().describe('AppleScript code (for applescript). CRITICAL: AppleScript uses DOUBLE QUOTES for all strings (e.g. tell application "Safari"). NEVER use single quotes — they are not valid AppleScript syntax and will cause a shell parsing error. Also avoid apostrophes in text literals; use curly quotes (\u2018\u2019) or rephrase instead.'),
       modifiers: z.array(z.string()).optional().describe('Modifier keys: cmd, ctrl, alt, shift (for key)'),
       key: z.string().optional().describe('Key to press, supports combos like "cmd+shift+f4" (for key)'),
       text: z.string().optional().describe('Text to type (for type)'),
@@ -200,7 +200,7 @@ function createDynamicSchema(toolSettings: ToolSettings) {
       z.object({
         type: z.enum(enabledActions as [string, ...string[]]),
         app: z.string().optional().describe('App name (for activate)'),
-        script: z.string().optional().describe('AppleScript code (for applescript). IMPORTANT: The script is passed to osascript via a shell command, so single quotes in the script body will break execution. Avoid single quotes/apostrophes in string literals — use curly quotes (\u2018 \u2019) or rephrase text to avoid them. For long or complex scripts, prefer setting variables and building strings in AppleScript rather than embedding raw text with special characters.'),
+        script: z.string().optional().describe('AppleScript code (for applescript). CRITICAL: AppleScript uses DOUBLE QUOTES for all strings (e.g. tell application "Safari"). NEVER use single quotes — they are not valid AppleScript syntax and will cause a shell parsing error. Also avoid apostrophes in text literals; use curly quotes (\u2018\u2019) or rephrase instead.'),
         modifiers: z.array(z.string()).optional().describe('Modifier keys: cmd, ctrl, alt, shift (for key)'),
         key: z.string().optional().describe('Key to press, supports combos like "cmd+shift+f4" (for key)'),
         text: z.string().optional().describe('Text to type (for type)'),
