@@ -232,6 +232,7 @@ function CommandBar() {
   const placeholder = 'What do you seek?';
   const [response, setResponse] = useState('');
   const [streamingResponse, setStreamingResponse] = useState('');
+  const streamingResponseRef = useRef(''); // Tracks streaming text for cancel-promotion
   const [status, setStatus] = useState('');
   const [isProcessing, setIsProcessing] = useState(false);
 
@@ -552,6 +553,7 @@ function CommandBar() {
       // Clear streaming response (incomplete placeholder content) but keep final response
       // Response persists so user can see agent's answer when they reopen
       setStreamingResponse('');
+      streamingResponseRef.current = '';
       // Reset history navigation
       setHistoryIndex(-1);
       historyRef.current = [];
@@ -584,13 +586,28 @@ function CommandBar() {
 
     // Listen for streaming chunks from agent
     const cleanupChunk = window.faria.agent.onChunk((chunk: string) => {
-      setStreamingResponse(prev => prev + chunk);
+      setStreamingResponse(prev => {
+        const next = prev + chunk;
+        streamingResponseRef.current = next;
+        return next;
+      });
     });
 
     // Listen for final response from agent
     const cleanupResponse = window.faria.agent.onResponse((newResponse: string) => {
-      setResponse(newResponse);
-      setStreamingResponse(''); // Clear streaming state
+      if (newResponse) {
+        // Successful completion: show response and clear query
+        setResponse(newResponse);
+        setQuery('');
+      } else {
+        // Cancellation: promote partial streaming content to response
+        const partial = streamingResponseRef.current;
+        if (partial) {
+          setResponse(partial);
+        }
+      }
+      setStreamingResponse('');
+      streamingResponseRef.current = '';
       setIsProcessing(false);
       setStatus('');
       setPendingAuth(null);
@@ -634,6 +651,7 @@ function CommandBar() {
       setQuery('');
       setResponse('');
       setStreamingResponse('');
+      streamingResponseRef.current = '';
       setStatus('');
       setIsProcessing(false);
       setSelectedTextLength(0);
@@ -726,6 +744,7 @@ function CommandBar() {
     setIsProcessing(true);
     setResponse('');
     setStreamingResponse('');
+    streamingResponseRef.current = '';
 
     try {
       setStatus('Extracting state...');

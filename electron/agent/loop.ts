@@ -570,6 +570,7 @@ export class AgentLoop {
       const { model: modelWithTools, invokeOptions: providerInvokeOptions } = boundModel;
 
       let finalResponse = '';
+      let streamedResponseText = ''; // Accumulates streamed chunks for saving cancelled runs
       const toolsUsed: string[] = [];
       const actions: Array<{ tool: string; input: unknown; timestamp: number }> = [];
 
@@ -622,10 +623,12 @@ export class AgentLoop {
               // Handle text content chunks for streaming display
               if (typeof chunk.content === 'string' && chunk.content) {
                 this.sendChunk(chunk.content);
+                streamedResponseText += chunk.content;
               } else if (Array.isArray(chunk.content)) {
                 for (const part of chunk.content as any[]) {
                   if (part.type === 'text' && part.text) {
                     this.sendChunk(part.text);
+                    streamedResponseText += part.text;
                   }
                 }
               }
@@ -867,9 +870,18 @@ export class AgentLoop {
         }
       }
       
-      // If cancelled, return empty string (UI already cleared status)
+      // If cancelled, save partial response to history before returning
       if (this.shouldCancel) {
-        console.log('[Faria] Run cancelled, returning early');
+        console.log('[Faria] Run cancelled, saving partial response to history');
+        const db = initDatabase();
+        db.prepare('INSERT INTO history (query, response, tools_used, agent_type, actions, context_text) VALUES (?, ?, ?, ?, ?, ?)').run(
+          query,
+          streamedResponseText || '',
+          toolsUsed.length > 0 ? JSON.stringify(toolsUsed) : null,
+          'regular',
+          actions.length > 0 ? JSON.stringify(actions) : null,
+          selectedText || null
+        );
         return '';
       }
 
