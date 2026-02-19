@@ -224,6 +224,11 @@ function HistoryPanel() {
 
   useEffect(() => {
     loadHistory();
+    // Re-fetch history when the agent completes a response (history is saved before this event fires)
+    const cleanup = window.faria.agent.onResponse(() => {
+      loadHistory();
+    });
+    return cleanup;
   }, []);
 
   const loadHistory = async () => {
