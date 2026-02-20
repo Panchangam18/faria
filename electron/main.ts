@@ -241,7 +241,7 @@ function getThemeData(): { theme: string; font: string; colors: { background: st
   const activeCustomPaletteRow = db.prepare('SELECT value FROM settings WHERE key = ?').get('activeCustomPalette') as { value: string } | undefined;
 
   const theme = themeRow?.value || 'default';
-  const font = fontRow?.value || "'SF Pro Display', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif";
+  const font = fontRow?.value || "'Noto Sans JP', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif";
 
   let colors: { background: string; text: string; accent: string };
 

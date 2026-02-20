@@ -229,7 +229,7 @@ function applyTheme(theme: string, colors?: { background: string; text: string; 
 
 function CommandBar() {
   const [query, setQuery] = useState('');
-  const placeholder = 'What do you seek?';
+  const placeholder = 'Awaiting your command...';
   const [response, setResponse] = useState('');
   const [streamingResponse, setStreamingResponse] = useState('');
   const streamingResponseRef = useRef(''); // Tracks streaming text for cancel-promotion
