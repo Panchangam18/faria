@@ -15,6 +15,7 @@ function Sidebar({ activeTab, onTabChange }: SidebarProps) {
         title="History"
       >
         <MdHistory size={20} />
+        <span className="sidebar-label">History</span>
       </button>
       <button
         className={`sidebar-tab ${activeTab === 'settings' ? 'active' : ''}`}
@@ -22,6 +23,7 @@ function Sidebar({ activeTab, onTabChange }: SidebarProps) {
         title="Settings"
       >
         <MdSettings size={20} />
+        <span className="sidebar-label">Settings</span>
       </button>
     </nav>
   );
