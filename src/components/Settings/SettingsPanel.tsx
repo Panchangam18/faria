@@ -819,10 +819,13 @@ function SettingsPanel({ currentTheme, onThemeChange }: SettingsPanelProps) {
         <div style={{
           fontSize: 'var(--font-size-sm)',
           color: 'var(--color-text-muted)',
-          marginBottom: 'var(--spacing-md)',
+          marginBottom: 'var(--spacing-sm)',
           textTransform: 'uppercase',
           letterSpacing: '0.05em',
-          fontWeight: 500
+          fontWeight: 500,
+          paddingLeft: 'var(--spacing-sm)',
+          paddingTop: 'var(--spacing-sm)',
+          paddingBottom: 'var(--spacing-sm)',
         }}>
           Shortcuts
         </div>
@@ -950,12 +953,15 @@ function SettingsPanel({ currentTheme, onThemeChange }: SettingsPanelProps) {
         {/* Preset Themes Grid */}
         <div style={{ marginBottom: 'var(--spacing-lg)' }}>
           <div style={{
-            fontSize: 'var(--font-size-sm)', 
+            fontSize: 'var(--font-size-sm)',
                     color: 'var(--color-text-muted)',
-            marginBottom: 'var(--spacing-md)',
+            marginBottom: 'var(--spacing-sm)',
             textTransform: 'uppercase',
             letterSpacing: '0.05em',
-            fontWeight: 500
+            fontWeight: 500,
+            paddingLeft: 'var(--spacing-sm)',
+            paddingTop: 'var(--spacing-sm)',
+            paddingBottom: 'var(--spacing-sm)',
           }}>
             Themes
               </div>
@@ -1059,10 +1065,13 @@ function SettingsPanel({ currentTheme, onThemeChange }: SettingsPanelProps) {
         <div style={{
           fontSize: 'var(--font-size-sm)',
           color: 'var(--color-text-muted)',
-          marginBottom: 'var(--spacing-md)',
+          marginBottom: 'var(--spacing-sm)',
           textTransform: 'uppercase',
           letterSpacing: '0.05em',
-          fontWeight: 500
+          fontWeight: 500,
+          paddingLeft: 'var(--spacing-sm)',
+          paddingTop: 'var(--spacing-sm)',
+          paddingBottom: 'var(--spacing-sm)',
         }}>
           Size
         </div>
@@ -1130,10 +1139,13 @@ function SettingsPanel({ currentTheme, onThemeChange }: SettingsPanelProps) {
         <div style={{
           fontSize: 'var(--font-size-sm)',
           color: 'var(--color-text-muted)',
-          marginBottom: 'var(--spacing-md)',
+          marginBottom: 'var(--spacing-sm)',
           textTransform: 'uppercase',
           letterSpacing: '0.05em',
-          fontWeight: 500
+          fontWeight: 500,
+          paddingLeft: 'var(--spacing-sm)',
+          paddingTop: 'var(--spacing-sm)',
+          paddingBottom: 'var(--spacing-sm)',
         }}>
           Agent Model
         </div>
@@ -1173,10 +1185,13 @@ function SettingsPanel({ currentTheme, onThemeChange }: SettingsPanelProps) {
         <div style={{
           fontSize: 'var(--font-size-sm)',
           color: 'var(--color-text-muted)',
-          marginBottom: 'var(--spacing-md)',
+          marginBottom: 'var(--spacing-sm)',
           textTransform: 'uppercase',
           letterSpacing: '0.05em',
-          fontWeight: 500
+          fontWeight: 500,
+          paddingLeft: 'var(--spacing-sm)',
+          paddingTop: 'var(--spacing-sm)',
+          paddingBottom: 'var(--spacing-sm)',
         }}>
           API Keys
         </div>
@@ -1298,10 +1313,13 @@ function SettingsPanel({ currentTheme, onThemeChange }: SettingsPanelProps) {
         <div style={{
           fontSize: 'var(--font-size-sm)',
           color: 'var(--color-text-muted)',
-          marginBottom: 'var(--spacing-md)',
+          marginBottom: 'var(--spacing-sm)',
           textTransform: 'uppercase',
           letterSpacing: '0.05em',
-          fontWeight: 500
+          fontWeight: 500,
+          paddingLeft: 'var(--spacing-sm)',
+          paddingTop: 'var(--spacing-sm)',
+          paddingBottom: 'var(--spacing-sm)',
         }}>
           Actions
         </div>
@@ -1366,7 +1384,10 @@ function SettingsPanel({ currentTheme, onThemeChange }: SettingsPanelProps) {
           display: 'flex',
           alignItems: 'center',
           gap: 'var(--spacing-sm)',
-          marginBottom: 'var(--spacing-md)'
+          marginBottom: 'var(--spacing-sm)',
+          paddingLeft: 'var(--spacing-sm)',
+          paddingTop: 'var(--spacing-sm)',
+          paddingBottom: 'var(--spacing-sm)',
         }}>
           <div style={{
             fontSize: 'var(--font-size-sm)',
@@ -1846,10 +1867,13 @@ function SettingsPanel({ currentTheme, onThemeChange }: SettingsPanelProps) {
         <div style={{
           fontSize: 'var(--font-size-sm)',
           color: 'var(--color-text-muted)',
-          marginBottom: 'var(--spacing-md)',
+          marginBottom: 'var(--spacing-sm)',
           textTransform: 'uppercase',
           letterSpacing: '0.05em',
-          fontWeight: 500
+          fontWeight: 500,
+          paddingLeft: 'var(--spacing-sm)',
+          paddingTop: 'var(--spacing-sm)',
+          paddingBottom: 'var(--spacing-sm)',
         }}>
           System Prompt
         </div>
