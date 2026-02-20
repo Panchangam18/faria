@@ -107,9 +107,20 @@ html, body {
 /* Main Panel */
 .main-panel {
   flex: 1;
-  padding: var(--spacing-lg) var(--spacing-lg) var(--spacing-lg) var(--spacing-md);
-  padding-top: 40px;
+  padding: 0 var(--spacing-lg) var(--spacing-lg) var(--spacing-md);
   overflow-y: auto;
+}
+
+.main-panel::before {
+  content: '';
+  display: block;
+  height: 40px;
+  position: sticky;
+  top: 0;
+  z-index: 11;
+  background: var(--color-primary);
+  margin-left: calc(-1 * var(--spacing-md));
+  margin-right: calc(-1 * var(--spacing-lg));
 }
 
 .panel-title {
@@ -275,6 +286,12 @@ pre {
   margin-bottom: var(--spacing-sm);
   padding-left: var(--spacing-sm);
   font-weight: 500;
+  position: sticky;
+  top: 40px;
+  z-index: 10;
+  background: var(--color-primary);
+  padding-top: var(--spacing-sm);
+  padding-bottom: var(--spacing-sm);
 }
 
 /* Empty State */
