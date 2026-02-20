@@ -315,11 +315,29 @@ export class AgentLoop {
         try {
           const connections = await this.composioService.getConnections();
           if (connections.length > 0) {
-            const accountLines = connections.map(c => {
-              const label = c.accountLabel ? ` (${c.accountLabel})` : '';
-              return `- ${c.displayName}${label}`;
-            });
-            systemPrompt += `\n\nCONNECTED INTEGRATIONS:\nThe user has the following accounts connected. When using integration tools, be aware of which account you are operating on:\n${accountLines.join('\n')}`;
+            // Group connections by app name
+            const byApp = new Map<string, typeof connections>();
+            for (const c of connections) {
+              const list = byApp.get(c.appName) || [];
+              list.push(c);
+              byApp.set(c.appName, list);
+            }
+
+            const accountLines: string[] = [];
+            for (const [, conns] of byApp) {
+              if (conns.length === 1) {
+                // Single account — no ID needed, Composio picks it automatically
+                accountLines.push(`- ${conns[0].displayName}`);
+              } else {
+                // Multiple accounts — show IDs so the agent can target the right one
+                for (const c of conns) {
+                  const label = c.accountLabel || 'Unknown';
+                  accountLines.push(`- ${c.displayName} — ${label} (connected_account_id: "${c.id}")`);
+                }
+              }
+            }
+
+            systemPrompt += `\n\nCONNECTED INTEGRATIONS:\nThe user has the following accounts connected. When multiple accounts exist for the same integration, use the connected_account_id parameter in tool calls to target the correct account.\n${accountLines.join('\n')}`;
           }
         } catch {
           // Don't block on connection info failure

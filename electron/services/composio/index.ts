@@ -1,6 +1,7 @@
 import { Composio } from '@composio/core';
 import { LangchainProvider } from '@composio/langchain';
 import { DynamicStructuredTool } from '@langchain/core/tools';
+import { z } from 'zod';
 import { initDatabase } from '../../db/sqlite';
 import { v4 as uuidv4 } from 'uuid';
 import 'dotenv/config';
@@ -230,18 +231,56 @@ export class ComposioService {
   }
 
   /**
-   * Get all available Composio tools formatted for LangChain
-   * Returns DynamicStructuredTool instances that handle their own execution
+   * Get all available Composio tools formatted for LangChain.
+   * Each tool is wrapped to accept an optional `connected_account_id` parameter,
+   * allowing the agent to target a specific account when multiple are connected.
    */
   async getTools(): Promise<DynamicStructuredTool[]> {
-    if (this.disabled || !this.session) {
+    if (this.disabled || !this.session || !this.composio) {
       return [];
     }
 
     try {
-      const tools = await this.session.tools();
-      console.log(`[Composio] Retrieved ${tools?.length || 0} tools`);
-      return tools || [];
+      const sessionTools: DynamicStructuredTool[] = await this.session.tools();
+      if (!sessionTools?.length) return [];
+
+      const wrapped = sessionTools.map((tool) => {
+        // COMPOSIO_* meta-tools (search, manage, multi-execute, workbench, etc.)
+        // must keep their session-based executor — they don't exist in the direct API
+        if (tool.name.startsWith('COMPOSIO_')) {
+          return tool;
+        }
+
+        // Extend the schema with connected_account_id
+        const originalSchema = tool.schema as z.ZodObject<any>;
+        const extendedSchema = originalSchema.extend({
+          connected_account_id: z.string().optional().describe(
+            'Optional: the connected account ID to use. Pass this to target a specific account when the user has multiple accounts connected for this integration.'
+          ),
+        });
+
+        const composio = this.composio!;
+        const userId = this.userId;
+
+        return new DynamicStructuredTool({
+          name: tool.name,
+          description: tool.description,
+          schema: extendedSchema,
+          func: async (args: Record<string, unknown>) => {
+            const { connected_account_id, ...toolArgs } = args;
+            const result = await composio.tools.execute(tool.name, {
+              userId,
+              connectedAccountId: connected_account_id as string | undefined,
+              dangerouslySkipVersionCheck: true,
+              arguments: toolArgs,
+            });
+            return JSON.stringify(result);
+          },
+        });
+      });
+
+      console.log(`[Composio] Retrieved ${wrapped.length} tools (with account selection)`);
+      return wrapped;
     } catch (error) {
       console.error('[Composio] Failed to get tools:', error);
       return [];
