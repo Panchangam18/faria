@@ -206,6 +206,7 @@ export interface FariaAPI {
       status: string;
       logo?: string;
       createdAt?: string;
+      accountLabel?: string;
     }>>;
     deleteConnection: (id: string) => Promise<boolean>;
     getAvailableApps: () => Promise<Array<{

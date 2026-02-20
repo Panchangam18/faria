@@ -311,6 +311,7 @@ function SettingsPanel({ currentTheme, onThemeChange }: SettingsPanelProps) {
     status: string;
     logo?: string;
     createdAt?: string;
+    accountLabel?: string;
   }>>([]);
   const [availableApps, setAvailableApps] = useState<Array<{
     name: string;
@@ -564,15 +565,9 @@ function SettingsPanel({ currentTheme, onThemeChange }: SettingsPanelProps) {
     }
   };
 
-  // Get set of already connected app names
-  const connectedAppNames = new Set(connections.map(c => c.appName));
-
   const filteredApps = availableApps.filter(app =>
-    // Exclude already connected apps
-    !connectedAppNames.has(app.name) &&
-    // Filter by search query
-    (app.displayName.toLowerCase().includes(integrationSearch.toLowerCase()) ||
-    app.name.toLowerCase().includes(integrationSearch.toLowerCase()))
+    app.displayName.toLowerCase().includes(integrationSearch.toLowerCase()) ||
+    app.name.toLowerCase().includes(integrationSearch.toLowerCase())
   );
 
   // Get available models based on API keys
@@ -1466,7 +1461,14 @@ function SettingsPanel({ currentTheme, onThemeChange }: SettingsPanelProps) {
                       {conn.displayName.charAt(0).toUpperCase()}
                     </div>
                   )}
-                  <span style={{ fontSize: 'var(--font-size-sm)' }}>{conn.displayName}</span>
+                  <span style={{ fontSize: 'var(--font-size-sm)' }}>
+                    {conn.displayName}
+                    {conn.accountLabel && (
+                      <span style={{ color: 'var(--color-text-muted)', marginLeft: 4 }}>
+                        ({conn.accountLabel})
+                      </span>
+                    )}
+                  </span>
                   <span
                     className="integration-delete"
                     onClick={() => handleDisconnect(conn.id)}

@@ -288,24 +288,6 @@ export class AgentLoop {
       let state = await this.stateExtractor.extractState(selectedText || undefined);
       this.toolExecutor.setCurrentState(state);
 
-      // Build user message and append to conversation history
-      const userPrompt = this.buildUserPrompt(query, state);
-      const systemPrompt = getAgentSystemPrompt();
-      const userMessage = typeof userPrompt === 'string'
-        ? new HumanMessage(userPrompt)
-        : new HumanMessage({ content: userPrompt });
-
-      if (this.conversationHistory.length === 0) {
-        // First turn: initialize with system prompt + user message
-        this.conversationHistory = [new SystemMessage(systemPrompt), userMessage];
-      } else {
-        // Follow-up turn: update system prompt, append new user message
-        this.conversationHistory[0] = new SystemMessage(systemPrompt);
-        this.conversationHistory.push(userMessage);
-      }
-
-      const messages = this.conversationHistory;
-
       // Check tool settings
       const toolSettings = getToolSettings();
       console.log(`[Faria] Tool settings:`, toolSettings);
@@ -326,6 +308,40 @@ export class AgentLoop {
       } else {
         console.log(`[Faria] Integrations disabled, skipping Composio tools`);
       }
+
+      // Build system prompt with connected accounts context
+      let systemPrompt = getAgentSystemPrompt();
+      if (composioTools.length > 0) {
+        try {
+          const connections = await this.composioService.getConnections();
+          if (connections.length > 0) {
+            const accountLines = connections.map(c => {
+              const label = c.accountLabel ? ` (${c.accountLabel})` : '';
+              return `- ${c.displayName}${label}`;
+            });
+            systemPrompt += `\n\nCONNECTED INTEGRATIONS:\nThe user has the following accounts connected. When using integration tools, be aware of which account you are operating on:\n${accountLines.join('\n')}`;
+          }
+        } catch {
+          // Don't block on connection info failure
+        }
+      }
+
+      // Build user message and append to conversation history
+      const userPrompt = this.buildUserPrompt(query, state);
+      const userMessage = typeof userPrompt === 'string'
+        ? new HumanMessage(userPrompt)
+        : new HumanMessage({ content: userPrompt });
+
+      if (this.conversationHistory.length === 0) {
+        // First turn: initialize with system prompt + user message
+        this.conversationHistory = [new SystemMessage(systemPrompt), userMessage];
+      } else {
+        // Follow-up turn: update system prompt, append new user message
+        this.conversationHistory[0] = new SystemMessage(systemPrompt);
+        this.conversationHistory.push(userMessage);
+      }
+
+      const messages = this.conversationHistory;
 
       // Merge all tools - both built-in and Composio are now DynamicStructuredTools
       const allTools = [...builtinTools, ...composioTools];
