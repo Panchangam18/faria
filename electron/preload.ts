@@ -23,6 +23,11 @@ contextBridge.exposeInMainWorld('faria', {
       ipcRenderer.on('agent:chunk', handler);
       return () => ipcRenderer.removeListener('agent:chunk', handler);
     },
+    onChunkClear: (callback: () => void) => {
+      const handler = () => callback();
+      ipcRenderer.on('agent:chunk-clear', handler);
+      return () => ipcRenderer.removeListener('agent:chunk-clear', handler);
+    },
     onAuthRequired: (callback: (data: { toolkit: string; redirectUrl: string }) => void) => {
       const handler = (_event: Electron.IpcRendererEvent, data: { toolkit: string; redirectUrl: string }) => callback(data);
       ipcRenderer.on('agent:auth-required', handler);
@@ -168,6 +173,7 @@ export interface FariaAPI {
     onStatus: (callback: (status: string) => void) => () => void;
     onResponse: (callback: (response: string) => void) => () => void;
     onChunk: (callback: (chunk: string) => void) => () => void;
+    onChunkClear: (callback: () => void) => () => void;
     onAuthRequired: (callback: (data: { toolkit: string; redirectUrl: string }) => void) => () => void;
     onToolApprovalRequired: (callback: (data: { toolName: string; toolDescription: string; args: Record<string, unknown>; isComposio: boolean; displayName?: string; details?: Record<string, string> }) => void) => () => void;
     toolApprovalResponse: (approved: boolean) => void;

@@ -593,6 +593,12 @@ function CommandBar() {
       });
     });
 
+    // Clear streaming display when a new text block starts (after tool calls)
+    const cleanupChunkClear = window.faria.agent.onChunkClear(() => {
+      setStreamingResponse('');
+      streamingResponseRef.current = '';
+    });
+
     // Listen for final response from agent
     const cleanupResponse = window.faria.agent.onResponse((newResponse: string) => {
       if (newResponse) {
@@ -677,6 +683,7 @@ function CommandBar() {
       cleanupReady();
       cleanupStatus();
       cleanupChunk();
+      cleanupChunkClear();
       cleanupResponse();
       cleanupAuth();
       cleanupToolApproval();

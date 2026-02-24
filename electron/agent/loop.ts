@@ -891,6 +891,8 @@ export class AgentLoop {
               }));
             }
           }
+          // Clear the streaming display so the next text block replaces it
+          this.sendChunkClear();
           this.sendStatus('Thinking...');
           state = await this.stateExtractor.extractState();
           this.toolExecutor.setCurrentState(state);
@@ -924,11 +926,12 @@ export class AgentLoop {
         appendToDailyLog(query, finalResponse, toolsUsed);
       }
 
-      // Save to history
+      // Save to history — use full accumulated text so the trace includes all text blocks
       const db = initDatabase();
+      const historyResponse = streamedResponseText || finalResponse;
       db.prepare('INSERT INTO history (query, response, tools_used, agent_type, actions, context_text) VALUES (?, ?, ?, ?, ?, ?)').run(
         query,
-        finalResponse,
+        historyResponse,
         toolsUsed.length > 0 ? JSON.stringify(toolsUsed) : null,
         'regular',
         actions.length > 0 ? JSON.stringify(actions) : null,
@@ -1237,6 +1240,16 @@ export class AgentLoop {
     const windows = BrowserWindow.getAllWindows();
     windows.forEach(win => {
       win.webContents.send('agent:chunk', chunk);
+    });
+  }
+
+  /**
+   * Tell UI to clear the streaming display (new text block starting after tool calls)
+   */
+  private sendChunkClear(): void {
+    const windows = BrowserWindow.getAllWindows();
+    windows.forEach(win => {
+      win.webContents.send('agent:chunk-clear');
     });
   }
 
