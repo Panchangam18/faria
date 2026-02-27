@@ -95,6 +95,13 @@ contextBridge.exposeInMainWorld('faria', {
     openExternal: (url: string) => ipcRenderer.invoke('shell:openExternal', url)
   },
 
+  // Auth
+  auth: {
+    googleSignIn: () => ipcRenderer.invoke('auth:google-signin'),
+    getUser: () => ipcRenderer.invoke('auth:get-user'),
+    signOut: () => ipcRenderer.invoke('auth:sign-out'),
+  },
+
   // Onboarding
   onboarding: {
     checkAccessibility: () => ipcRenderer.invoke('onboarding:checkAccessibility'),
@@ -222,6 +229,11 @@ export interface FariaAPI {
       categories?: string[];
     }>>;
     initiateConnection: (appName: string) => Promise<{ redirectUrl: string } | null>;
+  };
+  auth: {
+    googleSignIn: () => Promise<{ success: boolean; email?: string; uid?: string; error?: string }>;
+    getUser: () => Promise<{ email: string; uid: string } | null>;
+    signOut: () => Promise<{ success: boolean }>;
   };
   onboarding: {
     checkAccessibility: () => Promise<boolean>;

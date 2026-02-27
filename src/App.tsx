@@ -3,6 +3,7 @@ import Sidebar from './components/Sidebar';
 import HistoryPanel from './components/Sidebar/HistoryPanel';
 import SettingsPanel from './components/Settings/SettingsPanel';
 import Onboarding from './components/Onboarding';
+import SignIn from './components/SignIn';
 
 type Tab = 'history' | 'settings';
 
@@ -84,10 +85,14 @@ const applyThemeColors = (colors: { background: string; text: string; accent: st
 function App() {
   const [activeTab, setActiveTab] = useState<Tab>('history');
   const [theme, setTheme] = useState<string>('default');
+  const [userAuth, setUserAuth] = useState<{ email: string; uid: string } | null | undefined>(undefined);
   const [onboardingCompleted, setOnboardingCompleted] = useState<boolean | null>(null);
 
   useEffect(() => {
     const init = async () => {
+      const user = await window.faria.auth.getUser();
+      setUserAuth(user);
+
       const completed = await window.faria.settings.get('onboardingCompleted');
       setOnboardingCompleted(completed === 'true');
 
@@ -103,7 +108,15 @@ function App() {
     await window.faria.settings.set('theme', newTheme);
   };
 
-  if (onboardingCompleted === null) return null;
+  if (userAuth === undefined || onboardingCompleted === null) return null;
+
+  if (userAuth === null) {
+    return (
+      <SignIn onSignIn={(email, uid) => {
+        setUserAuth({ email, uid });
+      }} />
+    );
+  }
 
   if (!onboardingCompleted) {
     return (

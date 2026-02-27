@@ -31,6 +31,7 @@
     "chokidar": "^5.0.0",
     "dotenv": "^17.2.3",
     "electron-store": "^8.2.0",
+    "firebase": "^12.9.0",
     "langsmith": "^0.4.5",
     "marked": "^17.0.2",
     "node-addon-api": "^8.5.0",

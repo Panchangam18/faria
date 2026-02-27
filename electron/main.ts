@@ -98,7 +98,6 @@ function createMainWindow() {
 
   if (isDev) {
     mainWindow.loadURL('http://localhost:5173');
-    mainWindow.webContents.openDevTools();
   } else {
     mainWindow.loadFile(join(__dirname, '../dist/index.html'));
   }
@@ -837,6 +836,41 @@ function setupIPC() {
     } catch (error) {
       return { success: false, error: String(error) };
     }
+  });
+
+  // Auth IPC
+  ipcMain.handle('auth:google-signin', async () => {
+    try {
+      const { googleSignIn } = await import('./services/google-auth');
+      const result = await googleSignIn();
+      if (result.success && result.email && result.uid) {
+        const db = initDatabase();
+        db.prepare('INSERT OR REPLACE INTO settings (key, value) VALUES (?, ?)').run('userEmail', result.email);
+        db.prepare('INSERT OR REPLACE INTO settings (key, value) VALUES (?, ?)').run('userUid', result.uid);
+        db.prepare('INSERT OR REPLACE INTO settings (key, value) VALUES (?, ?)').run('authProvider', 'google');
+      }
+      return result;
+    } catch (error) {
+      return { success: false, error: String(error) };
+    }
+  });
+
+  ipcMain.handle('auth:get-user', async () => {
+    const db = initDatabase();
+    const email = db.prepare('SELECT value FROM settings WHERE key = ?').get('userEmail') as { value: string } | undefined;
+    const uid = db.prepare('SELECT value FROM settings WHERE key = ?').get('userUid') as { value: string } | undefined;
+    if (email?.value && uid?.value) {
+      return { email: email.value, uid: uid.value };
+    }
+    return null;
+  });
+
+  ipcMain.handle('auth:sign-out', async () => {
+    const db = initDatabase();
+    db.prepare('DELETE FROM settings WHERE key = ?').run('userEmail');
+    db.prepare('DELETE FROM settings WHERE key = ?').run('userUid');
+    db.prepare('DELETE FROM settings WHERE key = ?').run('authProvider');
+    return { success: true };
   });
 
   // Settings IPC
