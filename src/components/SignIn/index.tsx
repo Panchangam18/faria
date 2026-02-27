@@ -1,10 +1,10 @@
 import React, { useState } from 'react';
 import { auth } from '../../lib/firebase';
-import { signInWithEmailAndPassword, createUserWithEmailAndPassword } from 'firebase/auth';
+import { signInWithEmailAndPassword, createUserWithEmailAndPassword, signInAnonymously } from 'firebase/auth';
 import FariaWordmark from '../FariaWordmark';
 
 interface SignInProps {
-  onSignIn: (email: string, uid: string) => void;
+  onSignIn: () => void;
 }
 
 function SignIn({ onSignIn }: SignInProps) {
@@ -21,12 +21,29 @@ function SignIn({ onSignIn }: SignInProps) {
     try {
       const result = await window.faria.auth.googleSignIn();
       if (result.success && result.email && result.uid) {
-        onSignIn(result.email, result.uid);
+        onSignIn();
       } else {
         setError(result.error || 'Google sign-in failed.');
       }
     } catch {
       setError('Google sign-in failed.');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleGuestSignIn = async () => {
+    setError(null);
+    setLoading(true);
+    try {
+      const userCredential = await signInAnonymously(auth);
+      const user = userCredential.user;
+      await window.faria.settings.set('userEmail', 'guest');
+      await window.faria.settings.set('userUid', user.uid);
+      await window.faria.settings.set('authProvider', 'anonymous');
+      onSignIn();
+    } catch {
+      setError('Guest sign-in failed.');
     } finally {
       setLoading(false);
     }
@@ -49,7 +66,7 @@ function SignIn({ onSignIn }: SignInProps) {
       await window.faria.settings.set('userEmail', userEmail);
       await window.faria.settings.set('userUid', userUid);
       await window.faria.settings.set('authProvider', 'email');
-      onSignIn(userEmail, userUid);
+      onSignIn();
     } catch (err: unknown) {
       const firebaseError = err as { code?: string; message?: string };
       const code = firebaseError.code;
@@ -75,9 +92,17 @@ function SignIn({ onSignIn }: SignInProps) {
     height: '100%',
     display: 'flex',
     alignItems: 'center',
+    justifyContent: 'center',
     background: 'var(--color-background)',
     position: 'relative',
     overflow: 'hidden',
+  };
+
+  const innerStyle: React.CSSProperties = {
+    display: 'flex',
+    alignItems: 'center',
+    width: '100%',
+    maxWidth: 720,
   };
 
   const leftStyle: React.CSSProperties = {
@@ -163,6 +188,12 @@ function SignIn({ onSignIn }: SignInProps) {
     </svg>
   );
 
+  const GuestIcon = () => (
+    <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor">
+      <path d="M12 12c2.21 0 4-1.79 4-4s-1.79-4-4-4-4 1.79-4 4 1.79 4 4 4zm0 2c-2.67 0-8 1.34-8 4v2h16v-2c0-2.66-5.33-4-8-4z"/>
+    </svg>
+  );
+
   const renderButtons = () => (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
       <button
@@ -185,6 +216,17 @@ function SignIn({ onSignIn }: SignInProps) {
       >
         <EmailIcon />
         Sign in with Email
+      </button>
+
+      <button
+        style={authButtonStyle}
+        onClick={handleGuestSignIn}
+        disabled={loading}
+        onMouseEnter={e => { if (!loading) e.currentTarget.style.background = 'var(--color-hover)'; }}
+        onMouseLeave={e => { if (!loading) e.currentTarget.style.background = 'var(--color-surface)'; }}
+      >
+        <GuestIcon />
+        Continue as Guest
       </button>
     </div>
   );
@@ -263,35 +305,37 @@ function SignIn({ onSignIn }: SignInProps) {
         zIndex: 10,
       } as unknown as React.CSSProperties} />
 
-      <div style={leftStyle}>
-        <div style={{ marginTop: -20 }}>
-          <FariaWordmark height={80} />
+      <div style={innerStyle}>
+        <div style={leftStyle}>
+          <div style={{ marginTop: -20 }}>
+            <FariaWordmark height={80} />
+          </div>
         </div>
-      </div>
 
-      {/* Vertical divider */}
-      <div style={{
-        width: 1,
-        background: 'var(--color-border)',
-        alignSelf: 'center',
-        height: '75%',
-      }} />
+        {/* Vertical divider */}
+        <div style={{
+          width: 1,
+          background: 'var(--color-border)',
+          alignSelf: 'center',
+          height: '75%',
+        }} />
 
-      <div style={rightStyle}>
-        {mode === 'buttons' ? renderButtons() : renderEmailForm()}
+        <div style={rightStyle}>
+          {mode === 'buttons' ? renderButtons() : renderEmailForm()}
 
-        {error && (
-          <p style={{
-            marginTop: 16,
-            fontSize: 12,
-            color: '#e94560',
-            maxWidth: 280,
-            textAlign: 'center',
-            lineHeight: 1.4,
-          }}>
-            {error}
-          </p>
-        )}
+          {error && (
+            <p style={{
+              marginTop: 16,
+              fontSize: 12,
+              color: '#e94560',
+              maxWidth: 280,
+              textAlign: 'center',
+              lineHeight: 1.4,
+            }}>
+              {error}
+            </p>
+          )}
+        </div>
       </div>
     </div>
   );

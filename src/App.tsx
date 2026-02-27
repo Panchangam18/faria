@@ -2,10 +2,19 @@ import React, { useState, useEffect } from 'react';
 import Sidebar from './components/Sidebar';
 import HistoryPanel from './components/Sidebar/HistoryPanel';
 import SettingsPanel from './components/Settings/SettingsPanel';
+import AccountPanel from './components/Settings/AccountPanel';
 import Onboarding from './components/Onboarding';
 import SignIn from './components/SignIn';
 
-type Tab = 'history' | 'settings';
+type Tab = 'history' | 'settings' | 'account';
+
+interface UserProfile {
+  email: string;
+  uid: string;
+  displayName: string | null;
+  photoUrl: string | null;
+  provider: string | null;
+}
 
 const PRESET_THEMES = [
   {
@@ -85,7 +94,7 @@ const applyThemeColors = (colors: { background: string; text: string; accent: st
 function App() {
   const [activeTab, setActiveTab] = useState<Tab>('history');
   const [theme, setTheme] = useState<string>('default');
-  const [userAuth, setUserAuth] = useState<{ email: string; uid: string } | null | undefined>(undefined);
+  const [userAuth, setUserAuth] = useState<UserProfile | null | undefined>(undefined);
   const [onboardingCompleted, setOnboardingCompleted] = useState<boolean | null>(null);
 
   useEffect(() => {
@@ -112,8 +121,9 @@ function App() {
 
   if (userAuth === null) {
     return (
-      <SignIn onSignIn={(email, uid) => {
-        setUserAuth({ email, uid });
+      <SignIn onSignIn={async () => {
+        const user = await window.faria.auth.getUser();
+        setUserAuth(user);
       }} />
     );
   }
@@ -132,16 +142,21 @@ function App() {
       <div className="app-header"></div>
 
       <div className="app-content">
-        <Sidebar activeTab={activeTab} onTabChange={setActiveTab} />
+        <Sidebar activeTab={activeTab} onTabChange={setActiveTab} userProfile={userAuth} />
 
         <main className="main-panel">
-          {activeTab === 'history' && <HistoryPanel />}
-          {activeTab === 'settings' && (
-            <SettingsPanel
-              currentTheme={theme}
-              onThemeChange={handleThemeChange}
-            />
-          )}
+          <div className="main-panel-inner">
+            {activeTab === 'history' && <HistoryPanel />}
+            {activeTab === 'settings' && (
+              <SettingsPanel
+                currentTheme={theme}
+                onThemeChange={handleThemeChange}
+              />
+            )}
+            {activeTab === 'account' && (
+              <AccountPanel userProfile={userAuth} />
+            )}
+          </div>
         </main>
       </div>
     </div>

@@ -829,7 +829,7 @@ function SettingsPanel({ currentTheme, onThemeChange }: SettingsPanelProps) {
           display: 'flex',
           flexDirection: 'column',
           gap: 'var(--spacing-sm)',
-          marginLeft: 'var(--spacing-md)',
+          marginLeft: 'calc(var(--spacing-md) * 2)',
         }}>
           {/* Command Bar Toggle */}
           <div style={{
@@ -965,7 +965,7 @@ function SettingsPanel({ currentTheme, onThemeChange }: SettingsPanelProps) {
                     display: 'flex',
                     gap: 'var(--spacing-sm)',
                     flexWrap: 'wrap',
-                    marginLeft: 'var(--spacing-md)',
+                    marginLeft: 'calc(var(--spacing-md) * 2)',
                   }}>
             {PRESET_THEMES.map((theme) => {
               const isSelected = currentTheme === theme.id;
@@ -1070,7 +1070,7 @@ function SettingsPanel({ currentTheme, onThemeChange }: SettingsPanelProps) {
         }}>
           Size
         </div>
-        <div style={{ marginLeft: 'var(--spacing-md)' }}>
+        <div style={{ marginLeft: 'calc(var(--spacing-md) * 2)' }}>
           {(() => {
             const sizes = ['small', 'medium', 'large'] as const;
             const labels: Record<string, string> = { small: 'Small', medium: 'Medium', large: 'Large' };
@@ -1145,7 +1145,7 @@ function SettingsPanel({ currentTheme, onThemeChange }: SettingsPanelProps) {
           Agent Model
         </div>
 
-        <div style={{ marginLeft: 'var(--spacing-md)' }}>
+        <div style={{ marginLeft: 'calc(var(--spacing-md) * 2)' }}>
           <select
             value={selectedModel}
             onChange={(e) => {
@@ -1195,7 +1195,7 @@ function SettingsPanel({ currentTheme, onThemeChange }: SettingsPanelProps) {
           display: 'flex',
           flexDirection: 'column',
           gap: 'var(--spacing-md)',
-          marginLeft: 'var(--spacing-md)',
+          marginLeft: 'calc(var(--spacing-md) * 2)',
         }}>
           <div>
             <label style={{
@@ -1323,8 +1323,7 @@ function SettingsPanel({ currentTheme, onThemeChange }: SettingsPanelProps) {
           display: 'flex',
           flexDirection: 'column',
           gap: '2px',
-          marginLeft: 'var(--spacing-sm)',
-          paddingLeft: 'var(--spacing-sm)',
+          marginLeft: 'calc(var(--spacing-md) * 2)',
         }}>
           {[
             { key: 'screenshot', name: 'Screenshots', description: 'Capture screen images' },
@@ -1408,7 +1407,7 @@ function SettingsPanel({ currentTheme, onThemeChange }: SettingsPanelProps) {
           </span>
         </div>
 
-        <div style={{ marginLeft: 'var(--spacing-md)' }}>
+        <div style={{ marginLeft: 'calc(var(--spacing-md) * 2)' }}>
           {integrationsLoading ? (
             <div style={{
               padding: 'var(--spacing-sm) 0',
@@ -1880,7 +1879,7 @@ function SettingsPanel({ currentTheme, onThemeChange }: SettingsPanelProps) {
           System Prompt
         </div>
 
-        <div style={{ marginLeft: 'var(--spacing-md)' }}>
+        <div style={{ marginLeft: 'calc(var(--spacing-md) * 2)' }}>
           <textarea
             value={agentPrompt}
             onChange={(e) => {

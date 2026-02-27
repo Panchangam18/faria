@@ -231,8 +231,8 @@ export interface FariaAPI {
     initiateConnection: (appName: string) => Promise<{ redirectUrl: string } | null>;
   };
   auth: {
-    googleSignIn: () => Promise<{ success: boolean; email?: string; uid?: string; error?: string }>;
-    getUser: () => Promise<{ email: string; uid: string } | null>;
+    googleSignIn: () => Promise<{ success: boolean; email?: string; uid?: string; displayName?: string; photoUrl?: string; error?: string }>;
+    getUser: () => Promise<{ email: string; uid: string; displayName: string | null; photoUrl: string | null; provider: string | null } | null>;
     signOut: () => Promise<{ success: boolean }>;
   };
   onboarding: {

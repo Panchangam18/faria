@@ -1,68 +1,35 @@
 import { BrowserWindow } from 'electron';
 
-const FIREBASE_CONFIG = {
-  apiKey: 'AIzaSyA7222J2l9CiCMrX6xMUkIVkiTGC88pSas',
-  authDomain: 'faria-6f4b8.firebaseapp.com',
-  projectId: 'faria-6f4b8',
-  storageBucket: 'faria-6f4b8.firebasestorage.app',
-  messagingSenderId: '1002852709892',
-  appId: '1:1002852709892:web:3c5fd2ebe290aa6e68e751',
-};
+const FIREBASE_API_KEY = 'AIzaSyA7222J2l9CiCMrX6xMUkIVkiTGC88pSas';
+const FIREBASE_AUTH_DOMAIN = 'faria-6f4b8.firebaseapp.com';
+const REDIRECT_URI = `https://${FIREBASE_AUTH_DOMAIN}/__/auth/handler`;
 
-function buildAuthHTML(): string {
-  return `<!DOCTYPE html>
-<html>
-<head>
-  <title>Sign in with Google</title>
-  <style>
-    body {
-      margin: 0;
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      height: 100vh;
-      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
-      background: #1a1a1a;
-      color: #e0e0e0;
+export async function googleSignIn(): Promise<{ success: boolean; email?: string; uid?: string; displayName?: string; photoUrl?: string; error?: string }> {
+  // Use Firebase's createAuthUri to get the full Google OAuth URL
+  let authUri: string;
+  let sessionId: string;
+  try {
+    const res = await fetch(
+      `https://www.googleapis.com/identitytoolkit/v3/relyingparty/createAuthUri?key=${FIREBASE_API_KEY}`,
+      {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          providerId: 'google.com',
+          continueUri: REDIRECT_URI,
+        }),
+      }
+    );
+    const data = await res.json();
+    if (!data.authUri) {
+      return { success: false, error: data.error?.message || 'Failed to initialize Google sign-in.' };
     }
-    .status { font-size: 14px; text-align: center; }
-    .error { color: #e94560; }
-  </style>
-</head>
-<body>
-  <div class="status" id="status">Opening Google Sign-In...</div>
-  <script type="module">
-    import { initializeApp } from 'https://www.gstatic.com/firebasejs/11.1.0/firebase-app.js';
-    import { getAuth, signInWithPopup, GoogleAuthProvider } from 'https://www.gstatic.com/firebasejs/11.1.0/firebase-auth.js';
+    authUri = data.authUri;
+    sessionId = data.sessionId;
+  } catch {
+    return { success: false, error: 'Failed to connect to Firebase.' };
+  }
 
-    const app = initializeApp(${JSON.stringify(FIREBASE_CONFIG)});
-    const auth = getAuth(app);
-    const provider = new GoogleAuthProvider();
-    provider.addScope('email');
-    provider.addScope('profile');
-
-    try {
-      const result = await signInWithPopup(auth, provider);
-      const user = result.user;
-      document.title = JSON.stringify({
-        success: true,
-        email: user.email,
-        uid: user.uid,
-      });
-    } catch (err) {
-      document.getElementById('status').className = 'status error';
-      document.getElementById('status').textContent = 'Sign-in failed: ' + err.message;
-      document.title = JSON.stringify({
-        success: false,
-        error: err.message,
-      });
-    }
-  </script>
-</body>
-</html>`;
-}
-
-export async function googleSignIn(): Promise<{ success: boolean; email?: string; uid?: string; error?: string }> {
   return new Promise((resolve) => {
     const authWindow = new BrowserWindow({
       width: 500,
@@ -76,25 +43,79 @@ export async function googleSignIn(): Promise<{ success: boolean; email?: string
 
     let resolved = false;
 
-    authWindow.webContents.on('page-title-updated', (_event, title) => {
+    authWindow.loadURL(authUri);
+
+    // After Google auth, the user is redirected to Firebase's auth handler page.
+    // That page receives the id_token in the URL fragment and processes it.
+    // We intercept navigation to the auth handler to extract the id_token ourselves.
+    authWindow.webContents.on('will-navigate', (_event, url) => {
+      handleRedirect(url);
+    });
+
+    authWindow.webContents.on('will-redirect', (_event, url) => {
+      handleRedirect(url);
+    });
+
+    async function handleRedirect(url: string) {
+      if (resolved) return;
+
+      // Check if this is the redirect back to the Firebase auth handler with the token
+      if (!url.startsWith(REDIRECT_URI)) return;
+
+      // The id_token is in the URL fragment (after #)
+      const hashPart = url.split('#')[1];
+      if (!hashPart) return;
+
+      const hashParams = new URLSearchParams(hashPart);
+      const idToken = hashParams.get('id_token');
+
+      if (!idToken) {
+        const error = hashParams.get('error') || 'No token received';
+        resolved = true;
+        authWindow.close();
+        resolve({ success: false, error });
+        return;
+      }
+
       try {
-        const result = JSON.parse(title);
-        if (result.success !== undefined) {
+        // Exchange the Google ID token for a Firebase user
+        const res = await fetch(
+          `https://identitytoolkit.googleapis.com/v1/accounts:signInWithIdp?key=${FIREBASE_API_KEY}`,
+          {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              postBody: `id_token=${idToken}&providerId=google.com`,
+              requestUri: REDIRECT_URI,
+              returnIdpCredential: true,
+              returnSecureToken: true,
+              sessionId,
+            }),
+          }
+        );
+
+        const data = await res.json();
+
+        if (data.email && data.localId) {
           resolved = true;
           authWindow.close();
-          resolve(result);
+          resolve({ success: true, email: data.email, uid: data.localId, displayName: data.displayName, photoUrl: data.photoUrl });
+        } else {
+          resolved = true;
+          authWindow.close();
+          resolve({ success: false, error: data.error?.message || 'Firebase sign-in failed.' });
         }
-      } catch {
-        // Title isn't our JSON result yet, ignore
+      } catch (err) {
+        resolved = true;
+        authWindow.close();
+        resolve({ success: false, error: String(err) });
       }
-    });
+    }
 
     authWindow.on('closed', () => {
       if (!resolved) {
         resolve({ success: false, error: 'Sign-in window was closed.' });
       }
     });
-
-    authWindow.loadURL(`data:text/html;charset=utf-8,${encodeURIComponent(buildAuthHTML())}`);
   });
 }

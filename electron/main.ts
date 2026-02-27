@@ -848,6 +848,12 @@ function setupIPC() {
         db.prepare('INSERT OR REPLACE INTO settings (key, value) VALUES (?, ?)').run('userEmail', result.email);
         db.prepare('INSERT OR REPLACE INTO settings (key, value) VALUES (?, ?)').run('userUid', result.uid);
         db.prepare('INSERT OR REPLACE INTO settings (key, value) VALUES (?, ?)').run('authProvider', 'google');
+        if (result.displayName) {
+          db.prepare('INSERT OR REPLACE INTO settings (key, value) VALUES (?, ?)').run('userDisplayName', result.displayName);
+        }
+        if (result.photoUrl) {
+          db.prepare('INSERT OR REPLACE INTO settings (key, value) VALUES (?, ?)').run('userPhotoUrl', result.photoUrl);
+        }
       }
       return result;
     } catch (error) {
@@ -860,16 +866,25 @@ function setupIPC() {
     const email = db.prepare('SELECT value FROM settings WHERE key = ?').get('userEmail') as { value: string } | undefined;
     const uid = db.prepare('SELECT value FROM settings WHERE key = ?').get('userUid') as { value: string } | undefined;
     if (email?.value && uid?.value) {
-      return { email: email.value, uid: uid.value };
+      const displayName = db.prepare('SELECT value FROM settings WHERE key = ?').get('userDisplayName') as { value: string } | undefined;
+      const photoUrl = db.prepare('SELECT value FROM settings WHERE key = ?').get('userPhotoUrl') as { value: string } | undefined;
+      const provider = db.prepare('SELECT value FROM settings WHERE key = ?').get('authProvider') as { value: string } | undefined;
+      return {
+        email: email.value,
+        uid: uid.value,
+        displayName: displayName?.value || null,
+        photoUrl: photoUrl?.value || null,
+        provider: provider?.value || null,
+      };
     }
     return null;
   });
 
   ipcMain.handle('auth:sign-out', async () => {
     const db = initDatabase();
-    db.prepare('DELETE FROM settings WHERE key = ?').run('userEmail');
-    db.prepare('DELETE FROM settings WHERE key = ?').run('userUid');
-    db.prepare('DELETE FROM settings WHERE key = ?').run('authProvider');
+    db.prepare('DELETE FROM settings WHERE key IN (?, ?, ?, ?, ?)').run(
+      'userEmail', 'userUid', 'authProvider', 'userDisplayName', 'userPhotoUrl'
+    );
     return { success: true };
   });
 
