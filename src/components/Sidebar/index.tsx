@@ -1,3 +1,4 @@
+import { useState } from 'react';
 import { MdHistory, MdSettings } from 'react-icons/md';
 
 interface UserProfile {
@@ -15,6 +16,7 @@ interface SidebarProps {
 }
 
 function Sidebar({ activeTab, onTabChange, userProfile }: SidebarProps) {
+  const [imgFailed, setImgFailed] = useState(false);
   const initial = userProfile?.displayName
     ? userProfile.displayName.charAt(0).toUpperCase()
     : userProfile?.email === 'guest'
@@ -52,10 +54,12 @@ function Sidebar({ activeTab, onTabChange, userProfile }: SidebarProps) {
           onClick={() => onTabChange('account')}
           title={userProfile.displayName || userProfile.email}
         >
-          {userProfile.photoUrl ? (
+          {userProfile.photoUrl && !imgFailed ? (
             <img
               src={userProfile.photoUrl}
               alt=""
+              referrerPolicy="no-referrer"
+              onError={() => setImgFailed(true)}
               style={{
                 width: 24,
                 height: 24,

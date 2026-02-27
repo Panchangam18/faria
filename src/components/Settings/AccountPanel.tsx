@@ -21,6 +21,7 @@ function AccountPanel({ userProfile }: AccountPanelProps) {
   const [currentPassword, setCurrentPassword] = useState('');
   const [message, setMessage] = useState<{ text: string; type: 'success' | 'error' } | null>(null);
   const [saving, setSaving] = useState(false);
+  const [imgFailed, setImgFailed] = useState(false);
 
   const isEmailProvider = userProfile.provider === 'email';
   const isGuest = userProfile.email === 'guest';
@@ -165,10 +166,12 @@ function AccountPanel({ userProfile }: AccountPanelProps) {
           marginLeft: 'calc(var(--spacing-md) * 2)',
           marginBottom: 'var(--spacing-lg)',
         }}>
-          {userProfile.photoUrl ? (
+          {userProfile.photoUrl && !imgFailed ? (
             <img
               src={userProfile.photoUrl}
               alt=""
+              referrerPolicy="no-referrer"
+              onError={() => setImgFailed(true)}
               style={{ width: 48, height: 48, borderRadius: '50%', objectFit: 'cover' }}
             />
           ) : (
