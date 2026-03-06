@@ -1,5 +1,5 @@
-import React, { useState, useEffect } from 'react';
-import { MdDescription, MdChevronRight, MdExpandMore } from 'react-icons/md';
+import React, { useState, useEffect, useRef, useMemo } from 'react';
+import { MdDescription, MdChevronRight, MdExpandMore, MdClose, MdKeyboardArrowUp, MdKeyboardArrowDown } from 'react-icons/md';
 import { marked } from 'marked';
 
 interface ActionData {
@@ -221,10 +221,14 @@ function HistoryPanel() {
   const [expandedId, setExpandedId] = useState<number | null>(null);
   const [hoveredId, setHoveredId] = useState<number | null>(null);
   const [loading, setLoading] = useState<boolean>(true);
+  const [searchQuery, setSearchQuery] = useState('');
+  const [searchOpen, setSearchOpen] = useState(false);
+  const [activeMatchIndex, setActiveMatchIndex] = useState(0);
+  const searchInputRef = useRef<HTMLInputElement>(null);
+  const matchRefs = useRef<Map<number, HTMLElement>>(new Map());
 
   useEffect(() => {
     loadHistory();
-    // Re-fetch history when the agent completes a response (history is saved before this event fires)
     const cleanup = window.faria.agent.onResponse(() => {
       loadHistory();
     });
@@ -268,7 +272,68 @@ function HistoryPanel() {
     return groups;
   };
 
-  const grouped = groupByDate(history);
+  const filteredHistory = useMemo(() => {
+    if (!searchQuery) return history;
+    const q = searchQuery.toLowerCase();
+    return history.filter(item =>
+      item.query.toLowerCase().includes(q) ||
+      (item.response && item.response.toLowerCase().includes(q)) ||
+      (item.context_text && item.context_text.toLowerCase().includes(q))
+    );
+  }, [history, searchQuery]);
+
+  const matchCount = filteredHistory.length;
+
+  // Reset active match when query changes
+  useEffect(() => {
+    setActiveMatchIndex(0);
+  }, [searchQuery]);
+
+  // Scroll active match into view
+  useEffect(() => {
+    if (!searchQuery || matchCount === 0) return;
+    const item = filteredHistory[activeMatchIndex];
+    if (item) {
+      const el = matchRefs.current.get(item.id);
+      el?.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+    }
+  }, [activeMatchIndex, searchQuery, matchCount]);
+
+  const goToNext = () => {
+    if (matchCount > 0) setActiveMatchIndex((activeMatchIndex + 1) % matchCount);
+  };
+  const goToPrev = () => {
+    if (matchCount > 0) setActiveMatchIndex((activeMatchIndex - 1 + matchCount) % matchCount);
+  };
+
+  // Cmd+F to toggle search, Enter/Shift+Enter to navigate matches
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if ((e.metaKey || e.ctrlKey) && e.key === 'f') {
+        e.preventDefault();
+        if (searchOpen) {
+          setSearchOpen(false);
+          setSearchQuery('');
+        } else {
+          setSearchOpen(true);
+          setTimeout(() => searchInputRef.current?.focus(), 0);
+        }
+      }
+      if (e.key === 'Escape' && searchOpen) {
+        setSearchOpen(false);
+        setSearchQuery('');
+      }
+      if (searchOpen && e.key === 'Enter' && document.activeElement === searchInputRef.current) {
+        e.preventDefault();
+        if (e.shiftKey) goToPrev();
+        else goToNext();
+      }
+    };
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [searchOpen, matchCount, activeMatchIndex]);
+
+  const grouped = groupByDate(filteredHistory);
 
   if (loading) {
     return (
@@ -311,6 +376,50 @@ function HistoryPanel() {
 
   return (
     <div className="history-panel">
+      {searchOpen && (
+        <div className="find-widget">
+          <div className="find-widget-input-wrap">
+            <input
+              ref={searchInputRef}
+              type="text"
+              placeholder="Find"
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              className="find-widget-input"
+            />
+            {searchQuery && (
+              <span className="find-widget-count">
+                {matchCount === 0
+                  ? 'No results'
+                  : `${activeMatchIndex + 1} of ${matchCount}`}
+              </span>
+            )}
+          </div>
+          <button
+            className="find-widget-btn"
+            onClick={goToPrev}
+            disabled={matchCount === 0}
+            title="Previous match (Shift+Enter)"
+          >
+            <MdKeyboardArrowUp size={16} />
+          </button>
+          <button
+            className="find-widget-btn"
+            onClick={goToNext}
+            disabled={matchCount === 0}
+            title="Next match (Enter)"
+          >
+            <MdKeyboardArrowDown size={16} />
+          </button>
+          <button
+            className="find-widget-btn"
+            onClick={() => { setSearchOpen(false); setSearchQuery(''); }}
+            title="Close (Escape)"
+          >
+            <MdClose size={14} />
+          </button>
+        </div>
+      )}
       {Object.entries(grouped).map(([date, items]) => (
         <div key={date} className="date-group">
           <div className="date-group-title">{date}</div>
@@ -318,14 +427,19 @@ function HistoryPanel() {
               const isLastItem = index === items.length - 1;
               const userQuery = parseQuery(item.query);
               const contextText = item.context_text;
-              
+
               const isExpanded = expandedId === item.id;
               const isHovered = hoveredId === item.id;
+              const isActiveMatch = searchQuery && filteredHistory[activeMatchIndex]?.id === item.id;
 
               return (
                 <div
                   key={item.id}
-                  className="list-item"
+                  ref={(el) => {
+                    if (el) matchRefs.current.set(item.id, el);
+                    else matchRefs.current.delete(item.id);
+                  }}
+                  className={`list-item${isActiveMatch ? ' find-active-match' : ''}`}
                   style={{ marginLeft: 'var(--spacing-md)', borderBottom: 'none', paddingBottom: 0 }}
                   onClick={() => setExpandedId(isExpanded ? null : item.id)}
                   onMouseEnter={() => setHoveredId(item.id)}
