@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { FiSidebar } from 'react-icons/fi';
 import Sidebar from './components/Sidebar';
 import HistoryPanel from './components/Sidebar/HistoryPanel';
@@ -98,6 +98,11 @@ function App() {
   const [userAuth, setUserAuth] = useState<UserProfile | null | undefined>(undefined);
   const [onboardingCompleted, setOnboardingCompleted] = useState<boolean | null>(null);
   const [sidebarExpanded, setSidebarExpanded] = useState(false);
+  const mainPanelRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    mainPanelRef.current?.scrollTo(0, 0);
+  }, [activeTab]);
 
   useEffect(() => {
     const init = async () => {
@@ -164,7 +169,7 @@ function App() {
       <div className="app-content">
         <Sidebar activeTab={activeTab} onTabChange={setActiveTab} userProfile={userAuth} expanded={sidebarExpanded} />
 
-        <main className="main-panel">
+        <main className="main-panel" ref={mainPanelRef}>
           <div className="main-panel-inner">
             {activeTab === 'history' && <HistoryPanel />}
             {activeTab === 'settings' && (
