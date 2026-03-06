@@ -193,6 +193,7 @@ export class AgentLoop {
   private config: AgentConfig;
   private isRunning = false;
   private shouldCancel = false;
+  private abortController: AbortController | null = null;
   private pendingAuthResolve: (() => void) | null = null;
   private pendingToolApprovalResolve: ((approved: boolean) => void) | null = null;
   private computerUseApproved = false; // Tracks if computer use has been approved for this invocation
@@ -243,6 +244,7 @@ export class AgentLoop {
 
     this.isRunning = true;
     this.shouldCancel = false;
+    this.abortController = new AbortController();
     this.computerUseApproved = false; // Reset computer use approval for each new invocation
 
     console.log(`[Faria] Starting agent run with targetApp: ${targetApp}, selectedText: ${selectedText ? `${selectedText.length} chars` : 'none'}`);
@@ -258,11 +260,15 @@ export class AgentLoop {
       this.sendResponse(result);
       return result;
     } catch (err: any) {
-      console.error('[Faria] Agent loop error:', err?.message || err);
-      this.sendResponse(`Error: ${err?.message || 'Unknown error occurred'}`);
+      // Don't log abort errors as real errors — they're expected on cancel
+      if (err?.name !== 'AbortError' && !this.shouldCancel) {
+        console.error('[Faria] Agent loop error:', err?.message || err);
+        this.sendResponse(`Error: ${err?.message || 'Unknown error occurred'}`);
+      }
       return '';
     } finally {
       this.isRunning = false;
+      this.abortController = null;
     }
   }
   
@@ -628,6 +634,7 @@ export class AgentLoop {
         const invokeOptions: Record<string, unknown> = {
           ...providerInvokeOptions,
           callbacks,
+          signal: this.abortController?.signal,
           tags: ['faria', 'agent-loop'],
           metadata: {
             targetApp,
@@ -670,6 +677,10 @@ export class AgentLoop {
             streamError = null;
             break; // success
           } catch (err: any) {
+            // If cancelled/aborted, break out immediately
+            if (this.shouldCancel || err?.name === 'AbortError') {
+              break;
+            }
             streamError = err;
             const isRetryable = err?.message?.includes('Failed to parse stream')
               || err?.message?.includes('ECONNRESET')
@@ -683,6 +694,11 @@ export class AgentLoop {
               throw err;
             }
           }
+        }
+
+        if (this.shouldCancel) {
+          console.log('[Faria] Cancelled during streaming');
+          break;
         }
 
         if (!aggregatedChunk) {
@@ -958,6 +974,12 @@ export class AgentLoop {
   cancel(): void {
     console.log('[Faria] Cancel requested');
     this.shouldCancel = true;
+    this.isRunning = false;
+    // Abort any in-flight API stream immediately
+    if (this.abortController) {
+      this.abortController.abort();
+      this.abortController = null;
+    }
     hideClickIndicator();
     // Also resolve any pending auth to unblock
     if (this.pendingAuthResolve) {

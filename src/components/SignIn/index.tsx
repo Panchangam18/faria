@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useRef, useEffect, useCallback } from 'react';
 import { auth } from '../../lib/firebase';
 import { signInWithEmailAndPassword, createUserWithEmailAndPassword, signInAnonymously } from 'firebase/auth';
 import FariaWordmark from '../FariaWordmark';
@@ -100,25 +100,9 @@ function SignIn({ onSignIn }: SignInProps) {
 
   const innerStyle: React.CSSProperties = {
     display: 'flex',
-    alignItems: 'center',
-    width: '100%',
-    maxWidth: 720,
-  };
-
-  const leftStyle: React.CSSProperties = {
-    flex: 1,
-    display: 'flex',
-    alignItems: 'center',
-    justifyContent: 'center',
-  };
-
-  const rightStyle: React.CSSProperties = {
-    flex: 1,
-    display: 'flex',
     flexDirection: 'column',
     alignItems: 'center',
-    justifyContent: 'center',
-    padding: '0 48px',
+    gap: 40,
   };
 
   const buttonBaseStyle: React.CSSProperties = {
@@ -292,8 +276,125 @@ function SignIn({ onSignIn }: SignInProps) {
     </form>
   );
 
+  const canvasRef = useRef<HTMLCanvasElement>(null);
+  const flameRef = useRef<SVGPathElement | null>(null);
+  const animRef = useRef<number>(0);
+  const startTimeRef = useRef<number>(performance.now());
+
+  const drawGrid = useCallback(() => {
+    const canvas = canvasRef.current;
+    if (!canvas) return;
+    const ctx = canvas.getContext('2d');
+    if (!ctx) return;
+
+    const dpr = window.devicePixelRatio || 1;
+    const w = canvas.clientWidth;
+    const h = canvas.clientHeight;
+    if (canvas.width !== w * dpr || canvas.height !== h * dpr) {
+      canvas.width = w * dpr;
+      canvas.height = h * dpr;
+      ctx.scale(dpr, dpr);
+    }
+
+    // Read accent color from CSS variable
+    const accentRaw = getComputedStyle(canvas).getPropertyValue('--color-accent').trim();
+    // Parse hex or rgb to get r,g,b
+    let r = 255, g = 120, b = 50;
+    if (accentRaw.startsWith('#')) {
+      const hex = accentRaw.slice(1);
+      const full = hex.length === 3
+        ? hex[0]+hex[0]+hex[1]+hex[1]+hex[2]+hex[2]
+        : hex;
+      r = parseInt(full.slice(0, 2), 16);
+      g = parseInt(full.slice(2, 4), 16);
+      b = parseInt(full.slice(4, 6), 16);
+    } else {
+      const m = accentRaw.match(/(\d+)/g);
+      if (m && m.length >= 3) {
+        r = parseInt(m[0]); g = parseInt(m[1]); b = parseInt(m[2]);
+      }
+    }
+
+    const spacing = 24;
+    const dotRadius = 1;
+    // Flame center: roughly 50% x, 42% y of the container
+    const cx = w * 0.5;
+    const cy = h * 0.42;
+    // Max distance from center to any corner
+    const maxDist = Math.sqrt(
+      Math.max(cx, w - cx) ** 2 + Math.max(cy, h - cy) ** 2
+    );
+
+    const CYCLE = 3000; // ms, matches flame-breathe
+    const elapsed = performance.now() - startTimeRef.current;
+    const phase = (elapsed % CYCLE) / CYCLE;
+
+    // Breath: 0→1→0 smooth sine, synced with flame-breathe
+    const breath = 0.5 - 0.5 * Math.cos(phase * Math.PI * 2);
+
+    // The "reach" of the glow — how far from center it extends
+    // At breath=0 (flame small), glow barely exists. At breath=1 (flame peak), glow fills outward.
+    const reach = breath * maxDist * 1.1;
+
+    ctx.clearRect(0, 0, w, h);
+
+    for (let x = spacing / 2; x < w; x += spacing) {
+      for (let y = spacing / 2; y < h; y += spacing) {
+        const dist = Math.sqrt((x - cx) ** 2 + (y - cy) ** 2);
+        const normalizedDist = dist / maxDist;
+
+        // Dot is visible if it's within the current reach
+        // Smooth falloff at the edge of the reach
+        const withinReach = reach > 0 ? Math.max(0, 1 - dist / reach) : 0;
+
+        // Near flame: invisible. Ramp up further out from center.
+        const proximityFade = Math.pow(Math.min(normalizedDist / 0.5, 1), 1.5);
+
+        // Intensity peaks at mid-to-far range, soft at leading edge
+        const alpha = Math.min(1, withinReach * proximityFade * breath * 0.55);
+
+        if (alpha > 0.005) {
+          ctx.fillStyle = `rgba(${r},${g},${b},${alpha})`;
+          ctx.beginPath();
+          ctx.arc(x, y, dotRadius, 0, Math.PI * 2);
+          ctx.fill();
+        }
+      }
+    }
+
+    // Drive flame transform from same time base
+    const flame = flameRef.current;
+    if (flame) {
+      const scale = 1 + 0.18 * breath;
+      const ty = -2.5 * breath;
+      const opacity = 0.85 + 0.15 * breath;
+      flame.style.transform = `scale(${scale}) translateY(${ty}px)`;
+      flame.style.opacity = String(opacity);
+    }
+
+    animRef.current = requestAnimationFrame(drawGrid);
+  }, []);
+
+  useEffect(() => {
+    animRef.current = requestAnimationFrame(drawGrid);
+    return () => cancelAnimationFrame(animRef.current);
+  }, [drawGrid]);
+
   return (
     <div style={containerStyle}>
+      {/* Dot grid with smooth ripple glow from flame center */}
+      <canvas
+        ref={canvasRef}
+        style={{
+          position: 'absolute',
+          inset: 0,
+          width: '100%',
+          height: '100%',
+          pointerEvents: 'none',
+          zIndex: 0,
+        }}
+      />
+
       {/* Draggable title bar area */}
       <div style={{
         position: 'absolute',
@@ -305,37 +406,23 @@ function SignIn({ onSignIn }: SignInProps) {
         zIndex: 10,
       } as unknown as React.CSSProperties} />
 
-      <div style={innerStyle}>
-        <div style={leftStyle}>
-          <div style={{ marginTop: -20 }}>
-            <FariaWordmark height={80} />
-          </div>
-        </div>
+      <div style={{ ...innerStyle, zIndex: 1 }}>
+        <FariaWordmark height={80} animate flameRef={flameRef} />
 
-        {/* Vertical divider */}
-        <div style={{
-          width: 1,
-          background: 'var(--color-border)',
-          alignSelf: 'center',
-          height: '75%',
-        }} />
+        {mode === 'buttons' ? renderButtons() : renderEmailForm()}
 
-        <div style={rightStyle}>
-          {mode === 'buttons' ? renderButtons() : renderEmailForm()}
-
-          {error && (
-            <p style={{
-              marginTop: 16,
-              fontSize: 12,
-              color: '#e94560',
-              maxWidth: 280,
-              textAlign: 'center',
-              lineHeight: 1.4,
-            }}>
-              {error}
-            </p>
-          )}
-        </div>
+        {error && (
+          <p style={{
+            marginTop: 16,
+            fontSize: 12,
+            color: '#e94560',
+            maxWidth: 280,
+            textAlign: 'center',
+            lineHeight: 1.4,
+          }}>
+            {error}
+          </p>
+        )}
       </div>
     </div>
   );
