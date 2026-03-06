@@ -1,5 +1,7 @@
 import { useState } from 'react';
 import { MdHistory, MdSettings } from 'react-icons/md';
+import FariaLogo from '../FariaLogo';
+import FariaWordmark from '../FariaWordmark';
 
 interface UserProfile {
   email: string;
@@ -13,9 +15,10 @@ interface SidebarProps {
   activeTab: 'history' | 'settings' | 'account';
   onTabChange: (tab: 'history' | 'settings' | 'account') => void;
   userProfile: UserProfile | null;
+  expanded: boolean;
 }
 
-function Sidebar({ activeTab, onTabChange, userProfile }: SidebarProps) {
+function Sidebar({ activeTab, onTabChange, userProfile, expanded }: SidebarProps) {
   const [imgFailed, setImgFailed] = useState(false);
   const initial = userProfile?.displayName
     ? userProfile.displayName.charAt(0).toUpperCase()
@@ -26,13 +29,23 @@ function Sidebar({ activeTab, onTabChange, userProfile }: SidebarProps) {
         : '?';
 
   return (
-    <nav className="sidebar">
+    <nav className={`sidebar ${expanded ? 'sidebar-expanded' : ''}`}>
+      {/* Spacer for traffic lights + toggle area */}
+      <div className="sidebar-header" />
+
+      {/* Faria logo — commented out for now
+      <div className="sidebar-logo">
+        <FariaLogo size={34} className="sidebar-logo-icon" />
+        <FariaWordmark height={24} className="sidebar-logo-wordmark" />
+      </div>
+      */}
+
       <button
         className={`sidebar-tab ${activeTab === 'history' ? 'active' : ''}`}
         onClick={() => onTabChange('history')}
         title="History"
       >
-        <MdHistory size={20} />
+        <MdHistory size={24} />
         <span className="sidebar-label">History</span>
       </button>
       <button
@@ -40,7 +53,7 @@ function Sidebar({ activeTab, onTabChange, userProfile }: SidebarProps) {
         onClick={() => onTabChange('settings')}
         title="Settings"
       >
-        <MdSettings size={20} />
+        <MdSettings size={24} />
         <span className="sidebar-label">Settings</span>
       </button>
 
@@ -61,8 +74,8 @@ function Sidebar({ activeTab, onTabChange, userProfile }: SidebarProps) {
               referrerPolicy="no-referrer"
               onError={() => setImgFailed(true)}
               style={{
-                width: 24,
-                height: 24,
+                width: 32,
+                height: 32,
                 borderRadius: '50%',
                 objectFit: 'cover',
                 flexShrink: 0,
@@ -70,15 +83,15 @@ function Sidebar({ activeTab, onTabChange, userProfile }: SidebarProps) {
             />
           ) : (
             <div style={{
-              width: 24,
-              height: 24,
+              width: 32,
+              height: 32,
               borderRadius: '50%',
               background: 'var(--color-accent)',
               color: 'var(--color-background)',
               display: 'flex',
               alignItems: 'center',
               justifyContent: 'center',
-              fontSize: 12,
+              fontSize: 14,
               fontWeight: 600,
               flexShrink: 0,
               fontFamily: 'var(--font-family)',
@@ -91,7 +104,7 @@ function Sidebar({ activeTab, onTabChange, userProfile }: SidebarProps) {
               {userProfile.displayName || (userProfile.email === 'guest' ? 'Guest' : userProfile.email.split('@')[0])}
             </span>
             {userProfile.email !== 'guest' && (
-              <span style={{ fontSize: 10, color: 'var(--color-text-muted)' }}>
+              <span className="sidebar-profile-email" style={{ fontSize: 10 }}>
                 {userProfile.email}
               </span>
             )}

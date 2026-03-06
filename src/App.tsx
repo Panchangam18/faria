@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { FiSidebar } from 'react-icons/fi';
 import Sidebar from './components/Sidebar';
 import HistoryPanel from './components/Sidebar/HistoryPanel';
 import SettingsPanel from './components/Settings/SettingsPanel';
@@ -96,6 +97,7 @@ function App() {
   const [theme, setTheme] = useState<string>('default');
   const [userAuth, setUserAuth] = useState<UserProfile | null | undefined>(undefined);
   const [onboardingCompleted, setOnboardingCompleted] = useState<boolean | null>(null);
+  const [sidebarExpanded, setSidebarExpanded] = useState(false);
 
   useEffect(() => {
     const init = async () => {
@@ -141,8 +143,16 @@ function App() {
     <div className="app">
       <div className="app-header"></div>
 
+      <button
+        className="sidebar-toggle"
+        onClick={() => setSidebarExpanded(e => !e)}
+        title={sidebarExpanded ? 'Collapse sidebar' : 'Expand sidebar'}
+      >
+        <FiSidebar size={16} />
+      </button>
+
       <div className="app-content">
-        <Sidebar activeTab={activeTab} onTabChange={setActiveTab} userProfile={userAuth} />
+        <Sidebar activeTab={activeTab} onTabChange={setActiveTab} userProfile={userAuth} expanded={sidebarExpanded} />
 
         <main className="main-panel">
           <div className="main-panel-inner">
