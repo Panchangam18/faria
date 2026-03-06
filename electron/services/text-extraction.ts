@@ -89,9 +89,7 @@ export async function getSelectedText(targetApp: string | null): Promise<string 
   try {
     clipboard.writeText('');
 
-    if (targetApp && targetApp !== 'Electron' && targetApp !== 'Faria') {
-      // Don't re-activate the app - it's already frontmost and activate can
-      // cause window switching in apps like Chrome with multiple windows
+    if (targetApp) {
       // Use Edit menu to copy - not affected by modifier keys still being held
       await copyViaEditMenu(targetApp);
     } else {

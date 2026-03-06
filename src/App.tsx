@@ -114,6 +114,16 @@ function App() {
     init();
   }, []);
 
+  // Report text selection to main process so the command bar can show char count
+  useEffect(() => {
+    const handler = () => {
+      const text = window.getSelection()?.toString() || '';
+      window.faria.selection.report(text);
+    };
+    document.addEventListener('selectionchange', handler);
+    return () => document.removeEventListener('selectionchange', handler);
+  }, []);
+
   const handleThemeChange = async (newTheme: string) => {
     setTheme(newTheme);
     await window.faria.settings.set('theme', newTheme);

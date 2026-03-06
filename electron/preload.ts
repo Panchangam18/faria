@@ -90,6 +90,11 @@ contextBridge.exposeInMainWorld('faria', {
     initiateConnection: (appName: string) => ipcRenderer.invoke('integrations:connect', appName)
   },
 
+  // Selection - report main window selection to main process
+  selection: {
+    report: (text: string) => ipcRenderer.send('selection:report', text),
+  },
+
   // Shell - Open external URLs in default browser
   shell: {
     openExternal: (url: string) => ipcRenderer.invoke('shell:openExternal', url)
@@ -244,6 +249,9 @@ export interface FariaAPI {
     onCommandBarOpened: (callback: () => void) => () => void;
     onQuerySubmitted: (callback: () => void) => () => void;
     demoSubmit: () => void;
+  };
+  selection: {
+    report: (text: string) => void;
   };
   shell: {
     openExternal: (url: string) => Promise<void>;

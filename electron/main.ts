@@ -22,6 +22,7 @@ let commandBarWindow: BrowserWindow | null = null;
 let isCommandBarVisible = false;
 let targetAppName: string | null = null; // The app that was focused when command bar was invoked
 let currentSelectedText: string | null = null; // User-selected text when command bar was invoked
+let mainWindowSelectedText: string | null = null; // Live selection from main window renderer
 let cachedCommandBarPosition: { x: number; y: number } | null = null; // Cached position for instant toggle
 let commandBarSessionId = 0; // Incremented on each open to cancel stale async operations
 let toggleInProgress = false; // Prevents queued toggles while window is animating
@@ -126,19 +127,16 @@ function createMainWindow() {
 
   mainWindow.on('show', () => {
     isMainWindowVisible = true;
-    // Show Dock icon when main window is visible
-    if (process.platform === 'darwin') {
-      app.dock.show();
-    }
   });
 
   mainWindow.on('hide', () => {
     isMainWindowVisible = false;
-    // Hide Dock icon when main window is hidden
-    if (process.platform === 'darwin') {
-      app.dock.hide();
-    }
   });
+
+  // Show Dock icon once when main window is created
+  if (process.platform === 'darwin') {
+    app.dock.show();
+  }
 
   isMainWindowVisible = true;
 }
@@ -408,30 +406,36 @@ async function toggleCommandBar() {
   // Capture frontmost app and selected text in the background
   // This runs AFTER the command bar is visible, so we need to be careful
   // The frontmost app will be captured correctly because we use showInactive()
-  getFrontmostApp().then(capturedApp => {
+  getFrontmostApp().then(async (capturedApp) => {
     if (thisSessionId !== commandBarSessionId) return; // Session cancelled
 
     targetAppName = capturedApp;
     console.log('[Faria] Target app captured:', targetAppName);
 
-    getSelectedText(capturedApp).then(selectedText => {
-      if (thisSessionId !== commandBarSessionId) return; // Session cancelled
-
-      if (selectedText) {
-        console.log('[Faria] Text detected. Length:', selectedText.length);
-        currentSelectedText = selectedText;
-      } else {
-        console.log('[Faria] No text selected');
-      }
-      // Send ready state to the renderer with character count
-      commandBarWindow?.webContents.send('command-bar:ready', {
-        hasSelectedText: !!selectedText,
-        selectedTextLength: selectedText ? selectedText.length : 0
-      });
-    }).catch(e => {
-      if (thisSessionId !== commandBarSessionId) return; // Session cancelled
+    let selectedText: string | null = null;
+    try {
+      selectedText = await getSelectedText(capturedApp);
+    } catch (e) {
       console.error('[Faria] Failed to get selected text:', e);
-      commandBarWindow?.webContents.send('command-bar:ready', { hasSelectedText: false, selectedTextLength: 0 });
+    }
+
+    // If external detection found nothing, fall back to cached main window selection
+    if (!selectedText && mainWindowSelectedText) {
+      selectedText = mainWindowSelectedText;
+    }
+
+    if (thisSessionId !== commandBarSessionId) return; // Session cancelled
+
+    if (selectedText) {
+      console.log('[Faria] Text detected. Length:', selectedText.length);
+      currentSelectedText = selectedText;
+    } else {
+      console.log('[Faria] No text selected');
+    }
+    // Send ready state to the renderer with character count
+    commandBarWindow?.webContents.send('command-bar:ready', {
+      hasSelectedText: !!selectedText,
+      selectedTextLength: selectedText ? selectedText.length : 0
     });
   }).catch(e => {
     if (thisSessionId !== commandBarSessionId) return; // Session cancelled
@@ -1032,6 +1036,11 @@ function setupIPC() {
   });
 
   // Window control IPC
+  // Cache text selection reported by the main window renderer
+  ipcMain.on('selection:report', (_event, text: string) => {
+    mainWindowSelectedText = text && text.length > 0 ? text : null;
+  });
+
   ipcMain.on('command-bar:hide', () => {
     if (commandBarWindow && isCommandBarVisible) {
       // Send hide event BEFORE hiding so renderer can reset state
