@@ -84,10 +84,10 @@ const OPACITY_STEP = 5;
 
 function createMainWindow() {
   mainWindow = new BrowserWindow({
-    width: 1200,
-    height: 800,
-    minWidth: 800,
-    minHeight: 600,
+    width: 400,
+    height: 500,
+    minWidth: 400,
+    minHeight: 500,
     titleBarStyle: 'hiddenInset',
     trafficLightPosition: { x: 16, y: 16 },
     backgroundColor: '#272932',
@@ -891,6 +891,19 @@ function setupIPC() {
       'userEmail', 'userUid', 'authProvider', 'userDisplayName', 'userPhotoUrl'
     );
     return { success: true };
+  });
+
+  // Window management — hide, resize, re-center, then show for a clean transition
+  ipcMain.handle('window:setSize', async (_event, width: number, height: number) => {
+    if (mainWindow) {
+      mainWindow.hide();
+      mainWindow.setMinimumSize(800, 600);
+      mainWindow.setSize(width, height, false);
+      mainWindow.center();
+      // Small delay so the renderer can paint the new content before showing
+      await new Promise(r => setTimeout(r, 80));
+      mainWindow.show();
+    }
   });
 
   // Settings IPC

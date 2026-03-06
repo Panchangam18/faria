@@ -95,6 +95,11 @@ contextBridge.exposeInMainWorld('faria', {
     report: (text: string) => ipcRenderer.send('selection:report', text),
   },
 
+  // Window management
+  window: {
+    setSize: (width: number, height: number) => ipcRenderer.invoke('window:setSize', width, height),
+  },
+
   // Shell - Open external URLs in default browser
   shell: {
     openExternal: (url: string) => ipcRenderer.invoke('shell:openExternal', url)
@@ -234,6 +239,9 @@ export interface FariaAPI {
       categories?: string[];
     }>>;
     initiateConnection: (appName: string) => Promise<{ redirectUrl: string } | null>;
+  };
+  window: {
+    setSize: (width: number, height: number) => Promise<void>;
   };
   auth: {
     googleSignIn: () => Promise<{ success: boolean; email?: string; uid?: string; displayName?: string; photoUrl?: string; error?: string }>;

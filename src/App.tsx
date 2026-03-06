@@ -140,6 +140,8 @@ function App() {
     return (
       <SignIn onSignIn={async () => {
         const user = await window.faria.auth.getUser();
+        // Resize first (hides window), then update state so new content renders into the resized window
+        await window.faria.window.setSize(1200, 800);
         setUserAuth(user);
       }} />
     );
