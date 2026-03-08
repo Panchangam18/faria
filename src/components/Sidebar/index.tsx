@@ -1,7 +1,6 @@
 import { useState } from 'react';
 import { MdHistory, MdSettings } from 'react-icons/md';
-import FariaLogo from '../FariaLogo';
-import FariaWordmark from '../FariaWordmark';
+import { auth } from '../../lib/firebase';
 
 interface UserProfile {
   email: string;
@@ -12,14 +11,15 @@ interface UserProfile {
 }
 
 interface SidebarProps {
-  activeTab: 'history' | 'settings' | 'account';
-  onTabChange: (tab: 'history' | 'settings' | 'account') => void;
+  activeTab: 'history' | 'settings';
+  onTabChange: (tab: 'history' | 'settings') => void;
   userProfile: UserProfile | null;
   expanded: boolean;
 }
 
 function Sidebar({ activeTab, onTabChange, userProfile, expanded }: SidebarProps) {
   const [imgFailed, setImgFailed] = useState(false);
+
   const initial = userProfile?.displayName
     ? userProfile.displayName.charAt(0).toUpperCase()
     : userProfile?.email === 'guest'
@@ -28,17 +28,25 @@ function Sidebar({ activeTab, onTabChange, userProfile, expanded }: SidebarProps
         ? userProfile.email.charAt(0).toUpperCase()
         : '?';
 
+  const isGuest = userProfile?.email === 'guest';
+
+  const handleProfileClick = async () => {
+    const action = await window.faria.menu.profile();
+    if (action === 'sign-out') {
+      try {
+        await auth.signOut();
+      } catch {
+        // Ignore Firebase sign-out errors
+      }
+      await window.faria.auth.signOut();
+      window.location.reload();
+    }
+  };
+
   return (
     <nav className={`sidebar ${expanded ? 'sidebar-expanded' : ''}`}>
       {/* Spacer for traffic lights + toggle area */}
       <div className="sidebar-header" />
-
-      {/* Faria logo — commented out for now
-      <div className="sidebar-logo">
-        <FariaLogo size={34} className="sidebar-logo-icon" />
-        <FariaWordmark height={24} className="sidebar-logo-wordmark" />
-      </div>
-      */}
 
       <button
         className={`sidebar-tab ${activeTab === 'history' ? 'active' : ''}`}
@@ -60,11 +68,11 @@ function Sidebar({ activeTab, onTabChange, userProfile, expanded }: SidebarProps
       {/* Spacer pushes profile to bottom */}
       <div style={{ flex: 1 }} />
 
-      {/* Profile button */}
+      {/* Profile button — opens native context menu */}
       {userProfile && (
         <button
-          className={`sidebar-tab sidebar-profile ${activeTab === 'account' ? 'active' : ''}`}
-          onClick={() => onTabChange('account')}
+          className="sidebar-tab sidebar-profile"
+          onClick={handleProfileClick}
           title={userProfile.displayName || userProfile.email}
         >
           {userProfile.photoUrl && !imgFailed ? (
@@ -101,9 +109,9 @@ function Sidebar({ activeTab, onTabChange, userProfile, expanded }: SidebarProps
           )}
           <div className="sidebar-label" style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-start', gap: 1, lineHeight: 1.2 }}>
             <span style={{ fontSize: 12, fontWeight: 500 }}>
-              {userProfile.displayName || (userProfile.email === 'guest' ? 'Guest' : userProfile.email.split('@')[0])}
+              {userProfile.displayName || (isGuest ? 'Guest' : userProfile.email.split('@')[0])}
             </span>
-            {userProfile.email !== 'guest' && (
+            {!isGuest && (
               <span className="sidebar-profile-email" style={{ fontSize: 10 }}>
                 {userProfile.email}
               </span>

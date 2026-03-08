@@ -98,6 +98,11 @@ contextBridge.exposeInMainWorld('faria', {
   // Window management
   window: {
     setSize: (width: number, height: number) => ipcRenderer.invoke('window:setSize', width, height),
+    onFullscreenChange: (callback: (isFullscreen: boolean) => void) => {
+      const handler = (_event: Electron.IpcRendererEvent, isFullscreen: boolean) => callback(isFullscreen);
+      ipcRenderer.on('fullscreen-change', handler);
+      return () => ipcRenderer.removeListener('fullscreen-change', handler);
+    },
   },
 
   // Shell - Open external URLs in default browser
@@ -110,6 +115,11 @@ contextBridge.exposeInMainWorld('faria', {
     googleSignIn: () => ipcRenderer.invoke('auth:google-signin'),
     getUser: () => ipcRenderer.invoke('auth:get-user'),
     signOut: () => ipcRenderer.invoke('auth:sign-out'),
+  },
+
+  // Menus
+  menu: {
+    profile: () => ipcRenderer.invoke('menu:profile') as Promise<string | null>,
   },
 
   // Onboarding
@@ -242,11 +252,15 @@ export interface FariaAPI {
   };
   window: {
     setSize: (width: number, height: number) => Promise<void>;
+    onFullscreenChange: (callback: (isFullscreen: boolean) => void) => () => void;
   };
   auth: {
     googleSignIn: () => Promise<{ success: boolean; email?: string; uid?: string; displayName?: string; photoUrl?: string; error?: string }>;
     getUser: () => Promise<{ email: string; uid: string; displayName: string | null; photoUrl: string | null; provider: string | null } | null>;
     signOut: () => Promise<{ success: boolean }>;
+  };
+  menu: {
+    profile: () => Promise<string | null>;
   };
   onboarding: {
     checkAccessibility: () => Promise<boolean>;

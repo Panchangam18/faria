@@ -55,7 +55,7 @@ html, body {
   left: 0;
   height: 100%;
   min-height: 0;
-  background: var(--color-background);
+  background: transparent;
   display: flex;
   flex-direction: column;
   padding: 0 10px var(--spacing-md) 10px;
@@ -68,6 +68,7 @@ html, body {
 
 .sidebar-expanded {
   width: 200px;
+  background: var(--color-background);
 }
 
 .sidebar-header {
@@ -97,6 +98,14 @@ html, body {
 
 .sidebar-toggle:hover {
   color: var(--color-text);
+}
+
+.app-fullscreen .sidebar-toggle {
+  left: 26px;
+}
+
+.app-fullscreen .sidebar-header {
+  height: 36px;
 }
 
 .sidebar-logo {

@@ -83,11 +83,21 @@ const MOVE_STEP = 50;
 const OPACITY_STEP = 5;
 
 function createMainWindow() {
+  // Check if user is already logged in to set the correct initial window size
+  const db = initDatabase();
+  const userRow = db.prepare('SELECT value FROM settings WHERE key = ?').get('userEmail') as { value: string } | undefined;
+  const isLoggedIn = !!userRow?.value;
+
+  const width = isLoggedIn ? 1200 : 400;
+  const height = isLoggedIn ? 800 : 500;
+  const minWidth = isLoggedIn ? 800 : 400;
+  const minHeight = isLoggedIn ? 600 : 500;
+
   mainWindow = new BrowserWindow({
-    width: 400,
-    height: 500,
-    minWidth: 400,
-    minHeight: 500,
+    width,
+    height,
+    minWidth,
+    minHeight,
     titleBarStyle: 'hiddenInset',
     trafficLightPosition: { x: 16, y: 16 },
     backgroundColor: '#272932',
@@ -131,6 +141,14 @@ function createMainWindow() {
 
   mainWindow.on('hide', () => {
     isMainWindowVisible = false;
+  });
+
+  mainWindow.on('enter-full-screen', () => {
+    mainWindow?.webContents.send('fullscreen-change', true);
+  });
+
+  mainWindow.on('leave-full-screen', () => {
+    mainWindow?.webContents.send('fullscreen-change', false);
   });
 
   // Show Dock icon once when main window is created
@@ -891,6 +909,20 @@ function setupIPC() {
       'userEmail', 'userUid', 'authProvider', 'userDisplayName', 'userPhotoUrl'
     );
     return { success: true };
+  });
+
+  // Profile context menu (native macOS menu)
+  ipcMain.handle('menu:profile', async () => {
+    const { Menu } = await import('electron');
+    return new Promise<string | null>((resolve) => {
+      const menu = Menu.buildFromTemplate([
+        {
+          label: 'Sign Out',
+          click: () => resolve('sign-out'),
+        },
+      ]);
+      menu.popup({ callback: () => resolve(null) });
+    });
   });
 
   // Window management — hide, resize, re-center, then show for a clean transition

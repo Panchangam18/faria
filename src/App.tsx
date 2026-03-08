@@ -3,11 +3,10 @@ import { FiSidebar } from 'react-icons/fi';
 import Sidebar from './components/Sidebar';
 import HistoryPanel from './components/Sidebar/HistoryPanel';
 import SettingsPanel from './components/Settings/SettingsPanel';
-import AccountPanel from './components/Settings/AccountPanel';
 import Onboarding from './components/Onboarding';
 import SignIn from './components/SignIn';
 
-type Tab = 'history' | 'settings' | 'account';
+type Tab = 'history' | 'settings';
 
 interface UserProfile {
   email: string;
@@ -98,6 +97,7 @@ function App() {
   const [userAuth, setUserAuth] = useState<UserProfile | null | undefined>(undefined);
   const [onboardingCompleted, setOnboardingCompleted] = useState<boolean | null>(null);
   const [sidebarExpanded, setSidebarExpanded] = useState(false);
+  const [isFullscreen, setIsFullscreen] = useState(false);
   const mainPanelRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -117,6 +117,12 @@ function App() {
       applyThemeColors(themeData.colors, themeData.theme);
     };
     init();
+  }, []);
+
+  useEffect(() => {
+    return window.faria.window.onFullscreenChange((fs) => {
+      setIsFullscreen(fs);
+    });
   }, []);
 
   // Report text selection to main process so the command bar can show char count
@@ -157,7 +163,7 @@ function App() {
   }
 
   return (
-    <div className="app">
+    <div className={`app ${isFullscreen ? 'app-fullscreen' : ''}`}>
       <div className="app-header"></div>
 
       <button
@@ -179,9 +185,6 @@ function App() {
                 currentTheme={theme}
                 onThemeChange={handleThemeChange}
               />
-            )}
-            {activeTab === 'account' && (
-              <AccountPanel userProfile={userAuth} />
             )}
           </div>
         </main>
