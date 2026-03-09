@@ -1087,12 +1087,6 @@ export class AgentLoop {
             : 'Task completed.';
           addMessage(response);
           console.log(`[Faria] Final response: ${finalResponse.slice(0, 200)}...`);
-          console.log(`[Faria] Conversation history after text response (${this.conversationHistory.length} messages):`);
-          this.conversationHistory.forEach((msg, i) => {
-            const type = msg.constructor.name;
-            const preview = typeof msg.content === 'string' ? msg.content.slice(0, 80) : JSON.stringify(msg.content).slice(0, 80);
-            console.log(`  [${i}] ${type}: ${preview}`);
-          });
           break;
         }
       }
