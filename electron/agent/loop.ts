@@ -448,10 +448,7 @@ export class AgentLoop {
       }
 
       // Build user message and append to conversation history
-      const userPrompt = this.buildUserPrompt(query, state);
-      const userMessage = typeof userPrompt === 'string'
-        ? new HumanMessage(userPrompt)
-        : new HumanMessage({ content: userPrompt });
+      const userMessage = new HumanMessage(this.buildUserPrompt(query, state));
 
       if (this.conversationHistory.length === 0) {
         // First turn: initialize with system prompt + user message
@@ -472,18 +469,23 @@ export class AgentLoop {
       resetFlushTracking();
       let flushRunning = false;
 
+      const IMAGE_TOKEN_ESTIMATE = 1000; // Conservative estimate for a resized screenshot
       const estimateTokensForContext = (msg: SystemMessage | HumanMessage | AIMessage | ToolMessage): number => {
         if (typeof msg.content === 'string') {
           return estimateTokens(msg.content);
         }
         if (Array.isArray(msg.content)) {
-          const normalized = msg.content.map((part: any) => {
-            if (part?.type === 'text' && part.text) return part.text;
-            if (part?.type === 'image_url') return '[image_url]';
-            if (part?.type === 'image') return '[image]';
-            return JSON.stringify(part);
-          }).join('\n');
-          return estimateTokens(normalized);
+          let tokens = 0;
+          for (const part of msg.content as any[]) {
+            if (part?.type === 'text' && part.text) {
+              tokens += estimateTokens(part.text);
+            } else if (part?.type === 'image_url' || part?.type === 'image') {
+              tokens += IMAGE_TOKEN_ESTIMATE;
+            } else {
+              tokens += estimateTokens(JSON.stringify(part));
+            }
+          }
+          return tokens;
         }
         return estimateTokens(JSON.stringify(msg.content));
       };
@@ -1344,9 +1346,8 @@ export class AgentLoop {
   
   /**
    * Build the user prompt with state context
-   * Returns multimodal content if screenshot is present
    */
-  private buildUserPrompt(query: string, state: AppState): string | Array<{ type: string; text?: string; image_url?: { url: string } }> {
+  private buildUserPrompt(query: string, state: AppState): string {
     const parts: string[] = [];
 
     parts.push(this.stateExtractor.formatForAgent(state));
@@ -1354,17 +1355,7 @@ export class AgentLoop {
     parts.push('=== User Request ===');
     parts.push(query);
 
-    const textContent = parts.join('\n');
-
-    // If screenshot fallback, include image
-    if (state.screenshot) {
-      return [
-        { type: 'text', text: textContent },
-        { type: 'image_url', image_url: { url: state.screenshot } },
-      ];
-    }
-
-    return textContent;
+    return parts.join('\n');
   }
   
   /**

@@ -1,7 +1,6 @@
 import { getFrontmostApp } from './applescript';
 import { extractViaNativeAX, formatNativeState, hasUsefulContent, NativeExtractionResult } from './native-ax';
 import { extractViaJSInjection, isBrowser, getBrowserType, BrowserState } from './js-injection';
-import { takeScreenshot } from './screenshot';
 
 export type ExtractionMethod = 'native_ax' | 'js_injection' | 'screenshot';
 
@@ -82,28 +81,24 @@ export class StateExtractor {
             timestamp,
           };
         } else {
-          // Fallback to screenshot
-          const screenshot = await takeScreenshot({ provider: this.provider });
+          // No structured data — model can request screenshot on demand via computer_actions
           state = {
             method: 'screenshot',
             appName,
             bundleId,
             windowTitle: nativeResult.windowTitle,
-            screenshot,
-            formatted: `App: ${appName}\nWindow: ${nativeResult.windowTitle || 'Unknown'}\n\n[No structured UI data available - screenshot provided for visual context]`,
+            formatted: `App: ${appName}\nWindow: ${nativeResult.windowTitle || 'Unknown'}\n\n[No structured UI data available - use computer_actions with type "screenshot" to see the screen]`,
             timestamp,
           };
         }
       } else {
-        // Fallback to screenshot
-        const screenshot = await takeScreenshot({ provider: this.provider });
+        // No structured data — model can request screenshot on demand via computer_actions
         state = {
           method: 'screenshot',
           appName,
           bundleId,
           windowTitle: nativeResult.windowTitle,
-          screenshot,
-          formatted: `App: ${appName}\nWindow: ${nativeResult.windowTitle || 'Unknown'}\n\n[No structured UI data available - screenshot provided for visual context]`,
+          formatted: `App: ${appName}\nWindow: ${nativeResult.windowTitle || 'Unknown'}\n\n[No structured UI data available - use computer_actions with type "screenshot" to see the screen]`,
           timestamp,
         };
       }
@@ -119,16 +114,13 @@ export class StateExtractor {
         timestamp,
       };
     } else {
-      // Last resort: screenshot fallback (for Electron apps, etc.)
-      // Screenshot sizing depends on provider (set via setProvider)
-      const screenshot = await takeScreenshot({ provider: this.provider });
+      // No structured data — model can request screenshot on demand via computer_actions
       state = {
         method: 'screenshot',
         appName,
         bundleId,
         windowTitle: nativeResult.windowTitle,
-        screenshot,
-        formatted: `App: ${appName}\nWindow: ${nativeResult.windowTitle || 'Unknown'}\n\n[No structured UI data available - screenshot provided for visual context]`,
+        formatted: `App: ${appName}\nWindow: ${nativeResult.windowTitle || 'Unknown'}\n\n[No structured UI data available - use computer_actions with type "screenshot" to see the screen]`,
         timestamp,
       };
     }
@@ -158,11 +150,6 @@ export class StateExtractor {
     lines.push(`=== Current Application State ===`);
     lines.push('');
     lines.push(state.formatted);
-
-    if (state.screenshot) {
-      lines.push('');
-      lines.push('[Screenshot attached for visual reference]');
-    }
 
     return lines.join('\n');
   }
