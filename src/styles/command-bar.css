@@ -30,6 +30,17 @@ html, body, #root {
   -webkit-app-region: drag; /* Entire bar is draggable */
 }
 
+/* Quick border breath to accent color on open */
+@keyframes border-breath {
+  0% { border-color: var(--color-border); }
+  40% { border-color: var(--color-accent); }
+  100% { border-color: var(--color-border); }
+}
+
+.command-bar--breathing {
+  animation: border-breath 0.8s ease-in-out 1 forwards;
+}
+
 [data-theme="midnight"] .command-bar {
   background: rgba(13, 17, 23, 0.7);
 }

@@ -248,6 +248,7 @@ function CommandBar() {
   const [opacity, setOpacity] = useState(0.7);
   const [backgroundColor, setBackgroundColor] = useState('#272932'); // Track background color for opacity
   const [isVisible, setIsVisible] = useState(false); // Controls content visibility to prevent flash of old content
+  const [isBreathing, setIsBreathing] = useState(false);
   const [sizeMode, setSizeMode] = useState<SizeMode>('small');
   const [isScrollable, setIsScrollable] = useState(false);
   const [userMaxResponseHeight, setUserMaxResponseHeight] = useState<number | null>(null);
@@ -548,6 +549,7 @@ function CommandBar() {
     const cleanupWillHide = window.faria.commandBar.onWillHide(() => {
       // Hide content immediately to prevent flash of old content on reopen
       setIsVisible(false);
+      setIsBreathing(false);
       setSelectedTextLength(0);
       setErrorMessage(null);
       // Clear streaming response (incomplete placeholder content) but keep final response
@@ -564,6 +566,7 @@ function CommandBar() {
     const cleanupFocus = window.faria.commandBar.onFocus(() => {
       // Show content now that state is fresh
       setIsVisible(true);
+      setIsBreathing(true);
       inputRef.current?.focus();
 
       // Refresh selected text in case user selected new text after opening command bar
@@ -931,7 +934,12 @@ function CommandBar() {
   const hasAgentContent = !!(response || streamingResponse || errorMessage || pendingToolApproval || pendingAuth || status);
 
   return (
-    <div className="command-bar" style={{ background: getBackgroundWithOpacity(), visibility: isVisible ? 'visible' : 'hidden' }} onClick={handleCommandBarClick}>
+    <div
+      className={`command-bar${isBreathing ? ' command-bar--breathing' : ''}`}
+      style={{ background: getBackgroundWithOpacity(), visibility: isVisible ? 'visible' : 'hidden' }}
+      onClick={handleCommandBarClick}
+      onAnimationEnd={() => setIsBreathing(false)}
+    >
       {/* Agent area: appears above input, grows upward */}
       {hasAgentContent && (
         <div className="command-bar-agent-area" ref={agentAreaRef}>

@@ -1,4 +1,4 @@
-import { app, BrowserWindow, globalShortcut, ipcMain, screen, shell, systemPreferences } from 'electron';
+import { app, BrowserWindow, globalShortcut, ipcMain, Menu, nativeImage, screen, shell, systemPreferences, Tray } from 'electron';
 import { join } from 'path';
 import { config as dotenvConfig } from 'dotenv';
 import { initDatabase } from './db/sqlite';
@@ -26,6 +26,7 @@ let mainWindowSelectedText: string | null = null; // Live selection from main wi
 let cachedCommandBarPosition: { x: number; y: number } | null = null; // Cached position for instant toggle
 let commandBarSessionId = 0; // Incremented on each open to cancel stale async operations
 let toggleInProgress = false; // Prevents queued toggles while window is animating
+let tray: Tray | null = null; // Menu bar tray icon
 
 // Services
 let stateExtractor: StateExtractor;
@@ -337,6 +338,74 @@ function cacheCommandBarPosition() {
       y: Math.round(screenHeight - 200)
     };
   }
+}
+
+function createTray() {
+  if (tray) return;
+
+  // Load the Faria logo as a macOS template image (auto-adapts to dark/light menu bar)
+  const iconPath = isDev
+    ? join(process.cwd(), 'build/trayIconTemplate.png')
+    : join(process.resourcesPath!, 'trayIconTemplate.png');
+  const icon = nativeImage.createFromPath(iconPath);
+  icon.setTemplateImage(true);
+
+  tray = new Tray(icon);
+  tray.setToolTip('Faria');
+  tray.setIgnoreDoubleClickEvents(true); // Removes click delay — fires single-click immediately
+
+  tray.on('click', () => {
+    // If command bar is visible, hide it immediately (synchronous path, never blocks)
+    if (isCommandBarVisible) {
+      toggleCommandBar();
+      return;
+    }
+    // For showing, skip if a toggle is already in progress (async show path)
+    if (toggleInProgress) return;
+    toggleInProgress = true;
+    toggleCommandBar().finally(() => { toggleInProgress = false; });
+  });
+
+  const contextMenu = Menu.buildFromTemplate([
+    {
+      label: 'Command Bar',
+      click: () => {
+        if (isCommandBarVisible) {
+          toggleCommandBar();
+          return;
+        }
+        if (toggleInProgress) return;
+        toggleInProgress = true;
+        toggleCommandBar().finally(() => { toggleInProgress = false; });
+      },
+    },
+    {
+      label: 'Open App',
+      click: () => {
+        // Show dock icon so the window is properly visible
+        if (process.platform === 'darwin') {
+          app.dock.show();
+        }
+        if (mainWindow) {
+          mainWindow.show();
+          mainWindow.focus();
+        } else {
+          createMainWindow();
+        }
+      },
+    },
+    { type: 'separator' },
+    {
+      label: 'Quit Faria',
+      click: () => {
+        app.quit();
+      },
+    },
+  ]);
+
+  tray.on('right-click', () => {
+    tray?.popUpContextMenu(contextMenu);
+  });
 }
 
 function positionCommandBar() {
@@ -771,11 +840,15 @@ function registerGlobalShortcuts() {
 
   // Register command bar toggle shortcut with lock to prevent queued toggles
   const ret = globalShortcut.register(commandBarShortcut, () => {
-    if (toggleInProgress) return; // Ignore if toggle is still in progress
+    // Hide path is synchronous — always allow it immediately
+    if (isCommandBarVisible) {
+      toggleCommandBar();
+      return;
+    }
+    // Show path is async — skip if already in progress
+    if (toggleInProgress) return;
     toggleInProgress = true;
-    toggleCommandBar();
-    // Release lock after window state has settled (native show/hide is async)
-    setTimeout(() => { toggleInProgress = false; }, 50);
+    toggleCommandBar().finally(() => { toggleInProgress = false; });
   });
 
   if (!ret) {
@@ -1262,6 +1335,14 @@ async function initializeServices() {
   stateExtractor = new StateExtractor();
   toolExecutor = new ToolExecutor(stateExtractor);
   agentLoop = new AgentLoop(stateExtractor, toolExecutor, composioService);
+
+  // Auto-reopen command bar when agent needs user attention
+  agentLoop.setOnNeedsAttention(() => {
+    if (!isCommandBarVisible) {
+      console.log('[Faria] Agent needs attention, auto-showing command bar');
+      showCommandBar();
+    }
+  });
 }
 
 app.whenReady().then(async () => {
@@ -1272,6 +1353,7 @@ app.whenReady().then(async () => {
   loadSavedOpacity(); // Load saved opacity before creating window
   createCommandBarWindow();
   positionCommandBar(); // Position once at startup
+  createTray(); // Menu bar icon for quick access
   registerGlobalShortcuts();
   setupIPC();
 

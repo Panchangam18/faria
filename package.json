@@ -117,6 +117,14 @@
       {
         "from": "native/build/Release/window_helper.node",
         "to": "native/window_helper.node"
+      },
+      {
+        "from": "build/trayIconTemplate.png",
+        "to": "trayIconTemplate.png"
+      },
+      {
+        "from": "build/trayIconTemplate@2x.png",
+        "to": "trayIconTemplate@2x.png"
       }
     ]
   }

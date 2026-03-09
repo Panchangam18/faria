@@ -205,6 +205,11 @@ export class AgentLoop {
   private warmupPromise: Promise<void> | null = null;
   private conversationHistory: (SystemMessage | HumanMessage | AIMessage | ToolMessage)[] = [];
   private lastProvider: string | null = null;
+  private onNeedsAttention: (() => void) | null = null;
+
+  setOnNeedsAttention(callback: () => void): void {
+    this.onNeedsAttention = callback;
+  }
 
   constructor(stateExtractor: StateExtractor, toolExecutor: ToolExecutor, composioService: ComposioService) {
     this.stateExtractor = stateExtractor;
@@ -1409,6 +1414,8 @@ export class AgentLoop {
       });
     });
 
+    this.onNeedsAttention?.();
+
     // Wait for approval response
     return new Promise((resolve) => {
       this.pendingToolApprovalResolve = resolve;
@@ -1447,6 +1454,9 @@ export class AgentLoop {
     windows.forEach(win => {
       win.webContents.send('agent:response', response);
     });
+    if (response && this.onNeedsAttention) {
+      this.onNeedsAttention();
+    }
   }
 
   /**
