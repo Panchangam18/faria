@@ -115,6 +115,10 @@ html, body, #root {
   padding-right: var(--spacing-md);
 }
 
+.command-bar-input.empty {
+  caret-color: transparent;
+}
+
 .command-bar-input:focus {
   outline: none;
 }
@@ -176,11 +180,7 @@ html, body, #root {
   line-height: 1.6;
   color: var(--color-accent);
   max-height: var(--cb-max-response-height, 88px); /* Cap at ~5 lines */
-}
-
-/* Text content inside response: allow selection and prevent drag-to-move */
-.command-bar-response > * {
-  -webkit-app-region: no-drag;
+  -webkit-app-region: no-drag; /* Entire response scrolls — drag only on surrounding agent area */
   -webkit-user-select: text;
   user-select: text;
 }

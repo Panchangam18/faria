@@ -1041,13 +1041,14 @@ function CommandBar() {
         <div className="command-bar-input-scroll" ref={scrollWrapperRef}>
           <textarea
             ref={inputRef}
-            className="command-bar-input"
+            className={`command-bar-input${!query ? ' empty' : ''}`}
             placeholder={placeholder}
             value={query}
             onChange={handleInputChange}
             onKeyDown={handleKeyDown}
             disabled={isProcessing || !!errorMessage}
             rows={1}
+            style={!query ? { WebkitAppRegion: 'drag' } as React.CSSProperties : undefined}
           />
         </div>
         <div className="input-inline-controls" ref={inlineControlsRef}>

@@ -225,7 +225,16 @@ function createCommandBarWindow() {
   });
 
   commandBarWindow.on('blur', () => {
-    // Don't hide on blur - only hide via hotkey
+    if (isCommandBarVisible && !agentLoop['isRunning']) {
+      commandBarSessionId++;
+      commandBarWindow?.webContents.send('command-bar:will-hide');
+      commandBarWindow?.hide();
+      isCommandBarVisible = false;
+      targetAppName = null;
+      currentSelectedText = null;
+      lastAgentAreaHeight = 0;
+      agentLoop.clearCache();
+    }
   });
 
   commandBarWindow.on('focus', () => {
@@ -918,6 +927,11 @@ function setupIPC() {
     try {
       console.log('[Faria] Agent submit with target app:', targetAppName, 'selectedText:', currentSelectedText ? `${currentSelectedText.length} chars` : 'none');
       const result = await agentLoop.run(query, targetAppName, currentSelectedText);
+      // After agent finishes, re-focus the command bar so the next
+      // click-away properly triggers a blur event to dismiss it
+      if (isCommandBarVisible && commandBarWindow && !commandBarWindow.isFocused()) {
+        commandBarWindow.focus();
+      }
       return { success: true, result };
     } catch (error) {
       return { success: false, error: String(error) };
