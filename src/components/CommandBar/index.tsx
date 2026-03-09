@@ -234,6 +234,7 @@ function CommandBar() {
   const [streamingResponse, setStreamingResponse] = useState('');
   const streamingResponseRef = useRef(''); // Tracks streaming text for cancel-promotion
   const [status, setStatus] = useState('');
+  const [timing, setTiming] = useState<Record<string, number> | null>(null);
   const [isProcessing, setIsProcessing] = useState(false);
 
   // History navigation state
@@ -636,6 +637,12 @@ function CommandBar() {
       setStatus('Waiting for approval...');
     });
 
+    // Listen for timing data from agent
+    const cleanupTiming = window.faria.agent.onTiming((data) => {
+      console.log('[CommandBar] Timing:', data);
+      setTiming(data);
+    });
+
     // Listen for error messages
     const cleanupError = window.faria.commandBar.onError((error) => {
       setErrorMessage(error);
@@ -687,6 +694,7 @@ function CommandBar() {
       cleanupResponse();
       cleanupAuth();
       cleanupToolApproval();
+      cleanupTiming();
       cleanupError();
       cleanupClearError();
       cleanupReset();
@@ -752,6 +760,7 @@ function CommandBar() {
     setResponse('');
     setStreamingResponse('');
     streamingResponseRef.current = '';
+    setTiming(null);
 
     try {
       setStatus('Extracting state...');
@@ -946,6 +955,16 @@ function CommandBar() {
                 dangerouslySetInnerHTML={{ __html: marked.parse(response || streamingResponse, { async: false }) as string }}
               />
             )
+          )}
+
+          {timing && (
+            <div className="command-bar-timing">
+              <span>state {Math.round(timing.stateMs)}ms</span>
+              <span>tools {Math.round(timing.toolsMs)}ms</span>
+              <span>prompt {Math.round(timing.promptMs)}ms</span>
+              <span>stream {Math.round(timing.streamConnectMs)}ms</span>
+              <span>TTFT {Math.round(timing.totalTtft)}ms</span>
+            </div>
           )}
 
           {(pendingToolApproval || pendingAuth || status) && (

@@ -367,6 +367,7 @@ async function toggleCommandBar() {
     targetAppName = null;
     currentSelectedText = null;
     lastAgentAreaHeight = 0;
+    agentLoop.clearCache();
     return;
   }
 
@@ -455,6 +456,11 @@ async function toggleCommandBar() {
       hasSelectedText: !!selectedText,
       selectedTextLength: selectedText ? selectedText.length : 0
     });
+
+    // Pre-warm state extraction and tool loading while user types
+    agentLoop.warmup(selectedText).catch(e =>
+      console.error('[Faria] Warmup failed:', e)
+    );
   }).catch(e => {
     if (thisSessionId !== commandBarSessionId) return; // Session cancelled
     console.error('[Faria] Failed to get frontmost app:', e);

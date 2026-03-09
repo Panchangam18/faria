@@ -1,4 +1,5 @@
 import { HumanMessage, SystemMessage, AIMessage, ToolMessage } from '@langchain/core/messages';
+import { DynamicStructuredTool } from '@langchain/core/tools';
 import { BrowserWindow, ipcMain, screen } from 'electron';
 import { StateExtractor, AppState } from '../services/state-extractor';
 import { ToolExecutor } from './tools';
@@ -197,6 +198,11 @@ export class AgentLoop {
   private pendingAuthResolve: (() => void) | null = null;
   private pendingToolApprovalResolve: ((approved: boolean) => void) | null = null;
   private computerUseApproved = false; // Tracks if computer use has been approved for this invocation
+  private timingStart = 0;
+  private cachedState: AppState | null = null;
+  private cachedTools: { builtin: DynamicStructuredTool[]; composio: DynamicStructuredTool[]; settings: ToolSettings } | null = null;
+  private cachedSystemPrompt: string | null = null;
+  private warmupPromise: Promise<void> | null = null;
   private conversationHistory: (SystemMessage | HumanMessage | AIMessage | ToolMessage)[] = [];
 
   constructor(stateExtractor: StateExtractor, toolExecutor: ToolExecutor, composioService: ComposioService) {
@@ -232,6 +238,99 @@ export class AgentLoop {
   }
   
   /**
+   * Pre-warm state extraction and tool loading so they're ready when the user submits.
+   * Called from toggleCommandBar() after target app + selected text are captured.
+   */
+  async warmup(selectedText?: string | null): Promise<void> {
+    const doWarmup = async () => {
+      const modelName = getSelectedModel('selectedModel');
+      const providerName = getProviderName(modelName);
+      const provider: 'anthropic' | 'google' | null =
+        providerName === 'anthropic' || providerName === 'google' ? providerName : null;
+
+      this.stateExtractor.setProvider(provider);
+      this.toolExecutor.setProvider(provider);
+
+      const [state, tools] = await Promise.all([
+        this.stateExtractor.extractState(selectedText || undefined),
+        this.loadTools(),
+      ]);
+
+      this.cachedState = state;
+      this.cachedTools = tools;
+
+      // Pre-warm model instance (creates and caches the HTTP client)
+      createModelWithTools(modelName, tools.builtin, this.config.maxTokens);
+
+      // Build system prompt (includes composio connections fetch)
+      this.cachedSystemPrompt = await this.buildSystemPrompt(tools.composio);
+      console.log('[Faria] Warmup complete (state + tools + prompt + model cached)');
+    };
+
+    this.warmupPromise = doWarmup().finally(() => {
+      this.warmupPromise = null;
+    });
+    return this.warmupPromise;
+  }
+
+  clearCache(): void {
+    this.cachedState = null;
+    this.cachedTools = null;
+    this.cachedSystemPrompt = null;
+    this.warmupPromise = null;
+  }
+
+  private async loadTools(): Promise<{ builtin: DynamicStructuredTool[]; composio: DynamicStructuredTool[]; settings: ToolSettings }> {
+    const settings = getToolSettings();
+    const memoryDb = initDatabase();
+    const embeddingProvider = createHFEmbeddingProvider();
+    const memoryManager = getOrCreateMemoryIndexManager(memoryDb, embeddingProvider);
+    const memoryTools = [createMemorySearchTool(memoryManager), createMemoryGetTool(memoryManager)];
+    const builtin = [...this.toolExecutor.getTools(settings), ...memoryTools];
+
+    let composio: DynamicStructuredTool[] = [];
+    if (settings.integrations !== 'disabled') {
+      composio = await this.composioService.getTools();
+    }
+
+    return { builtin, composio, settings };
+  }
+
+  private async buildSystemPrompt(composioTools: DynamicStructuredTool[]): Promise<string> {
+    let systemPrompt = getAgentSystemPrompt();
+    if (composioTools.length > 0) {
+      try {
+        const connections = await this.composioService.getConnections();
+        if (connections.length > 0) {
+          const byApp = new Map<string, typeof connections>();
+          for (const c of connections) {
+            const list = byApp.get(c.appName) || [];
+            list.push(c);
+            byApp.set(c.appName, list);
+          }
+
+          const accountLines: string[] = [];
+          for (const [, conns] of byApp) {
+            if (conns.length === 1) {
+              accountLines.push(`- ${conns[0].displayName}`);
+            } else {
+              for (const c of conns) {
+                const label = c.accountLabel || 'Unknown';
+                accountLines.push(`- ${c.displayName} — ${label} (connected_account_id: "${c.id}")`);
+              }
+            }
+          }
+
+          systemPrompt += `\n\nCONNECTED INTEGRATIONS:\nThe user has the following accounts connected. When multiple accounts exist for the same integration, use the connected_account_id parameter in tool calls to target the correct account.\n${accountLines.join('\n')}`;
+        }
+      } catch {
+        // Don't block on connection info failure
+      }
+    }
+    return systemPrompt;
+  }
+
+  /**
    * Run the agent loop for a user query
    * @param query The user's request
    * @param targetApp The app that was focused when the command bar was invoked
@@ -246,6 +345,13 @@ export class AgentLoop {
     this.shouldCancel = false;
     this.abortController = new AbortController();
     this.computerUseApproved = false; // Reset computer use approval for each new invocation
+    this.timingStart = performance.now();
+
+    // If warmup is still in flight, wait for it before proceeding
+    if (this.warmupPromise) {
+      console.log('[Faria] Waiting for warmup to complete...');
+      await this.warmupPromise;
+    }
 
     console.log(`[Faria] Starting agent run with targetApp: ${targetApp}, selectedText: ${selectedText ? `${selectedText.length} chars` : 'none'}`);
 
@@ -289,65 +395,56 @@ export class AgentLoop {
       this.stateExtractor.setProvider(provider);
       this.toolExecutor.setProvider(provider);
 
-      // Extract initial state (with selected text if provided)
-      this.sendStatus('Extracting state...');
-      let state = await this.stateExtractor.extractState(selectedText || undefined);
+      // Use cached state if available (pre-warmed on command bar open), otherwise extract fresh
+      let stateMs: number;
+      let state: AppState;
+      if (this.cachedState) {
+        state = this.cachedState;
+        this.cachedState = null;
+        stateMs = 0;
+        console.log(`[Timing] State extraction: 0ms (cached)`);
+      } else {
+        this.sendStatus('Extracting state...');
+        const stateStart = performance.now();
+        state = await this.stateExtractor.extractState(selectedText || undefined);
+        stateMs = performance.now() - stateStart;
+        console.log(`[Timing] State extraction: ${stateMs.toFixed(0)}ms`);
+      }
       this.toolExecutor.setCurrentState(state);
 
-      // Check tool settings
-      const toolSettings = getToolSettings();
-      console.log(`[Faria] Tool settings:`, toolSettings);
-
-      // Get built-in tools (now DynamicStructuredTool instances like Composio)
-      const memoryDb = initDatabase();
-      const embeddingProvider = createHFEmbeddingProvider();
-      const memoryManager = getOrCreateMemoryIndexManager(memoryDb, embeddingProvider);
-      const memoryTools = [createMemorySearchTool(memoryManager), createMemoryGetTool(memoryManager)];
-      const builtinTools = [...this.toolExecutor.getTools(toolSettings), ...memoryTools];
-      console.log(`[Faria] Loaded ${builtinTools.length} built-in tools (incl. memory)`);
-
-      // Get Composio tools (already in LangChain DynamicStructuredTool format)
-      let composioTools: Awaited<ReturnType<typeof this.composioService.getTools>> = [];
-      if (toolSettings.integrations !== 'disabled') {
-        composioTools = await this.composioService.getTools();
-        console.log(`[Faria] Loaded ${composioTools.length} Composio tools`);
+      // Use cached tools if available (pre-warmed on command bar open), otherwise load fresh
+      let toolsMs: number;
+      let toolSettings: ToolSettings;
+      let builtinTools: DynamicStructuredTool[];
+      let composioTools: DynamicStructuredTool[];
+      if (this.cachedTools) {
+        ({ builtin: builtinTools, composio: composioTools, settings: toolSettings } = this.cachedTools);
+        this.cachedTools = null;
+        toolsMs = 0;
+        console.log(`[Timing] Tool loading: 0ms (cached)`);
       } else {
-        console.log(`[Faria] Integrations disabled, skipping Composio tools`);
+        const toolsStart = performance.now();
+        const loaded = await this.loadTools();
+        builtinTools = loaded.builtin;
+        composioTools = loaded.composio;
+        toolSettings = loaded.settings;
+        toolsMs = performance.now() - toolsStart;
+        console.log(`[Timing] Tool loading: ${toolsMs.toFixed(0)}ms`);
+      }
+      console.log(`[Faria] Tool settings:`, toolSettings);
+      console.log(`[Faria] Loaded ${builtinTools.length} built-in tools (incl. memory)`);
+      if (composioTools.length > 0) {
+        console.log(`[Faria] Loaded ${composioTools.length} Composio tools`);
       }
 
-      // Build system prompt with connected accounts context
-      let systemPrompt = getAgentSystemPrompt();
-      if (composioTools.length > 0) {
-        try {
-          const connections = await this.composioService.getConnections();
-          if (connections.length > 0) {
-            // Group connections by app name
-            const byApp = new Map<string, typeof connections>();
-            for (const c of connections) {
-              const list = byApp.get(c.appName) || [];
-              list.push(c);
-              byApp.set(c.appName, list);
-            }
-
-            const accountLines: string[] = [];
-            for (const [, conns] of byApp) {
-              if (conns.length === 1) {
-                // Single account — no ID needed, Composio picks it automatically
-                accountLines.push(`- ${conns[0].displayName}`);
-              } else {
-                // Multiple accounts — show IDs so the agent can target the right one
-                for (const c of conns) {
-                  const label = c.accountLabel || 'Unknown';
-                  accountLines.push(`- ${c.displayName} — ${label} (connected_account_id: "${c.id}")`);
-                }
-              }
-            }
-
-            systemPrompt += `\n\nCONNECTED INTEGRATIONS:\nThe user has the following accounts connected. When multiple accounts exist for the same integration, use the connected_account_id parameter in tool calls to target the correct account.\n${accountLines.join('\n')}`;
-          }
-        } catch {
-          // Don't block on connection info failure
-        }
+      // Use cached system prompt if available, otherwise build fresh
+      const promptStart = performance.now();
+      let systemPrompt: string;
+      if (this.cachedSystemPrompt) {
+        systemPrompt = this.cachedSystemPrompt;
+        this.cachedSystemPrompt = null;
+      } else {
+        systemPrompt = await this.buildSystemPrompt(composioTools);
       }
 
       // Build user message and append to conversation history
@@ -597,6 +694,10 @@ export class AgentLoop {
         (contextManager as any).currentTokens += tokens;
       };
 
+      const promptMs = performance.now() - promptStart;
+      console.log(`[Timing] Prompt & context setup: ${promptMs.toFixed(0)}ms`);
+
+      const modelStart = performance.now();
       const boundModel = createModelWithTools(
         modelName,
         allTools,
@@ -608,6 +709,10 @@ export class AgentLoop {
       }
 
       const { model: modelWithTools, invokeOptions: providerInvokeOptions } = boundModel;
+      const modelMs = performance.now() - modelStart;
+      const setupMs = performance.now() - this.timingStart;
+      console.log(`[Timing] Model creation: ${modelMs.toFixed(0)}ms`);
+      console.log(`[Timing] Total setup (query → ready to stream): ${setupMs.toFixed(0)}ms`);
 
       let finalResponse = '';
       let streamedResponseText = ''; // Accumulates streamed chunks for saving cancelled runs
@@ -627,8 +732,11 @@ export class AgentLoop {
         
         // Get LangChain callbacks that connect to the parent LangSmith trace
         // This ensures model calls appear as children of this agent loop trace
+        const callbackStart = performance.now();
         const callbacks = await getLangchainCallbacks();
-        
+        const callbackMs = performance.now() - callbackStart;
+        console.log(`[Timing] LangSmith callback setup: ${callbackMs.toFixed(0)}ms`);
+
         // Call LangChain model with callbacks to nest under parent trace
         // Merge provider-specific options with common options
         const invokeOptions: Record<string, unknown> = {
@@ -641,21 +749,45 @@ export class AgentLoop {
             query: query.slice(0, 100),
           },
         };
-        
+
         // Stream the response for real-time display
         // Use LangChain's native AIMessageChunk merging to handle tool_call_chunks
         // Retry on stream parse failures (Google SDK can fail mid-stream)
         const MAX_STREAM_RETRIES = 2;
         let aggregatedChunk: any = null;
         let streamError: Error | null = null;
+        let firstTokenLogged = false;
+        const messageTokenEstimate = messages.reduce((sum, m) => {
+          const content = typeof m.content === 'string' ? m.content : JSON.stringify(m.content);
+          return sum + Math.ceil(content.length / 4);
+        }, 0);
+        console.log(`[Timing] Sending ${messages.length} messages (~${messageTokenEstimate} tokens) to ${modelName}`);
 
         for (let streamAttempt = 0; streamAttempt <= MAX_STREAM_RETRIES; streamAttempt++) {
           try {
             aggregatedChunk = null;
+            const streamCallStart = performance.now();
             const stream = await modelWithTools.stream(messages, invokeOptions);
+            const streamConnectMs = performance.now() - streamCallStart;
+            console.log(`[Timing] Stream connect (client → server round-trip): ${streamConnectMs.toFixed(0)}ms`);
 
+            let firstChunkMs: number | null = null;
             for await (const chunk of stream) {
               if (this.shouldCancel) break;
+
+              if (!firstTokenLogged) {
+                firstChunkMs = performance.now() - streamCallStart;
+                const serverThinkMs = firstChunkMs - streamConnectMs;
+                const ttft = performance.now() - streamCallStart;
+                const totalTtft = performance.now() - this.timingStart;
+                console.log(`[Timing] First chunk received: ${firstChunkMs.toFixed(0)}ms after stream call`);
+                console.log(`[Timing] Server thinking time (first chunk − connect): ${serverThinkMs.toFixed(0)}ms`);
+                console.log(`[Timing] Time to first token (from stream start): ${ttft.toFixed(0)}ms`);
+                console.log(`[Timing] Time to first token (from query submit): ${totalTtft.toFixed(0)}ms`);
+                console.log(`[Timing] Breakdown: setup=${setupMs.toFixed(0)}ms | callbacks=${callbackMs.toFixed(0)}ms | connect=${streamConnectMs.toFixed(0)}ms | server=${serverThinkMs.toFixed(0)}ms`);
+                this.sendTiming({ stateMs, toolsMs, promptMs, modelMs, setupMs, streamConnectMs, ttft, totalTtft });
+                firstTokenLogged = true;
+              }
 
               // LangChain native way: merge chunks using concat()
               // This automatically handles tool_call_chunks merging
@@ -1252,6 +1384,16 @@ export class AgentLoop {
     const windows = BrowserWindow.getAllWindows();
     windows.forEach(win => {
       win.webContents.send('agent:response', response);
+    });
+  }
+
+  /**
+   * Send timing breakdown to UI
+   */
+  private sendTiming(timing: Record<string, number>): void {
+    const windows = BrowserWindow.getAllWindows();
+    windows.forEach(win => {
+      win.webContents.send('agent:timing', timing);
     });
   }
 

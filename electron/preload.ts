@@ -38,7 +38,12 @@ contextBridge.exposeInMainWorld('faria', {
       ipcRenderer.on('agent:tool-approval-required', handler);
       return () => ipcRenderer.removeListener('agent:tool-approval-required', handler);
     },
-    toolApprovalResponse: (approved: boolean) => ipcRenderer.send('agent:tool-approval-response', approved)
+    toolApprovalResponse: (approved: boolean) => ipcRenderer.send('agent:tool-approval-response', approved),
+    onTiming: (callback: (timing: Record<string, number>) => void) => {
+      const handler = (_event: Electron.IpcRendererEvent, timing: Record<string, number>) => callback(timing);
+      ipcRenderer.on('agent:timing', handler);
+      return () => ipcRenderer.removeListener('agent:timing', handler);
+    },
   },
 
   // State
@@ -204,6 +209,7 @@ export interface FariaAPI {
     onAuthRequired: (callback: (data: { toolkit: string; redirectUrl: string }) => void) => () => void;
     onToolApprovalRequired: (callback: (data: { toolName: string; toolDescription: string; args: Record<string, unknown>; isComposio: boolean; displayName?: string; details?: Record<string, string> }) => void) => () => void;
     toolApprovalResponse: (approved: boolean) => void;
+    onTiming: (callback: (timing: Record<string, number>) => void) => () => void;
   };
   state: {
     extract: () => Promise<{ success: boolean; state?: unknown; error?: string }>;

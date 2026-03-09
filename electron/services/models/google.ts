@@ -4,31 +4,45 @@ import { DynamicStructuredTool } from '@langchain/core/tools';
 import { initDatabase } from '../../db/sqlite';
 import { ModelProvider, ModelConfig, BoundModel } from './types';
 
+// Cache the base model instance to reuse HTTP/TLS connections across turns
+let cachedModel: BaseChatModel | null = null;
+let cachedModelKey: string | null = null; // "model:maxTokens:apiKey" composite key
+
 /**
  * Google (Gemini) model provider
  */
 export const googleProvider: ModelProvider = {
   name: 'google',
-  
+
   supportsModel(modelName: string): boolean {
     return modelName.startsWith('gemini');
   },
-  
+
   createModel(config: ModelConfig): BaseChatModel | null {
     const db = initDatabase();
     const keyRow = db.prepare('SELECT value FROM settings WHERE key = ?').get('googleKey') as { value: string } | undefined;
-    
+
     if (!keyRow?.value) {
       return null;
     }
-    
-    return new ChatGoogleGenerativeAI({
+
+    const cacheKey = `${config.model}:${config.maxTokens}:${keyRow.value}`;
+    if (cachedModel && cachedModelKey === cacheKey) {
+      console.log(`[Models] Reusing cached Google model: ${config.model}`);
+      return cachedModel;
+    }
+
+    const model = new ChatGoogleGenerativeAI({
       model: config.model,
       apiKey: keyRow.value,
       maxOutputTokens: config.maxTokens,
     });
+
+    cachedModel = model;
+    cachedModelKey = cacheKey;
+    return model;
   },
-  
+
   createModelWithTools(
     config: ModelConfig,
     tools: DynamicStructuredTool[]
@@ -44,7 +58,7 @@ export const googleProvider: ModelProvider = {
       invokeOptions: this.getInvokeOptions(),
     };
   },
-  
+
   getInvokeOptions(): Record<string, unknown> {
     return {};
   },
