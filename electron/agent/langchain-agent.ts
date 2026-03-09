@@ -46,7 +46,7 @@ export class TracingClient {
 export function createLangChainAgent(apiKey: string) {
   // Initialize LangChain with Anthropic
   const model = new ChatAnthropic({
-    model: 'claude-sonnet-4-20250514',
+    model: 'claude-sonnet-4-6',
     anthropicApiKey: apiKey,
     temperature: 0,
   });

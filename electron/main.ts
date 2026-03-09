@@ -373,7 +373,7 @@ async function toggleCommandBar() {
   // Check model settings (synchronous DB read is fast)
   const db = initDatabase();
   const agentModelRow = db.prepare('SELECT value FROM settings WHERE key = ?').get('selectedModel') as { value: string } | undefined;
-  const agentModel = agentModelRow?.value || 'claude-sonnet-4-20250514';
+  const agentModel = agentModelRow?.value || 'claude-sonnet-4-6';
 
   // If model is "none", show error and don't open command bar
   if (agentModel === 'none') {

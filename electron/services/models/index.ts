@@ -34,7 +34,7 @@ export function getProviderName(modelName: string): string {
 /**
  * Get the selected model name from settings
  */
-export function getSelectedModel(settingKey: string = 'selectedModel', defaultModel: string = 'claude-sonnet-4-20250514'): string {
+export function getSelectedModel(settingKey: string = 'selectedModel', defaultModel: string = 'claude-sonnet-4-6'): string {
   const db = initDatabase();
   const row = db.prepare('SELECT value FROM settings WHERE key = ?').get(settingKey) as { value: string } | undefined;
   const model = row?.value || defaultModel;

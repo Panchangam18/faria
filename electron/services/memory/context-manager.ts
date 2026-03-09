@@ -5,11 +5,15 @@ import { ContextMessage } from './types';
  */
 const MODEL_LIMITS: Record<string, number> = {
   // Anthropic models
+  'claude-opus-4-6': 200000,
+  'claude-sonnet-4-6': 200000,
   'claude-sonnet-4-20250514': 200000,
   'claude-3-5-sonnet-20241022': 200000,
   'claude-3-opus-20240229': 200000,
   'claude-3-5-haiku-20241022': 200000,
   // Google models
+  'gemini-3.1-pro-preview': 1000000,
+  'gemini-3.1-flash-lite-preview': 1000000,
   'gemini-2.0-flash-exp': 1000000,
   'gemini-1.5-pro': 2000000,
   'gemini-1.5-flash': 1000000,
