@@ -282,18 +282,6 @@ html, body, #root {
   }
 }
 
-/* Timing breakdown */
-.command-bar-timing {
-  display: flex;
-  gap: 12px;
-  padding: 4px var(--spacing-md);
-  font-size: 10px;
-  font-family: 'SF Mono', 'Menlo', monospace;
-  color: var(--color-text-secondary, rgba(255,255,255,0.4));
-  opacity: 0.7;
-  -webkit-app-region: drag;
-}
-
 /* Footer (only for tool approval, auth, status) - inside agent area */
 .command-bar-footer {
   display: flex;
