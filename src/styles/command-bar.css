@@ -115,10 +115,6 @@ html, body, #root {
   padding-right: var(--spacing-md);
 }
 
-.command-bar-input.empty {
-  caret-color: transparent;
-}
-
 .command-bar-input:focus {
   outline: none;
 }
