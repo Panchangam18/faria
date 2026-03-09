@@ -204,6 +204,7 @@ export class AgentLoop {
   private cachedSystemPrompt: string | null = null;
   private warmupPromise: Promise<void> | null = null;
   private conversationHistory: (SystemMessage | HumanMessage | AIMessage | ToolMessage)[] = [];
+  private lastProvider: string | null = null;
 
   constructor(stateExtractor: StateExtractor, toolExecutor: ToolExecutor, composioService: ComposioService) {
     this.stateExtractor = stateExtractor;
@@ -394,6 +395,12 @@ export class AgentLoop {
       // and tool executor (controls coordinate conversion)
       this.stateExtractor.setProvider(provider);
       this.toolExecutor.setProvider(provider);
+
+      // If provider changed and we have existing history, sanitize image content
+      if (this.lastProvider && this.lastProvider !== providerName && this.conversationHistory.length > 0) {
+        this.sanitizeHistoryForProvider(providerName);
+      }
+      this.lastProvider = providerName;
 
       // Use cached state if available (pre-warmed on command bar open), otherwise extract fresh
       let stateMs: number;
@@ -875,47 +882,87 @@ export class AgentLoop {
           // message threading with different providers
           addMessage(response);
 
-          // Execute tool calls and add ToolMessage for each
-          for (const toolCall of response.tool_calls) {
-            // Check for cancellation before each tool call
+          // Classify tool calls: determine which can run in parallel vs need sequential handling
+          type ToolCallEntry = {
+            toolCall: typeof response.tool_calls[0];
+            toolToExecute: DynamicStructuredTool | undefined;
+            isComposioTool: boolean;
+            needsApproval: boolean;
+            isSequentialOnly: boolean; // computer_actions must be sequential (screen interaction)
+          };
+
+          const classified: ToolCallEntry[] = response.tool_calls.map(toolCall => {
+            const toolToExecute = allTools.find(t => t.name === toolCall.name);
+            const isComposioTool = !SAFE_TOOLS.has(toolCall.name) &&
+              !['get_state', 'computer_actions', 'web_search',
+                'insert_image', 'replace_selected_text', 'execute_python', 'execute_bash'].includes(toolCall.name);
+            const needsApproval = toolToExecute
+              ? this.checkIfApprovalNeeded(toolCall.name, toolCall.args as Record<string, unknown>, isComposioTool, toolSettings)
+              : false;
+            const isSequentialOnly = toolCall.name === 'computer_actions';
+            return { toolCall, toolToExecute, isComposioTool, needsApproval, isSequentialOnly };
+          });
+
+          // Log and track all tool calls upfront
+          for (const { toolCall } of classified) {
+            console.log(`[Faria] Tool call: ${toolCall.name}`, JSON.stringify(toolCall.args).slice(0, 500));
+            toolsUsed.push(toolCall.name);
+            actions.push({ tool: toolCall.name, input: toolCall.args, timestamp: Date.now() });
+          }
+
+          // Split into parallel-safe and sequential groups
+          const parallelGroup = classified.filter(c => !c.needsApproval && !c.isSequentialOnly && c.toolToExecute);
+          const sequentialGroup = classified.filter(c => c.needsApproval || c.isSequentialOnly || !c.toolToExecute);
+
+          // Results map: toolCallId -> ToolMessage content
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
+          const resultMap = new Map<string, { content: any; name: string }>();
+
+          // Execute parallel-safe tools concurrently
+          if (parallelGroup.length > 0 && !this.shouldCancel) {
+            const names = parallelGroup.map(c => getToolDisplayName(c.toolCall.name)).join(', ');
+            this.sendStatus(`${names}...`);
+
+            const parallelResults = await Promise.all(
+              parallelGroup.map(async ({ toolCall, toolToExecute }) => {
+                const id = toolCall.id || toolCall.name;
+                try {
+                  const result = await toolToExecute!.invoke(toolCall.args);
+                  const resultContent = Array.isArray(result)
+                    ? result
+                    : typeof result === 'string'
+                      ? result
+                      : JSON.stringify(result);
+                  const logPreview = Array.isArray(result) ? '[array result]' : resultContent;
+                  console.log(`[Faria] Tool result (parallel): ${toolCall.name} SUCCESS`, String(logPreview).slice(0, 200));
+                  return { id, name: toolCall.name, content: resultContent };
+                } catch (error) {
+                  console.log(`[Faria] Tool result (parallel): ${toolCall.name} FAILED`, error);
+                  return { id, name: toolCall.name, content: `Error: ${error}` };
+                }
+              })
+            );
+
+            for (const r of parallelResults) {
+              resultMap.set(r.id, { content: r.content, name: r.name });
+            }
+          }
+
+          // Execute sequential tools (approval-required, computer_actions, unknown) one at a time
+          for (const { toolCall, toolToExecute, isComposioTool, needsApproval } of sequentialGroup) {
             if (this.shouldCancel) {
               console.log('[Faria] Cancelled before tool execution');
               break;
             }
 
-            console.log(`[Faria] Tool call: ${toolCall.name}`, JSON.stringify(toolCall.args).slice(0, 500));
-            this.sendStatus(`${getToolDisplayName(toolCall.name)}...`);
-            toolsUsed.push(toolCall.name);
-            actions.push({
-              tool: toolCall.name,
-              input: toolCall.args,
-              timestamp: Date.now()
-            });
-
-            // UNIFIED execution for ALL tools (built-in + Composio)
-            const toolToExecute = allTools.find(t => t.name === toolCall.name);
+            const id = toolCall.id || toolCall.name;
 
             if (!toolToExecute) {
-              addMessage(new ToolMessage({
-                content: `Unknown tool: ${toolCall.name}`,
-                tool_call_id: toolCall.id || toolCall.name,
-                name: toolCall.name,
-              }));
+              resultMap.set(id, { content: `Unknown tool: ${toolCall.name}`, name: toolCall.name });
               continue;
             }
 
-            // Check if this is a Composio tool
-            const isComposioTool = !SAFE_TOOLS.has(toolCall.name) &&
-                                    !['get_state', 'computer_actions', 'web_search',
-                                      'insert_image', 'replace_selected_text', 'execute_python', 'execute_bash'].includes(toolCall.name);
-
-            // Determine if approval is needed based on tool settings
-            const needsApproval = this.checkIfApprovalNeeded(
-              toolCall.name,
-              toolCall.args as Record<string, unknown>,
-              isComposioTool,
-              toolSettings
-            );
+            this.sendStatus(`${getToolDisplayName(toolCall.name)}...`);
 
             if (needsApproval) {
               const toolDescription = toolToExecute.description || `Execute ${toolCall.name}`;
@@ -923,7 +970,6 @@ export class AgentLoop {
                 ? generateComposioApprovalInfo(toolCall.name, toolCall.args as Record<string, unknown>)
                 : generateBuiltinApprovalInfo(toolCall.name, toolCall.args as Record<string, unknown>);
 
-              // Show pulsing click indicator overlay for click actions
               if (toolCall.name === 'computer_actions') {
                 const clickCoords = this.extractClickCoordinates(
                   toolCall.args as Record<string, unknown>,
@@ -944,25 +990,18 @@ export class AgentLoop {
                 details
               );
 
-              // Hide click indicator once user responds
               hideClickIndicator();
 
               if (!approved || this.shouldCancel) {
-                addMessage(new ToolMessage({
-                  content: 'Tool execution denied by user',
-                  tool_call_id: toolCall.id || toolCall.name,
-                  name: toolCall.name,
-                }));
+                resultMap.set(id, { content: 'Tool execution denied by user', name: toolCall.name });
                 continue;
               }
 
-              // Don't set computerUseApproved for replace_selected_text (always ask)
               if (!isComposioTool && toolCall.name !== 'replace_selected_text') {
                 this.computerUseApproved = true;
               }
             }
 
-            // Execute the tool via its invoke() method
             try {
               const result = await toolToExecute.invoke(toolCall.args);
               const resultContent = Array.isArray(result)
@@ -970,9 +1009,7 @@ export class AgentLoop {
                 : typeof result === 'string'
                   ? result
                   : JSON.stringify(result);
-              const logPreview = Array.isArray(result)
-                ? '[array result]'
-                : resultContent;
+              const logPreview = Array.isArray(result) ? '[array result]' : resultContent;
               console.log(`[Faria] Tool result: SUCCESS`, String(logPreview).slice(0, 200));
 
               // Check for Composio auth requirement
@@ -980,39 +1017,36 @@ export class AgentLoop {
                 const authRequired = parseComposioAuthRequired(resultContent);
                 if (authRequired && !this.shouldCancel) {
                   console.log(`[Faria] Auth required for ${authRequired.toolkit}`);
-
-                  // Request auth from user and wait
                   await this.requestAuth(authRequired.toolkit, authRequired.redirectUrl);
 
                   if (this.shouldCancel) {
-                    addMessage(new ToolMessage({
-                      content: 'Authentication cancelled',
-                      tool_call_id: toolCall.id || toolCall.name,
-                      name: toolCall.name,
-                    }));
+                    resultMap.set(id, { content: 'Authentication cancelled', name: toolCall.name });
                   } else {
-                    // User authenticated - tell the agent to retry
-                    addMessage(new ToolMessage({
+                    resultMap.set(id, {
                       content: `User has authenticated with ${authRequired.toolkit}. Please retry the action.`,
-                      tool_call_id: toolCall.id || toolCall.name,
                       name: toolCall.name,
-                    }));
+                    });
                   }
                   continue;
                 }
               }
 
-              addMessage(new ToolMessage({
-                content: resultContent,
-                tool_call_id: toolCall.id || toolCall.name,
-                name: toolCall.name,
-              }));
+              resultMap.set(id, { content: resultContent, name: toolCall.name });
             } catch (error) {
               console.log(`[Faria] Tool result: FAILED`, error);
+              resultMap.set(id, { content: `Error: ${error}`, name: toolCall.name });
+            }
+          }
+
+          // Add all ToolMessages in original tool_call order to preserve message threading
+          for (const toolCall of response.tool_calls) {
+            const id = toolCall.id || toolCall.name;
+            const entry = resultMap.get(id);
+            if (entry) {
               addMessage(new ToolMessage({
-                content: `Error: ${error}`,
-                tool_call_id: toolCall.id || toolCall.name,
-                name: toolCall.name,
+                content: entry.content,
+                tool_call_id: id,
+                name: entry.name,
               }));
             }
           }
@@ -1103,6 +1137,42 @@ export class AgentLoop {
   clearHistory(): void {
     this.conversationHistory = [];
     console.log('[Faria] Conversation history cleared');
+  }
+
+  /**
+   * Strip provider-specific image content blocks from conversation history
+   * when switching between providers (e.g. Anthropic → Google).
+   */
+  private sanitizeHistoryForProvider(newProvider: string): void {
+    console.log(`[Faria] Sanitizing conversation history for provider switch to ${newProvider}`);
+
+    this.conversationHistory = this.conversationHistory.map(msg => {
+      if (!Array.isArray(msg.content)) return msg;
+
+      const parts = msg.content as any[];
+      const hasImages = parts.some((p: any) =>
+        p?.type === 'image' || p?.type === 'image_url'
+      );
+      if (!hasImages) return msg;
+
+      // Keep only text parts, add placeholder for removed images
+      const textParts = parts.filter((p: any) => p?.type === 'text');
+      const sanitized = textParts.length > 0
+        ? textParts
+        : [{ type: 'text', text: '[screenshot removed - provider changed]' }];
+
+      if (msg instanceof ToolMessage) {
+        return new ToolMessage({
+          content: sanitized.length === 1 ? sanitized[0].text : sanitized,
+          tool_call_id: msg.tool_call_id,
+          name: msg.name,
+        });
+      }
+      if (msg instanceof HumanMessage) {
+        return new HumanMessage({ content: sanitized });
+      }
+      return msg;
+    });
   }
 
   cancel(): void {
