@@ -69,7 +69,7 @@ const FariaWordmark: React.FC<FariaWordmarkProps> = ({
         xmlSpace="preserve"
         style={{
           fontSize: '74.0872px',
-          fontFamily: "'Noto Sans JP'",
+          fontFamily: "'Bricolage Grotesque'",
           textAnchor: 'start',
           fill: textColor,
         }}
@@ -83,7 +83,7 @@ const FariaWordmark: React.FC<FariaWordmarkProps> = ({
         xmlSpace="preserve"
         style={{
           fontSize: '74.0872px',
-          fontFamily: "'Noto Sans JP'",
+          fontFamily: "'Bricolage Grotesque'",
           textAnchor: 'start',
           fill: textColor,
         }}
