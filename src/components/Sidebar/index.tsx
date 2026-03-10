@@ -53,7 +53,7 @@ function Sidebar({ activeTab, onTabChange, userProfile, expanded }: SidebarProps
         onClick={() => onTabChange('history')}
         title="History"
       >
-        <MdHistory size={24} />
+        <MdHistory size={20} />
         <span className="sidebar-label">History</span>
       </button>
       <button
@@ -61,7 +61,7 @@ function Sidebar({ activeTab, onTabChange, userProfile, expanded }: SidebarProps
         onClick={() => onTabChange('settings')}
         title="Settings"
       >
-        <MdSettings size={24} />
+        <MdSettings size={20} />
         <span className="sidebar-label">Settings</span>
       </button>
 
@@ -107,16 +107,9 @@ function Sidebar({ activeTab, onTabChange, userProfile, expanded }: SidebarProps
               {initial}
             </div>
           )}
-          <div className="sidebar-label" style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-start', gap: 1, lineHeight: 1.2 }}>
-            <span style={{ fontSize: 12, fontWeight: 500 }}>
-              {userProfile.displayName || (isGuest ? 'Guest' : userProfile.email.split('@')[0])}
-            </span>
-            {!isGuest && (
-              <span className="sidebar-profile-email" style={{ fontSize: 10 }}>
-                {userProfile.email}
-              </span>
-            )}
-          </div>
+          <span className="sidebar-label" style={{ fontSize: 11, fontWeight: 500, overflow: 'hidden', textOverflow: 'ellipsis' }}>
+            {isGuest ? 'Guest' : userProfile.email}
+          </span>
         </button>
       )}
     </nav>

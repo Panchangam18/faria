@@ -375,7 +375,7 @@ function HistoryPanel() {
   }
 
   return (
-    <div className="history-panel">
+    <div className="history-panel" style={{ paddingBottom: 'var(--spacing-lg)' }}>
       {searchOpen && (
         <div className="find-widget">
           <div className="find-widget-input-wrap">

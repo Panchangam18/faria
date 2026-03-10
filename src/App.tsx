@@ -1,5 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { FiSidebar } from 'react-icons/fi';
+import { BsLayoutSidebar } from 'react-icons/bs';
+import { MdHelpOutline } from 'react-icons/md';
+import { IoMdSend } from 'react-icons/io';
 import Sidebar from './components/Sidebar';
 import HistoryPanel from './components/Sidebar/HistoryPanel';
 import SettingsPanel from './components/Settings/SettingsPanel';
@@ -98,6 +100,8 @@ function App() {
 
   const [sidebarExpanded, setSidebarExpanded] = useState(false);
   const [isFullscreen, setIsFullscreen] = useState(false);
+  const [helpOpen, setHelpOpen] = useState(false);
+  const [helpMessage, setHelpMessage] = useState('');
   const mainPanelRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -159,12 +163,20 @@ function App() {
         onClick={() => setSidebarExpanded(e => !e)}
         title={sidebarExpanded ? 'Collapse sidebar' : 'Expand sidebar'}
       >
-        <FiSidebar size={16} />
+        <BsLayoutSidebar size={15} />
+      </button>
+
+      <Sidebar activeTab={activeTab} onTabChange={setActiveTab} userProfile={userAuth} expanded={sidebarExpanded} />
+
+      <button
+        className="help-toggle"
+        onClick={() => setHelpOpen(true)}
+        title="Help"
+      >
+        <MdHelpOutline size={18} />
       </button>
 
       <div className="app-content">
-        <Sidebar activeTab={activeTab} onTabChange={setActiveTab} userProfile={userAuth} expanded={sidebarExpanded} />
-
         <main className="main-panel" ref={mainPanelRef}>
           <div className="main-panel-inner">
             {activeTab === 'history' && <HistoryPanel />}
@@ -177,6 +189,34 @@ function App() {
           </div>
         </main>
       </div>
+
+      {helpOpen && (
+        <div className="help-modal-overlay" onClick={() => setHelpOpen(false)}>
+          <div className="help-modal" onClick={(e) => e.stopPropagation()}>
+            <h2 className="help-modal-title">Help</h2>
+            <textarea
+              className="help-modal-textarea"
+              placeholder="Send us a message..."
+              value={helpMessage}
+              onChange={(e) => setHelpMessage(e.target.value)}
+              rows={4}
+              style={{ marginTop: '10px' }}
+            />
+            <div className="help-modal-footer">
+              <button
+                className="help-modal-send"
+                disabled={!helpMessage.trim()}
+                onClick={() => {
+                  setHelpMessage('');
+                  setHelpOpen(false);
+                }}
+              >
+                <IoMdSend />
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
