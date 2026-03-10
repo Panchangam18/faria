@@ -185,13 +185,16 @@ html, body {
 }
 
 .sidebar-tab:hover {
-  background: transparent;
+  background: rgba(255, 255, 255, 0.08);
   color: var(--color-text);
 }
 
 .sidebar-tab.active {
-  background: transparent;
-  color: var(--color-accent);
+  background: rgba(255, 255, 255, 0.12);
+}
+
+.sidebar-tab.active:hover {
+  background: rgba(255, 255, 255, 0.15);
 }
 
 .sidebar-label {
