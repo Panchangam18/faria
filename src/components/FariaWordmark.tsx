@@ -39,12 +39,11 @@ const FariaWordmark: React.FC<FariaWordmarkProps> = ({
       {animate && !flameRef && (
         <style>{`
           @keyframes flame-breathe {
-            0%, 100% { transform: scale(1) translateY(0); opacity: 0.85; }
-            50% { transform: scale(1.18) translateY(-2.5px); opacity: 1; }
+            0%, 100% { opacity: 0.6; }
+            20%, 80% { opacity: 1; }
           }
           .flame-breathing {
-            animation: flame-breathe 3s ease-in-out infinite;
-            transform-origin: ${flameCx}px ${flameCy}px;
+            animation: flame-breathe 6s ease-in-out infinite;
           }
         `}</style>
       )}
