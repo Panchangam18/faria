@@ -1,4 +1,4 @@
-import { app, BrowserWindow, globalShortcut, ipcMain, Menu, nativeImage, screen, shell, systemPreferences, Tray } from 'electron';
+import { app, BrowserWindow, globalShortcut, ipcMain, Menu, nativeImage, screen, shell, Tray } from 'electron';
 import { join } from 'path';
 import { config as dotenvConfig } from 'dotenv';
 import { initDatabase } from './db/sqlite';
@@ -482,15 +482,6 @@ async function toggleCommandBar() {
 
   // Clear any lingering error from a previous no-model session (without resetting conversation state)
   commandBarWindow?.webContents.send('command-bar:clear-error');
-
-  // Check if onboarding is in progress and notify main window
-  const onboardingCheck = db.prepare('SELECT value FROM settings WHERE key = ?').get('onboardingCompleted') as { value: string } | undefined;
-  if (onboardingCheck?.value !== 'true') {
-    // Notify main window that command bar was opened during onboarding
-    mainWindow?.webContents.send('onboarding:command-bar-opened');
-    // Pre-fill command bar with tutorial query
-    commandBarWindow?.webContents.send('command-bar:set-query', 'What can you do?');
-  }
 
   // Send detecting state to UI (shows loading indicator)
   setImmediate(() => {
@@ -1083,39 +1074,6 @@ function setupIPC() {
     }
   });
 
-  // Onboarding IPC
-  ipcMain.on('onboarding:demo-submit', () => {
-    mainWindow?.webContents.send('onboarding:query-submitted');
-  });
-
-  ipcMain.handle('onboarding:checkAccessibility', async () => {
-    if (process.platform === 'darwin') {
-      return systemPreferences.isTrustedAccessibilityClient(false);
-    }
-    return true;
-  });
-
-  ipcMain.handle('onboarding:checkScreenRecording', async () => {
-    if (process.platform === 'darwin') {
-      return systemPreferences.getMediaAccessStatus('screen');
-    }
-    return 'granted';
-  });
-
-  ipcMain.handle('onboarding:requestAccessibility', async () => {
-    if (process.platform === 'darwin') {
-      systemPreferences.isTrustedAccessibilityClient(true);
-    }
-  });
-
-  ipcMain.handle('onboarding:openAccessibilitySettings', async () => {
-    await shell.openExternal('x-apple.systempreferences:com.apple.preference.security?Privacy_Accessibility');
-  });
-
-  ipcMain.handle('onboarding:openScreenRecordingSettings', async () => {
-    await shell.openExternal('x-apple.systempreferences:com.apple.preference.security?Privacy_ScreenCapture');
-  });
-
   // History IPC
   ipcMain.handle('history:get', async () => {
     const db = initDatabase();
@@ -1293,41 +1251,36 @@ async function initializeServices() {
   // Initialize database
   const db = initDatabase();
 
-  // Seed API keys from environment variables on first launch (before onboarding)
-  const onboardingRow = db.prepare('SELECT value FROM settings WHERE key = ?').get('onboardingCompleted') as { value: string } | undefined;
-  if (onboardingRow?.value !== 'true') {
-    // Check for Google API key in env
-    const envGoogleKey = process.env.GOOGLE_API_KEY;
-    if (envGoogleKey) {
-      const existingGoogleKey = db.prepare('SELECT value FROM settings WHERE key = ?').get('googleKey') as { value: string } | undefined;
-      if (!existingGoogleKey?.value) {
-        db.prepare('INSERT OR REPLACE INTO settings (key, value) VALUES (?, ?)').run('googleKey', envGoogleKey);
-        console.log('[Faria] Seeded Google API key from environment');
-      }
+  // Seed API keys from environment variables on first launch
+  const envGoogleKey = process.env.GOOGLE_API_KEY;
+  if (envGoogleKey) {
+    const existingGoogleKey = db.prepare('SELECT value FROM settings WHERE key = ?').get('googleKey') as { value: string } | undefined;
+    if (!existingGoogleKey?.value) {
+      db.prepare('INSERT OR REPLACE INTO settings (key, value) VALUES (?, ?)').run('googleKey', envGoogleKey);
+      console.log('[Faria] Seeded Google API key from environment');
     }
+  }
 
-    // Check for Anthropic API key in env
-    const envAnthropicKey = process.env.ANTHROPIC_API_KEY;
-    if (envAnthropicKey) {
-      const existingAnthropicKey = db.prepare('SELECT value FROM settings WHERE key = ?').get('anthropicKey') as { value: string } | undefined;
-      if (!existingAnthropicKey?.value) {
-        db.prepare('INSERT OR REPLACE INTO settings (key, value) VALUES (?, ?)').run('anthropicKey', envAnthropicKey);
-        console.log('[Faria] Seeded Anthropic API key from environment');
-      }
+  const envAnthropicKey = process.env.ANTHROPIC_API_KEY;
+  if (envAnthropicKey) {
+    const existingAnthropicKey = db.prepare('SELECT value FROM settings WHERE key = ?').get('anthropicKey') as { value: string } | undefined;
+    if (!existingAnthropicKey?.value) {
+      db.prepare('INSERT OR REPLACE INTO settings (key, value) VALUES (?, ?)').run('anthropicKey', envAnthropicKey);
+      console.log('[Faria] Seeded Anthropic API key from environment');
     }
+  }
 
-    // Set default model to Gemini 3 Flash if google key is available and no model is set
-    const existingModel = db.prepare('SELECT value FROM settings WHERE key = ?').get('selectedModel') as { value: string } | undefined;
-    if (!existingModel?.value || existingModel.value === 'none') {
-      const googleKeyAvailable = db.prepare('SELECT value FROM settings WHERE key = ?').get('googleKey') as { value: string } | undefined;
-      const anthropicKeyAvailable = db.prepare('SELECT value FROM settings WHERE key = ?').get('anthropicKey') as { value: string } | undefined;
-      if (googleKeyAvailable?.value) {
-        db.prepare('INSERT OR REPLACE INTO settings (key, value) VALUES (?, ?)').run('selectedModel', 'gemini-3-flash-preview');
-        console.log('[Faria] Set default model to Gemini 3 Flash');
-      } else if (anthropicKeyAvailable?.value) {
-        db.prepare('INSERT OR REPLACE INTO settings (key, value) VALUES (?, ?)').run('selectedModel', 'claude-3-5-sonnet-20241022');
-        console.log('[Faria] Set default model to Claude 3.5 Sonnet');
-      }
+  // Set default model if none is set
+  const existingModel = db.prepare('SELECT value FROM settings WHERE key = ?').get('selectedModel') as { value: string } | undefined;
+  if (!existingModel?.value || existingModel.value === 'none') {
+    const googleKeyAvailable = db.prepare('SELECT value FROM settings WHERE key = ?').get('googleKey') as { value: string } | undefined;
+    const anthropicKeyAvailable = db.prepare('SELECT value FROM settings WHERE key = ?').get('anthropicKey') as { value: string } | undefined;
+    if (googleKeyAvailable?.value) {
+      db.prepare('INSERT OR REPLACE INTO settings (key, value) VALUES (?, ?)').run('selectedModel', 'gemini-3-flash-preview');
+      console.log('[Faria] Set default model to Gemini 3 Flash');
+    } else if (anthropicKeyAvailable?.value) {
+      db.prepare('INSERT OR REPLACE INTO settings (key, value) VALUES (?, ?)').run('selectedModel', 'claude-3-5-sonnet-20241022');
+      console.log('[Faria] Set default model to Claude 3.5 Sonnet');
     }
   }
 

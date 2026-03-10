@@ -286,9 +286,6 @@ function CommandBar() {
     return lastLineEndX >= textarea.clientWidth - controlsWidth;
   }, []);
 
-  // Onboarding demo mode - set when main process pre-fills "What can you do?"
-  const isOnboardingRef = useRef(false);
-
   // Resize window based on textarea content - debounced to avoid blocking rapid toggles
   const lastResizeRef = useRef<number>(0);
   useLayoutEffect(() => {
@@ -677,9 +674,8 @@ function CommandBar() {
       historyRef.current = [];
     });
 
-    // Listen for set-query event (e.g. from onboarding tutorial)
+    // Listen for set-query event
     const cleanupSetQuery = window.faria.commandBar.onSetQuery((text: string) => {
-      isOnboardingRef.current = true;
       setQuery(text);
       setTimeout(() => inputRef.current?.focus(), 0);
     });
@@ -749,14 +745,6 @@ function CommandBar() {
   const handleSubmit = useCallback(async () => {
     if (!query.trim() || isProcessing || errorMessage) return;
 
-    // During onboarding, don't submit to agent — just trigger the demo
-    if (isOnboardingRef.current) {
-      isOnboardingRef.current = false;
-      window.faria.onboarding.demoSubmit();
-      window.faria.commandBar.hide();
-      return;
-    }
-
     setIsProcessing(true);
     setResponse('');
     setStreamingResponse('');
@@ -779,8 +767,6 @@ function CommandBar() {
   }, [query, isProcessing, errorMessage]);
 
   const handleInputChange = (e: React.ChangeEvent<HTMLTextAreaElement>) => {
-    // Block editing during onboarding demo
-    if (isOnboardingRef.current) return;
     setQuery(e.target.value);
     // Reset history navigation when user types
     if (historyIndex !== -1) {

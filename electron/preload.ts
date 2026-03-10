@@ -127,26 +127,6 @@ contextBridge.exposeInMainWorld('faria', {
     profile: () => ipcRenderer.invoke('menu:profile') as Promise<string | null>,
   },
 
-  // Onboarding
-  onboarding: {
-    checkAccessibility: () => ipcRenderer.invoke('onboarding:checkAccessibility'),
-    checkScreenRecording: () => ipcRenderer.invoke('onboarding:checkScreenRecording'),
-    requestAccessibility: () => ipcRenderer.invoke('onboarding:requestAccessibility'),
-    openAccessibilitySettings: () => ipcRenderer.invoke('onboarding:openAccessibilitySettings'),
-    openScreenRecordingSettings: () => ipcRenderer.invoke('onboarding:openScreenRecordingSettings'),
-    onCommandBarOpened: (callback: () => void) => {
-      const handler = () => callback();
-      ipcRenderer.on('onboarding:command-bar-opened', handler);
-      return () => ipcRenderer.removeListener('onboarding:command-bar-opened', handler);
-    },
-    onQuerySubmitted: (callback: () => void) => {
-      const handler = () => callback();
-      ipcRenderer.on('onboarding:query-submitted', handler);
-      return () => ipcRenderer.removeListener('onboarding:query-submitted', handler);
-    },
-    demoSubmit: () => ipcRenderer.send('onboarding:demo-submit'),
-  },
-
   // Command Bar
   commandBar: {
     hide: () => ipcRenderer.send('command-bar:hide'),
@@ -267,16 +247,6 @@ export interface FariaAPI {
   };
   menu: {
     profile: () => Promise<string | null>;
-  };
-  onboarding: {
-    checkAccessibility: () => Promise<boolean>;
-    checkScreenRecording: () => Promise<'granted' | 'denied' | 'not-determined'>;
-    requestAccessibility: () => Promise<void>;
-    openAccessibilitySettings: () => Promise<void>;
-    openScreenRecordingSettings: () => Promise<void>;
-    onCommandBarOpened: (callback: () => void) => () => void;
-    onQuerySubmitted: (callback: () => void) => () => void;
-    demoSubmit: () => void;
   };
   selection: {
     report: (text: string) => void;

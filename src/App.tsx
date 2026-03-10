@@ -3,7 +3,7 @@ import { FiSidebar } from 'react-icons/fi';
 import Sidebar from './components/Sidebar';
 import HistoryPanel from './components/Sidebar/HistoryPanel';
 import SettingsPanel from './components/Settings/SettingsPanel';
-import Onboarding from './components/Onboarding';
+
 import SignIn from './components/SignIn';
 
 type Tab = 'history' | 'settings';
@@ -95,7 +95,7 @@ function App() {
   const [activeTab, setActiveTab] = useState<Tab>('history');
   const [theme, setTheme] = useState<string>('default');
   const [userAuth, setUserAuth] = useState<UserProfile | null | undefined>(undefined);
-  const [onboardingCompleted, setOnboardingCompleted] = useState<boolean | null>(null);
+
   const [sidebarExpanded, setSidebarExpanded] = useState(false);
   const [isFullscreen, setIsFullscreen] = useState(false);
   const mainPanelRef = useRef<HTMLDivElement>(null);
@@ -108,9 +108,6 @@ function App() {
     const init = async () => {
       const user = await window.faria.auth.getUser();
       setUserAuth(user);
-
-      const completed = await window.faria.settings.get('onboardingCompleted');
-      setOnboardingCompleted(completed === 'true');
 
       const themeData = await window.faria.settings.getThemeData();
       setTheme(themeData.theme);
@@ -140,7 +137,7 @@ function App() {
     await window.faria.settings.set('theme', newTheme);
   };
 
-  if (userAuth === undefined || onboardingCompleted === null) return null;
+  if (userAuth === undefined) return null;
 
   if (userAuth === null) {
     return (
@@ -149,15 +146,6 @@ function App() {
         // Resize first (hides window), then update state so new content renders into the resized window
         await window.faria.window.setSize(1200, 800);
         setUserAuth(user);
-      }} />
-    );
-  }
-
-  if (!onboardingCompleted) {
-    return (
-      <Onboarding onComplete={() => {
-        setOnboardingCompleted(true);
-        setActiveTab('settings');
       }} />
     );
   }
