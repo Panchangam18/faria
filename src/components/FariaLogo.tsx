@@ -14,6 +14,12 @@ const VB_Y = 30;
 const VB_W = 220;
 const VB_H = 314;
 
+// Inner flame (small piece, top-right area)
+const INNER_FLAME = "M 261.371094 240.617188 C 292.65625 207.25 277.347656 165.910156 261.371094 152.6875 C 259.621094 195.109375 214.199219 215.757812 194.632812 247.582031 C 187.792969 258.722656 182.789062 270.523438 185.25 289.296875 C 186.792969 301.101562 203.769531 341.183594 250.941406 334.132812 C 238.265625 322.832031 229.839844 312.488281 231.925781 293.71875 C 235.054688 269.734375 246.773438 257.300781 261.371094 240.617188 Z";
+
+// Outer flame (large piece, wrapping body)
+const OUTER_FLAME = "M 238.097656 161.742188 C 212.027344 202.410156 156.050781 227.769531 161.972656 285.457031 C 163.976562 305.269531 180.035156 334.132812 199.847656 338.304688 C 135.195312 332.382812 82.347656 265.3125 128.9375 189.1875 C 147.375 159.070312 188.375 140.175781 202.976562 108.890625 C 216.53125 81.78125 205.0625 46.324219 174.820312 37.980469 C 204.019531 33.8125 240.976562 57.085938 249.191406 85.949219 C 256.867188 112.726562 252.695312 139.84375 238.097656 161.742188";
+
 const FariaLogo: React.FC<FariaLogoProps> = ({
   size = 48,
   flameColor = 'var(--color-accent)',
@@ -29,14 +35,50 @@ const FariaLogo: React.FC<FariaLogoProps> = ({
       height={size}
       viewBox={`${VB_X} ${VB_Y} ${VB_W} ${VB_H}`}
       fill="none"
-      className={className}
-      style={style}
+      className={`${className || ''} flame-idle`}
+      style={{ ...style, overflow: 'visible' }}
     >
+      <defs>
+        <filter id="flame-turbulence" x="-20%" y="-20%" width="140%" height="140%">
+          <feTurbulence
+            type="turbulence"
+            baseFrequency="0.015 0.04"
+            numOctaves={2}
+            seed={3}
+            result="turbulence"
+          >
+            <animate
+              attributeName="baseFrequency"
+              values="0.015 0.04;0.02 0.06;0.012 0.035;0.018 0.05;0.015 0.04"
+              dur="4s"
+              repeatCount="indefinite"
+            />
+          </feTurbulence>
+          <feDisplacementMap
+            in="SourceGraphic"
+            in2="turbulence"
+            scale={6}
+            xChannelSelector="R"
+            yChannelSelector="G"
+          />
+        </filter>
+      </defs>
+      {/* Outer flame — larger body, swirls slightly behind inner */}
       <path
-        ref={flameRef}
-        d="M 261.371094 240.617188 C 292.65625 207.25 277.347656 165.910156 261.371094 152.6875 C 259.621094 195.109375 214.199219 215.757812 194.632812 247.582031 C 187.792969 258.722656 182.789062 270.523438 185.25 289.296875 C 186.792969 301.101562 203.769531 341.183594 250.941406 334.132812 C 238.265625 322.832031 229.839844 312.488281 231.925781 293.71875 C 235.054688 269.734375 246.773438 257.300781 261.371094 240.617188 Z M 238.097656 161.742188 C 212.027344 202.410156 156.050781 227.769531 161.972656 285.457031 C 163.976562 305.269531 180.035156 334.132812 199.847656 338.304688 C 135.195312 332.382812 82.347656 265.3125 128.9375 189.1875 C 147.375 159.070312 188.375 140.175781 202.976562 108.890625 C 216.53125 81.78125 205.0625 46.324219 174.820312 37.980469 C 204.019531 33.8125 240.976562 57.085938 249.191406 85.949219 C 256.867188 112.726562 252.695312 139.84375 238.097656 161.742188"
+        className="flame-outer"
+        d={OUTER_FLAME}
         fill={flameColor}
         fillRule="nonzero"
+        filter="url(#flame-turbulence)"
+      />
+      {/* Inner flame — smaller piece, leads the swirl */}
+      <path
+        ref={flameRef}
+        className="flame-inner"
+        d={INNER_FLAME}
+        fill={flameColor}
+        fillRule="nonzero"
+        filter="url(#flame-turbulence)"
       />
     </svg>
   );

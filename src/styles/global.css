@@ -173,14 +173,33 @@ html, body {
   animation: logo-breathe 1.2s ease-in-out;
 }
 
-@keyframes flame-breathe-sidebar {
-  0%, 100% { opacity: 1; }
-  40% { opacity: 0.3; }
-  70% { opacity: 0.8; }
+/* Sidebar flame click — smooth single breathe */
+@keyframes sidebar-flame-breathe {
+  0%   { opacity: 1; }
+  40%  { opacity: 0; }
+  100% { opacity: 1; }
 }
 
-.flame-breathing {
-  animation: flame-breathe-sidebar 1.2s ease-in-out;
+.flame-breathing .flame-inner {
+  animation: sidebar-flame-breathe 1.2s cubic-bezier(0.4, 0, 0.2, 1);
+}
+.flame-breathing .flame-outer {
+  animation: sidebar-flame-breathe 1.2s cubic-bezier(0.4, 0, 0.2, 1) 0.06s;
+}
+
+/* Ambient idle flame animation — subtle organic flicker */
+@keyframes flame-flicker {
+  0%, 100% {
+    transform: translateY(0) scaleY(1) scaleX(1);
+  }
+  50% {
+    transform: translateY(-1.5px) scaleY(1.07) scaleX(0.96);
+  }
+}
+
+.flame-idle {
+  transform-origin: center bottom;
+  animation: flame-flicker 2.5s ease-in-out infinite;
 }
 
 .sidebar-tab {

@@ -251,7 +251,6 @@ html, body, #root {
   display: flex;
   align-items: center;
   gap: var(--spacing-xs);
-  animation: logo-breathe 1.5s ease-in-out infinite;
 }
 
 .status-logo {
@@ -264,9 +263,19 @@ html, body, #root {
   display: block;
 }
 
-@keyframes logo-breathe {
-  0%, 100% { opacity: 0.4; }
-  50% { opacity: 1; }
+/* Shared breathe cycle — both pieces use the same keyframes,
+   outer is slightly delayed so they fade as one organic unit */
+@keyframes cb-flame-breathe {
+  0%   { opacity: 1; }
+  40%  { opacity: 0; }
+  100% { opacity: 1; }
+}
+
+.status-logo .flame-inner {
+  animation: cb-flame-breathe 1.2s cubic-bezier(0.4, 0, 0.2, 1) infinite;
+}
+.status-logo .flame-outer {
+  animation: cb-flame-breathe 1.2s cubic-bezier(0.4, 0, 0.2, 1) 0.06s infinite;
 }
 
 /* Footer (only for tool approval, auth, status) - inside agent area */

@@ -5,6 +5,7 @@ import { auth } from '../../lib/firebase';
 import FariaLogo from '../FariaLogo';
 import FariaWordmark from '../FariaWordmark';
 
+
 interface UserProfile {
   email: string;
   uid: string;
@@ -30,7 +31,10 @@ function Sidebar({ activeTab, onTabChange, userProfile, expanded }: SidebarProps
     const iconFlame = iconFlameRef.current;
     const logoContainer = logoContainerRef.current;
 
-    const clearFlameAnimation = () => iconFlame?.classList.remove('flame-breathing');
+    const clearFlameAnimation = () => {
+      const svg = iconFlame?.closest('svg');
+      svg?.classList.remove('flame-breathing');
+    };
     const clearLogoAnimation = () => logoContainer?.classList.remove('logo-breathing');
 
     iconFlame?.addEventListener('animationend', clearFlameAnimation);
@@ -45,10 +49,11 @@ function Sidebar({ activeTab, onTabChange, userProfile, expanded }: SidebarProps
   const handleLogoClick = useCallback(() => {
     if (!expanded) {
       const flame = iconFlameRef.current;
-      if (!flame) return;
-      flame.classList.remove('flame-breathing');
-      void flame.getBBox();
-      flame.classList.add('flame-breathing');
+      const svg = flame?.closest('svg');
+      if (!svg) return;
+      svg.classList.remove('flame-breathing');
+      void svg.getBBox();
+      svg.classList.add('flame-breathing');
     } else {
       const container = logoContainerRef.current;
       if (!container) return;
