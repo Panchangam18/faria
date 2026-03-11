@@ -973,13 +973,25 @@ function setupIPC() {
     const email = db.prepare('SELECT value FROM settings WHERE key = ?').get('userEmail') as { value: string } | undefined;
     const uid = db.prepare('SELECT value FROM settings WHERE key = ?').get('userUid') as { value: string } | undefined;
     if (email?.value && uid?.value) {
-      const displayName = db.prepare('SELECT value FROM settings WHERE key = ?').get('userDisplayName') as { value: string } | undefined;
+      const displayNameRow = db.prepare('SELECT value FROM settings WHERE key = ?').get('userDisplayName') as { value: string } | undefined;
+      let displayName = displayNameRow?.value || null;
+      // Fallback: check legacy firstName/lastName keys
+      if (!displayName) {
+        const fn = db.prepare('SELECT value FROM settings WHERE key = ?').get('firstName') as { value: string } | undefined;
+        const ln = db.prepare('SELECT value FROM settings WHERE key = ?').get('lastName') as { value: string } | undefined;
+        const combined = `${fn?.value || ''} ${ln?.value || ''}`.trim();
+        if (combined) {
+          displayName = combined;
+          // Migrate to canonical key
+          db.prepare('INSERT OR REPLACE INTO settings (key, value) VALUES (?, ?)').run('userDisplayName', combined);
+        }
+      }
       const photoUrl = db.prepare('SELECT value FROM settings WHERE key = ?').get('userPhotoUrl') as { value: string } | undefined;
       const provider = db.prepare('SELECT value FROM settings WHERE key = ?').get('authProvider') as { value: string } | undefined;
       return {
         email: email.value,
         uid: uid.value,
-        displayName: displayName?.value || null,
+        displayName,
         photoUrl: photoUrl?.value || null,
         provider: provider?.value || null,
       };

@@ -26,7 +26,7 @@ html, body {
   display: flex;
   overflow: hidden;
   position: relative;
-  background: var(--color-primary-dark);
+  background: color-mix(in srgb, var(--color-primary) 50%, var(--color-primary-dark) 50%);
 }
 
 .app-header {
@@ -81,7 +81,7 @@ html, body {
 
 .sidebar-expanded {
   width: 160px;
-  background: var(--color-primary-dark);
+  background: color-mix(in srgb, var(--color-primary) 50%, var(--color-primary-dark) 50%);
 }
 
 .sidebar-header {
@@ -115,7 +115,7 @@ html, body {
 
 .app-fullscreen .sidebar-toggle {
   top: 4px;
-  left: 18px;
+  left: 19px;
 }
 
 .app-fullscreen .help-toggle {
@@ -135,9 +135,9 @@ html, body {
   display: flex;
   align-items: center;
   justify-content: flex-start;
-  padding: 0 0 0 14px;
+  padding: 0 0 0 12px;
   margin: 8px 0;
-  height: 36px;
+  height: 40px;
   flex-shrink: 0;
   position: relative;
 }
@@ -149,8 +149,9 @@ html, body {
 
 .sidebar-logo-wordmark {
   position: absolute;
-  left: 14px;
+  left: 10px;
   opacity: 0;
+  bottom: 5px;
   transition: opacity 150ms ease;
 }
 
@@ -160,6 +161,26 @@ html, body {
 
 .sidebar-expanded .sidebar-logo-wordmark {
   opacity: 1;
+}
+
+@keyframes logo-breathe {
+  0%, 100% { opacity: 1; }
+  40% { opacity: 0.3; }
+  70% { opacity: 0.8; }
+}
+
+.logo-breathing .sidebar-logo-wordmark {
+  animation: logo-breathe 1.2s ease-in-out;
+}
+
+@keyframes flame-breathe-sidebar {
+  0%, 100% { opacity: 1; }
+  40% { opacity: 0.3; }
+  70% { opacity: 0.8; }
+}
+
+.flame-breathing {
+  animation: flame-breathe-sidebar 1.2s ease-in-out;
 }
 
 .sidebar-tab {
@@ -390,7 +411,31 @@ pre {
 
 /* Date Groups */
 .date-group {
-  margin-bottom: 0;
+  margin-bottom: var(--spacing-lg);
+}
+
+/* History Timeline */
+.history-timeline {
+  margin: 0 var(--spacing-md);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+  overflow: hidden;
+}
+
+.history-card {
+  padding: var(--spacing-md);
+  cursor: pointer;
+  transition: background var(--transition-fast);
+  background: var(--color-primary);
+  border-bottom: 1px solid var(--color-border);
+}
+
+.history-card:hover {
+  background: var(--color-hover);
+}
+
+.history-timeline-item--last .history-card {
+  border-bottom: none;
 }
 
 .date-group-title {
@@ -398,7 +443,7 @@ pre {
   color: var(--color-text-muted);
   text-transform: uppercase;
   letter-spacing: 0.05em;
-  padding: var(--spacing-sm) 0 var(--spacing-sm) var(--spacing-sm);
+  padding: var(--spacing-sm) var(--spacing-md) var(--spacing-sm) var(--spacing-md);
   font-weight: 500;
   position: sticky;
   top: 0;
@@ -526,7 +571,7 @@ pre {
 
 .find-active-match {
   background: var(--color-hover) !important;
-  border-left: 2px solid var(--color-accent) !important;
+  border-color: var(--color-accent) !important;
 }
 
 /* Markdown Content (shared across history panel, etc.) */

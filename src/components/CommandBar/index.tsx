@@ -229,7 +229,7 @@ function applyTheme(theme: string, colors?: { background: string; text: string; 
 
 function CommandBar() {
   const [query, setQuery] = useState('');
-  const placeholder = 'Awaiting your command...';
+  const [firstName, setFirstName] = useState<string | null>(null);
   const [response, setResponse] = useState('');
   const [streamingResponse, setStreamingResponse] = useState('');
   const streamingResponseRef = useRef(''); // Tracks streaming text for cancel-promotion
@@ -505,6 +505,11 @@ function CommandBar() {
         const savedResponseHeight = await window.faria.settings.get('commandBarResponseHeight');
         if (savedResponseHeight) {
           setUserMaxResponseHeight(parseInt(savedResponseHeight, 10));
+        }
+        // Load user's first name
+        const user = await window.faria.auth.getUser();
+        if (user?.displayName) {
+          setFirstName(user.displayName.split(' ')[0]);
         }
       } catch (e) {
         console.error('[CommandBar] Error loading settings:', e);
@@ -1032,7 +1037,7 @@ function CommandBar() {
           <textarea
             ref={inputRef}
             className="command-bar-input"
-            placeholder={placeholder}
+            placeholder={firstName ? `At the ready, ${firstName}` : 'Awaiting your command...'}
             value={query}
             onChange={handleInputChange}
             onKeyDown={handleKeyDown}

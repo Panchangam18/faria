@@ -1,6 +1,8 @@
-import { useState } from 'react';
+import { useState, useRef, useCallback, useEffect } from 'react';
 import { MdHistory, MdSettings } from 'react-icons/md';
 import { auth } from '../../lib/firebase';
+import FariaLogo from '../FariaLogo';
+import FariaWordmark from '../FariaWordmark';
 
 interface UserProfile {
   email: string;
@@ -19,6 +21,43 @@ interface SidebarProps {
 
 function Sidebar({ activeTab, onTabChange, userProfile, expanded }: SidebarProps) {
   const [imgFailed, setImgFailed] = useState(false);
+  const flameRef = useRef<SVGPathElement>(null);
+  const iconFlameRef = useRef<SVGPathElement>(null);
+  const logoContainerRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    const iconFlame = iconFlameRef.current;
+    const logoContainer = logoContainerRef.current;
+
+    const clearFlameAnimation = () => iconFlame?.classList.remove('flame-breathing');
+    const clearLogoAnimation = () => logoContainer?.classList.remove('logo-breathing');
+
+    iconFlame?.addEventListener('animationend', clearFlameAnimation);
+    logoContainer?.addEventListener('animationend', clearLogoAnimation);
+
+    return () => {
+      iconFlame?.removeEventListener('animationend', clearFlameAnimation);
+      logoContainer?.removeEventListener('animationend', clearLogoAnimation);
+    };
+  }, []);
+
+  const handleLogoClick = useCallback(() => {
+    if (!expanded) {
+      // When collapsed, only breathe the flame
+      const flame = iconFlameRef.current;
+      if (!flame) return;
+      flame.classList.remove('flame-breathing');
+      void flame.getBBox();
+      flame.classList.add('flame-breathing');
+    } else {
+      // When expanded, breathe the whole logo
+      const container = logoContainerRef.current;
+      if (!container) return;
+      container.classList.remove('logo-breathing');
+      void container.offsetWidth;
+      container.classList.add('logo-breathing');
+    }
+  }, [expanded]);
 
   const initial = userProfile?.displayName
     ? userProfile.displayName.charAt(0).toUpperCase()
@@ -47,6 +86,12 @@ function Sidebar({ activeTab, onTabChange, userProfile, expanded }: SidebarProps
     <nav className={`sidebar ${expanded ? 'sidebar-expanded' : ''}`}>
       {/* Spacer for traffic lights + toggle area */}
       <div className="sidebar-header" />
+
+      {/* Logo — flame icon when collapsed, full wordmark when expanded */}
+      <div ref={logoContainerRef} className="sidebar-logo" onClick={handleLogoClick} style={{ cursor: 'pointer' }}>
+        <FariaLogo size={28} className="sidebar-logo-icon" flameRef={iconFlameRef} />
+        {expanded && <FariaWordmark height={36} className="sidebar-logo-wordmark" flameRef={flameRef} />}
+      </div>
 
       <button
         className={`sidebar-tab ${activeTab === 'history' ? 'active' : ''}`}
@@ -108,7 +153,7 @@ function Sidebar({ activeTab, onTabChange, userProfile, expanded }: SidebarProps
             </div>
           )}
           <span className="sidebar-label" style={{ fontSize: 11, fontWeight: 500, overflow: 'hidden', textOverflow: 'ellipsis' }}>
-            {isGuest ? 'Guest' : userProfile.email}
+            {isGuest ? 'Guest' : userProfile.displayName?.split(' ')[0] || userProfile.email}
           </span>
         </button>
       )}

@@ -423,6 +423,7 @@ function HistoryPanel() {
       {Object.entries(grouped).map(([date, items]) => (
         <div key={date} className="date-group">
           <div className="date-group-title">{date}</div>
+          <div className="history-timeline">
             {items.map((item, index) => {
               const isLastItem = index === items.length - 1;
               const userQuery = parseQuery(item.query);
@@ -433,149 +434,142 @@ function HistoryPanel() {
               const isActiveMatch = searchQuery && filteredHistory[activeMatchIndex]?.id === item.id;
 
               return (
-                <div
-                  key={item.id}
-                  ref={(el) => {
-                    if (el) matchRefs.current.set(item.id, el);
-                    else matchRefs.current.delete(item.id);
-                  }}
-                  className={`list-item${isActiveMatch ? ' find-active-match' : ''}`}
-                  style={{ marginLeft: 'var(--spacing-md)', borderBottom: 'none', paddingBottom: 0 }}
-                  onClick={() => setExpandedId(isExpanded ? null : item.id)}
-                  onMouseEnter={() => setHoveredId(item.id)}
-                  onMouseLeave={() => setHoveredId(null)}
-                >
-                  {/* Header */}
-                  <div style={{
-                    display: 'flex',
-                    alignItems: 'flex-start',
-                    justifyContent: 'space-between'
-                  }}>
-                    <span style={{
+                <div key={item.id} className={`history-timeline-item${isLastItem ? ' history-timeline-item--last' : ''}`}>
+                  <div
+                    ref={(el) => {
+                      if (el) matchRefs.current.set(item.id, el);
+                      else matchRefs.current.delete(item.id);
+                    }}
+                    className={`history-card${isActiveMatch ? ' find-active-match' : ''}`}
+                    onClick={() => setExpandedId(isExpanded ? null : item.id)}
+                    onMouseEnter={() => setHoveredId(item.id)}
+                    onMouseLeave={() => setHoveredId(null)}
+                  >
+                    {/* Header */}
+                    <div style={{
                       display: 'flex',
                       alignItems: 'flex-start',
-                      overflow: isExpanded ? 'visible' : 'hidden',
-                      flex: 1
+                      justifyContent: 'space-between'
                     }}>
+                      <span style={{
+                        display: 'flex',
+                        alignItems: 'flex-start',
+                        overflow: isExpanded ? 'visible' : 'hidden',
+                        flex: 1
+                      }}>
+                        <span
+                          style={{
+                            cursor: 'text',
+                            ...(isExpanded ? {
+                              wordBreak: 'break-word',
+                              whiteSpace: 'pre-wrap'
+                            } : {
+                              overflow: 'hidden',
+                              textOverflow: 'ellipsis',
+                              whiteSpace: 'nowrap'
+                            })
+                          }}
+                          onClick={(e) => e.stopPropagation()}
+                        >
+                          {userQuery}
+                        </span>
+                        {(isHovered || isExpanded) && (
+                          isExpanded ? (
+                            <MdExpandMore size={16} style={{ flexShrink: 0, marginLeft: '4px' }} />
+                          ) : (
+                            <MdChevronRight size={16} style={{ flexShrink: 0, marginLeft: '4px' }} />
+                          )
+                        )}
+                      </span>
                       <span
                         style={{
+                          fontSize: 'var(--font-size-xs)',
+                          color: 'var(--color-text-muted)',
+                          marginLeft: 'var(--spacing-md)',
                           cursor: 'text',
-                          ...(isExpanded ? {
-                            wordBreak: 'break-word',
-                            whiteSpace: 'pre-wrap'
-                          } : {
-                            overflow: 'hidden',
-                            textOverflow: 'ellipsis',
-                            whiteSpace: 'nowrap'
-                          })
+                          flexShrink: 0
                         }}
                         onClick={(e) => e.stopPropagation()}
                       >
-                        {userQuery}
+                        {new Date(item.created_at).toLocaleTimeString('en-US', {
+                          hour: 'numeric',
+                          minute: '2-digit',
+                        })}
                       </span>
-                      {(isHovered || isExpanded) && (
-                        isExpanded ? (
-                          <MdExpandMore size={16} style={{ flexShrink: 0, marginLeft: '4px' }} />
-                        ) : (
-                          <MdChevronRight size={16} style={{ flexShrink: 0, marginLeft: '4px' }} />
-                        )
-                      )}
-                    </span>
-                    <span
-                      style={{
-                        fontSize: 'var(--font-size-xs)',
-                        color: 'var(--color-text-muted)',
-                        marginLeft: 'var(--spacing-md)',
-                        cursor: 'text',
-                        flexShrink: 0
-                      }}
-                      onClick={(e) => e.stopPropagation()}
-                    >
-                      {new Date(item.created_at).toLocaleTimeString('en-US', {
-                        hour: 'numeric',
-                        minute: '2-digit',
-                      })}
-                    </span>
-                  </div>
-
-                  {/* Expanded content */}
-                  {isExpanded && (
-                    <div
-                      style={{
-                        marginTop: 'var(--spacing-sm)',
-                        fontSize: 'var(--font-size-sm)',
-                        lineHeight: 1.6,
-                        cursor: 'text'
-                      }}
-                      onClick={(e) => e.stopPropagation()}
-                    >
-                      {/* Selected text (if any) */}
-                      {contextText && (
-                        <span style={{
-                          fontSize: 'var(--font-size-xs)',
-                          color: 'var(--color-text-muted)',
-                          marginBottom: 'var(--spacing-sm)',
-                          padding: '2px 6px',
-                          background: 'var(--color-surface)',
-                          borderRadius: '4px',
-                          border: '1px solid var(--color-border)',
-                          display: 'inline-block',
-                          fontStyle: 'italic',
-                          maxWidth: '100%',
-                          wordBreak: 'break-word'
-                        }}>
-                          {truncate(contextText, 100)}
-                        </span>
-                      )}
-
-                      {/* Agent trace - human readable actions */}
-                      {item.actions && item.actions.length > 0 && (
-                        <div style={{
-                          marginTop: 'var(--spacing-sm)',
-                          borderLeft: '2px solid var(--color-border)',
-                          paddingLeft: 'var(--spacing-sm)',
-                          marginLeft: '2px'
-                        }}>
-                          {item.actions.map((action, idx) => (
-                            <div key={idx} style={{
-                              fontSize: 'var(--font-size-xs)',
-                              marginBottom: 'var(--spacing-xs)',
-                              color: 'var(--color-accent)',
-                              wordBreak: 'break-word'
-                            }}>
-                              {formatAction(action)}
-                            </div>
-                          ))}
-                        </div>
-                      )}
-
-                      {/* Final response */}
-                      {item.response && (
-                        <div
-                          className="markdown-content"
-                          style={{
-                            marginTop: 'var(--spacing-sm)',
-                            color: 'var(--color-accent)',
-                            fontSize: 'var(--font-size-xs)',
-                            lineHeight: 1.5,
-                            wordBreak: 'break-word',
-                          }}
-                          dangerouslySetInnerHTML={{ __html: marked.parse(item.response, { async: false, breaks: true, gfm: true }) as string }}
-                        />
-                      )}
                     </div>
-                  )}
-                  {/* Separator line aligned with content */}
-                  {!isLastItem && (
-                    <div style={{
-                      height: '1px',
-                      backgroundColor: 'var(--color-border)',
-                      marginTop: 'var(--spacing-md)'
-                    }} />
-                  )}
+
+                    {/* Expanded content */}
+                    {isExpanded && (
+                      <div
+                        style={{
+                          marginTop: 'var(--spacing-sm)',
+                          fontSize: 'var(--font-size-sm)',
+                          lineHeight: 1.6,
+                          cursor: 'text'
+                        }}
+                        onClick={(e) => e.stopPropagation()}
+                      >
+                        {/* Selected text (if any) */}
+                        {contextText && (
+                          <span style={{
+                            fontSize: 'var(--font-size-xs)',
+                            color: 'var(--color-text-muted)',
+                            marginBottom: 'var(--spacing-sm)',
+                            padding: '2px 6px',
+                            background: 'var(--color-surface)',
+                            borderRadius: '4px',
+                            border: '1px solid var(--color-border)',
+                            display: 'inline-block',
+                            fontStyle: 'italic',
+                            maxWidth: '100%',
+                            wordBreak: 'break-word'
+                          }}>
+                            {truncate(contextText, 100)}
+                          </span>
+                        )}
+
+                        {/* Agent trace - human readable actions */}
+                        {item.actions && item.actions.length > 0 && (
+                          <div style={{
+                            marginTop: 'var(--spacing-sm)',
+                            borderLeft: '2px solid var(--color-border)',
+                            paddingLeft: 'var(--spacing-sm)',
+                            marginLeft: '2px'
+                          }}>
+                            {item.actions.map((action, idx) => (
+                              <div key={idx} style={{
+                                fontSize: 'var(--font-size-xs)',
+                                marginBottom: 'var(--spacing-xs)',
+                                color: 'var(--color-accent)',
+                                wordBreak: 'break-word'
+                              }}>
+                                {formatAction(action)}
+                              </div>
+                            ))}
+                          </div>
+                        )}
+
+                        {/* Final response */}
+                        {item.response && (
+                          <div
+                            className="markdown-content"
+                            style={{
+                              marginTop: 'var(--spacing-sm)',
+                              color: 'var(--color-accent)',
+                              fontSize: 'var(--font-size-xs)',
+                              lineHeight: 1.5,
+                              wordBreak: 'break-word',
+                            }}
+                            dangerouslySetInnerHTML={{ __html: marked.parse(item.response, { async: false, breaks: true, gfm: true }) as string }}
+                          />
+                        )}
+                      </div>
+                    )}
+                  </div>
                 </div>
               );
             })}
+          </div>
         </div>
       ))}
     </div>

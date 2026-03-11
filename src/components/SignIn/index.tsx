@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { auth } from '../../lib/firebase';
-import { signInWithEmailAndPassword, createUserWithEmailAndPassword, signInAnonymously } from 'firebase/auth';
+import { signInWithEmailAndPassword, createUserWithEmailAndPassword, signInAnonymously, updateProfile } from 'firebase/auth';
 import FariaWordmark from '../FariaWordmark';
 
 interface SignInProps {
@@ -12,6 +12,8 @@ function SignIn({ onSignIn }: SignInProps) {
   const [emailMode, setEmailMode] = useState<'signin' | 'signup'>('signin');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
+  const [firstName, setFirstName] = useState('');
+  const [lastName, setLastName] = useState('');
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
 
@@ -57,6 +59,11 @@ function SignIn({ onSignIn }: SignInProps) {
       let userCredential;
       if (emailMode === 'signup') {
         userCredential = await createUserWithEmailAndPassword(auth, email, password);
+        const displayName = `${firstName.trim()} ${lastName.trim()}`.trim();
+        if (displayName) {
+          await updateProfile(userCredential.user, { displayName });
+          await window.faria.settings.set('userDisplayName', displayName);
+        }
       } else {
         userCredential = await signInWithEmailAndPassword(auth, email, password);
       }
@@ -200,13 +207,34 @@ function SignIn({ onSignIn }: SignInProps) {
 
   const renderEmailForm = () => (
     <form onSubmit={handleEmailSubmit} style={{ display: 'flex', flexDirection: 'column', gap: 12, alignItems: 'center' }}>
+      {emailMode === 'signup' && (
+        <div style={{ display: 'flex', gap: 8, width: 280 }}>
+          <input
+            type="text"
+            placeholder="First name"
+            value={firstName}
+            onChange={e => setFirstName(e.target.value)}
+            style={{ ...inputStyle, width: '50%' }}
+            autoFocus
+            required
+          />
+          <input
+            type="text"
+            placeholder="Last name"
+            value={lastName}
+            onChange={e => setLastName(e.target.value)}
+            style={{ ...inputStyle, width: '50%' }}
+            required
+          />
+        </div>
+      )}
       <input
         type="email"
         placeholder="Email"
         value={email}
         onChange={e => setEmail(e.target.value)}
         style={inputStyle}
-        autoFocus
+        autoFocus={emailMode === 'signin'}
         required
       />
       <input
