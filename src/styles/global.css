@@ -144,34 +144,27 @@ html, body {
 
 .sidebar-logo-icon {
   flex-shrink: 0;
-  transition: opacity 150ms ease;
 }
 
-.sidebar-logo-wordmark {
-  position: absolute;
-  left: 10px;
+.sidebar-logo-text {
+  font-family: 'Bricolage Grotesque', var(--font-family);
+  font-size: 33px;
+  font-weight: 400;
+  color: var(--color-text);
   opacity: 0;
-  bottom: 5px;
-  transition: opacity 150ms ease;
+  width: 0;
+  overflow: hidden;
+  white-space: nowrap;
+  transition: opacity 150ms ease, width 150ms ease, margin 150ms ease;
+  margin-left: 0;
 }
 
-.sidebar-expanded .sidebar-logo-icon {
-  opacity: 0;
-}
-
-.sidebar-expanded .sidebar-logo-wordmark {
+.sidebar-expanded .sidebar-logo-text {
   opacity: 1;
+  width: 80px;
+  margin-left: 6px;
 }
 
-@keyframes logo-breathe {
-  0%, 100% { opacity: 1; }
-  40% { opacity: 0.3; }
-  70% { opacity: 0.8; }
-}
-
-.logo-breathing .sidebar-logo-wordmark {
-  animation: logo-breathe 1.2s ease-in-out;
-}
 
 /* Sidebar flame click — smooth single breathe */
 @keyframes sidebar-flame-breathe {

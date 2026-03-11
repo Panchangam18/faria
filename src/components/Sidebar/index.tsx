@@ -3,7 +3,6 @@ import { MdSettings } from 'react-icons/md';
 import { IoMdHome } from 'react-icons/io';
 import { auth } from '../../lib/firebase';
 import FariaLogo from '../FariaLogo';
-import FariaWordmark from '../FariaWordmark';
 
 
 interface UserProfile {
@@ -23,45 +22,32 @@ interface SidebarProps {
 
 function Sidebar({ activeTab, onTabChange, userProfile, expanded }: SidebarProps) {
   const [imgFailed, setImgFailed] = useState(false);
-  const flameRef = useRef<SVGPathElement>(null);
   const iconFlameRef = useRef<SVGPathElement>(null);
-  const logoContainerRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     const iconFlame = iconFlameRef.current;
-    const logoContainer = logoContainerRef.current;
 
     const clearFlameAnimation = () => {
       const svg = iconFlame?.closest('svg');
       svg?.classList.remove('flame-breathing');
     };
-    const clearLogoAnimation = () => logoContainer?.classList.remove('logo-breathing');
 
     iconFlame?.addEventListener('animationend', clearFlameAnimation);
-    logoContainer?.addEventListener('animationend', clearLogoAnimation);
 
     return () => {
       iconFlame?.removeEventListener('animationend', clearFlameAnimation);
-      logoContainer?.removeEventListener('animationend', clearLogoAnimation);
     };
   }, []);
 
   const handleLogoClick = useCallback(() => {
-    if (!expanded) {
-      const flame = iconFlameRef.current;
-      const svg = flame?.closest('svg');
-      if (!svg) return;
+    const flame = iconFlameRef.current;
+    const svg = flame?.closest('svg');
+    if (svg) {
       svg.classList.remove('flame-breathing');
       void svg.getBBox();
       svg.classList.add('flame-breathing');
-    } else {
-      const container = logoContainerRef.current;
-      if (!container) return;
-      container.classList.remove('logo-breathing');
-      void container.offsetWidth;
-      container.classList.add('logo-breathing');
     }
-  }, [expanded]);
+  }, []);
 
   const initial = userProfile?.displayName
     ? userProfile.displayName.charAt(0).toUpperCase()
@@ -91,10 +77,10 @@ function Sidebar({ activeTab, onTabChange, userProfile, expanded }: SidebarProps
       {/* Spacer for traffic lights + toggle area */}
       <div className="sidebar-header" />
 
-      {/* Logo — flame icon when collapsed, full wordmark when expanded */}
-      <div ref={logoContainerRef} className="sidebar-logo" onClick={handleLogoClick} style={{ cursor: 'pointer' }}>
+      {/* Logo — flame icon always visible, text "Faria" appears when expanded */}
+      <div className="sidebar-logo" onClick={handleLogoClick} style={{ cursor: 'pointer' }}>
         <FariaLogo size={28} className="sidebar-logo-icon" flameRef={iconFlameRef} />
-        {expanded && <FariaWordmark height={36} className="sidebar-logo-wordmark" flameRef={flameRef} />}
+        <span className="sidebar-logo-text">Faria</span>
       </div>
 
       <button
