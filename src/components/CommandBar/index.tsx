@@ -180,51 +180,36 @@ function applySizeMode(mode: SizeMode) {
   doc.style.setProperty('--cb-scrollbar-width', `${c.scrollbarWidth}px`);
 }
 
-// Default theme colors (fallback only)
-const DEFAULT_COLORS = { background: '#272932', text: '#EAE0D5', accent: '#C6AC8F' };
+// Background colors per theme (for user-adjustable opacity)
+const THEME_BACKGROUNDS: Record<string, string> = {
+  default: '#272932',
+  comte: '#07020D',
+  mercedes: '#46494C',
+  carnival: '#001011',
+};
 
-// Apply theme CSS variables to document
-function applyTheme(theme: string, colors?: { background: string; text: string; accent: string }, font?: string) {
-  const c = colors || DEFAULT_COLORS;
-
-  // Helper to lighten/darken colors
-  const adjustColor = (hex: string, factor: number): string => {
-    const h = hex.replace('#', '');
-    const r = Math.min(255, Math.max(0, Math.round(parseInt(h.substring(0, 2), 16) * factor)));
-    const g = Math.min(255, Math.max(0, Math.round(parseInt(h.substring(2, 4), 16) * factor)));
-    const b = Math.min(255, Math.max(0, Math.round(parseInt(h.substring(4, 6), 16) * factor)));
-    return `#${r.toString(16).padStart(2, '0')}${g.toString(16).padStart(2, '0')}${b.toString(16).padStart(2, '0')}`;
-  };
-
+// Apply theme by setting data-theme attribute — CSS handles all colors.
+// Also clears any old inline CSS color properties that may have been set by
+// previous versions, since inline style.setProperty overrides CSS selectors.
+function applyTheme(theme: string, font?: string) {
   const doc = document.documentElement;
 
-  // Set base colors
-  doc.style.setProperty('--color-primary', c.background);
-  doc.style.setProperty('--color-secondary', c.text);
-  doc.style.setProperty('--color-accent', c.accent);
+  // Clear legacy inline color overrides so CSS [data-theme] selectors take effect
+  const colorProps = [
+    '--color-primary', '--color-secondary', '--color-accent',
+    '--color-primary-light', '--color-primary-dark',
+    '--color-secondary-muted', '--color-accent-hover', '--color-accent-active',
+    '--color-background', '--color-surface', '--color-text', '--color-text-muted',
+    '--color-border', '--color-hover',
+  ];
+  for (const prop of colorProps) {
+    doc.style.removeProperty(prop);
+  }
 
-  // Derive additional colors
-  doc.style.setProperty('--color-primary-light', adjustColor(c.background, 1.2));
-  doc.style.setProperty('--color-primary-dark', adjustColor(c.background, 0.7));
-  doc.style.setProperty('--color-secondary-muted', c.text + 'B3');
-  doc.style.setProperty('--color-accent-hover', adjustColor(c.accent, 1.15));
-  doc.style.setProperty('--color-accent-active', adjustColor(c.accent, 0.85));
-
-  // UI colors
-  doc.style.setProperty('--color-background', c.background);
-  doc.style.setProperty('--color-surface', adjustColor(c.background, 1.2));
-  doc.style.setProperty('--color-text', c.text);
-  doc.style.setProperty('--color-text-muted', c.text + 'B3');
-  doc.style.setProperty('--color-border', c.text + '26');
-  doc.style.setProperty('--color-hover', c.text + '14');
-
-  // Font
+  doc.setAttribute('data-theme', theme === 'default' ? '' : theme);
   if (font) {
     doc.style.setProperty('--font-family', font);
   }
-
-  // Set data-theme attribute
-  doc.setAttribute('data-theme', theme === 'custom' ? 'custom' : theme);
 }
 
 function CommandBar() {
@@ -484,8 +469,8 @@ function CommandBar() {
       try {
         // Get theme data from main process (single source of truth for colors)
         const themeData = await window.faria.settings.getThemeData();
-        applyTheme(themeData.theme, themeData.colors, themeData.font);
-        setBackgroundColor(themeData.colors.background);
+        applyTheme(themeData.theme, themeData.font);
+        setBackgroundColor(THEME_BACKGROUNDS[themeData.theme] || THEME_BACKGROUNDS.default);
 
         // Load opacity setting
         const savedOpacity = await window.faria.settings.get('commandBarOpacity');
@@ -520,8 +505,8 @@ function CommandBar() {
 
     // Listen for theme changes - colors are always provided by main process
     const cleanupTheme = window.faria.settings.onThemeChange((themeData) => {
-      applyTheme(themeData.theme, themeData.colors, themeData.font);
-      setBackgroundColor(themeData.colors.background);
+      applyTheme(themeData.theme, themeData.font);
+      setBackgroundColor(THEME_BACKGROUNDS[themeData.theme] || THEME_BACKGROUNDS.default);
     });
 
     // Listen for opacity changes

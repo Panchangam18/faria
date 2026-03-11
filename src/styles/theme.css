@@ -1,4 +1,5 @@
 /* Faria Theme System */
+/* Static palettes generated via pro-color-harmonies (OKLCH color space) */
 
 /* Bricolage Grotesque */
 @font-face {
@@ -10,48 +11,51 @@
 }
 
 :root {
-  /* Default Theme - Shadow Grey / Almond Cream / Khaki Beige */
+  /* Default Theme (Chateau) - Shadow Grey / Almond Cream / Khaki Beige */
   --color-primary: #272932;
   --color-secondary: #EAE0D5;
   --color-accent: #C6AC8F;
-  
-  /* Derived colors */
-  --color-primary-light: #363845;
-  --color-primary-dark: #24262E;
+
+  --color-primary-light: #33363f;
+  --color-primary-dark: #20222a;
   --color-secondary-muted: rgba(234, 224, 213, 0.7);
-  --color-accent-hover: #d4bc9f;
-  --color-accent-active: #b89c7f;
-  
-  /* UI colors */
+  --color-accent-hover: #fff3d5;
+  --color-accent-active: #9a8165;
+
+  /* UI aliases */
   --color-background: var(--color-primary);
   --color-surface: var(--color-primary-light);
   --color-text: var(--color-secondary);
   --color-text-muted: var(--color-secondary-muted);
   --color-border: rgba(234, 224, 213, 0.15);
   --color-hover: rgba(234, 224, 213, 0.08);
-  
+
+  /* Command bar backgrounds */
+  --color-command-bar-bg: rgba(39, 41, 50, 0.7);
+  --color-command-bar-menu-bg: rgba(39, 41, 50, 0.92);
+
   /* Shadows */
   --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.3);
   --shadow-md: 0 4px 6px rgba(0, 0, 0, 0.4);
   --shadow-lg: 0 10px 25px rgba(0, 0, 0, 0.5);
-  
+
   /* Transitions */
   --transition-fast: 150ms ease;
   --transition-normal: 250ms ease;
-  
+
   /* Spacing */
   --spacing-xs: 4px;
   --spacing-sm: 8px;
   --spacing-md: 16px;
   --spacing-lg: 24px;
   --spacing-xl: 32px;
-  
+
   /* Border radius */
   --radius-sm: 4px;
   --radius-md: 8px;
   --radius-lg: 6px;
   --radius-xl: 16px;
-  
+
   /* Typography */
   --font-family: 'Bricolage Grotesque', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
   --font-family-mono: 'SF Mono', 'Fira Code', monospace;
@@ -62,108 +66,71 @@
   --font-size-xl: 24px;
 }
 
-/* Midnight Theme - GitHub Dark Inspired */
-[data-theme="midnight"] {
-  --color-primary: #0D1117;
-  --color-secondary: #C9D1D9;
-  --color-accent: #58A6FF;
-  
-  --color-primary-light: #161B22;
-  --color-primary-dark: #010409;
-  --color-secondary-muted: rgba(201, 209, 217, 0.7);
-  --color-accent-hover: #79B8FF;
-  --color-accent-active: #388BFD;
-  
+/* Comte Theme - Deep Purple / Bright White / Blue */
+[data-theme="comte"] {
+  --color-primary: #07020D;
+  --color-secondary: #FBFFFE;
+  --color-accent: #3C91E6;
+
+  --color-primary-light: #110918;
+  --color-primary-dark: #030007;
+  --color-secondary-muted: rgba(251, 255, 254, 0.7);
+  --color-accent-hover: #7bd0ff;
+  --color-accent-active: #00408e;
+
   --color-background: var(--color-primary);
   --color-surface: var(--color-primary-light);
   --color-text: var(--color-secondary);
   --color-text-muted: var(--color-secondary-muted);
-  --color-border: rgba(201, 209, 217, 0.1);
-  --color-hover: rgba(201, 209, 217, 0.05);
+  --color-border: rgba(251, 255, 254, 0.15);
+  --color-hover: rgba(251, 255, 254, 0.08);
+
+  --color-command-bar-bg: rgba(7, 2, 13, 0.7);
+  --color-command-bar-menu-bg: rgba(7, 2, 13, 0.92);
 }
 
-/* Forest Theme - Nature Tones */
-[data-theme="forest"] {
-  --color-primary: #1A2F1A;
-  --color-secondary: #E8F5E8;
-  --color-accent: #7CB342;
-  
-  --color-primary-light: #243524;
-  --color-primary-dark: #0F1C0F;
-  --color-secondary-muted: rgba(232, 245, 232, 0.7);
-  --color-accent-hover: #8BC34A;
-  --color-accent-active: #689F38;
-  
+/* Mercédès Theme - Grey / Light Grey / Purple */
+[data-theme="mercedes"] {
+  --color-primary: #46494C;
+  --color-secondary: #DCDCDD;
+  --color-accent: #9883E5;
+
+  --color-primary-light: #54575a;
+  --color-primary-dark: #3e4144;
+  --color-secondary-muted: rgba(220, 220, 221, 0.7);
+  --color-accent-hover: #cdb9ff;
+  --color-accent-active: #472c86;
+
   --color-background: var(--color-primary);
   --color-surface: var(--color-primary-light);
   --color-text: var(--color-secondary);
   --color-text-muted: var(--color-secondary-muted);
-  --color-border: rgba(232, 245, 232, 0.1);
-  --color-hover: rgba(232, 245, 232, 0.05);
+  --color-border: rgba(220, 220, 221, 0.15);
+  --color-hover: rgba(220, 220, 221, 0.08);
+
+  --color-command-bar-bg: rgba(70, 73, 76, 0.7);
+  --color-command-bar-menu-bg: rgba(70, 73, 76, 0.92);
 }
 
-/* Aurora Theme - Cool and Dreamy */
-[data-theme="aurora"] {
-  --color-primary: #1a1a2e;
-  --color-secondary: #eaeaea;
-  --color-accent: #e94560;
-  
-  --color-primary-light: #252540;
-  --color-primary-dark: #0f0f1a;
-  --color-secondary-muted: rgba(234, 234, 234, 0.7);
-  --color-accent-hover: #f05a73;
-  --color-accent-active: #d63650;
-  
+/* Carnival Theme - Deep Navy / Cyan / Red */
+[data-theme="carnival"] {
+  --color-primary: #001011;
+  --color-secondary: #6CCFF6;
+  --color-accent: #E94560;
+
+  --color-primary-light: #071b1c;
+  --color-primary-dark: #000a0b;
+  --color-secondary-muted: rgba(108, 207, 246, 0.7);
+  --color-accent-hover: #ff8c9e;
+  --color-accent-active: #8f001b;
+
   --color-background: var(--color-primary);
   --color-surface: var(--color-primary-light);
   --color-text: var(--color-secondary);
   --color-text-muted: var(--color-secondary-muted);
-  --color-border: rgba(234, 234, 234, 0.1);
-  --color-hover: rgba(234, 234, 234, 0.05);
-}
+  --color-border: rgba(108, 207, 246, 0.15);
+  --color-hover: rgba(108, 207, 246, 0.08);
 
-/* Obsidian Theme - Sleek and Minimal */
-[data-theme="obsidian"] {
-  --color-primary: #1e1e1e;
-  --color-secondary: #d4d4d4;
-  --color-accent: #daa520;
-  
-  --color-primary-light: #2d2d2d;
-  --color-primary-dark: #121212;
-  --color-secondary-muted: rgba(212, 212, 212, 0.7);
-  --color-accent-hover: #e6b333;
-  --color-accent-active: #c7941a;
-  
-  --color-background: var(--color-primary);
-  --color-surface: var(--color-primary-light);
-  --color-text: var(--color-secondary);
-  --color-text-muted: var(--color-secondary-muted);
-  --color-border: rgba(212, 212, 212, 0.1);
-  --color-hover: rgba(212, 212, 212, 0.05);
+  --color-command-bar-bg: rgba(0, 16, 17, 0.7);
+  --color-command-bar-menu-bg: rgba(0, 16, 17, 0.92);
 }
-
-/* Ocean Theme - Serene Depths */
-[data-theme="ocean"] {
-  --color-primary: #0f2027;
-  --color-secondary: #a8dadc;
-  --color-accent: #00b4d8;
-  
-  --color-primary-light: #1a3540;
-  --color-primary-dark: #080f12;
-  --color-secondary-muted: rgba(168, 218, 220, 0.7);
-  --color-accent-hover: #1cc5e8;
-  --color-accent-active: #009fc0;
-  
-  --color-background: var(--color-primary);
-  --color-surface: var(--color-primary-light);
-  --color-text: var(--color-secondary);
-  --color-text-muted: var(--color-secondary-muted);
-  --color-border: rgba(168, 218, 220, 0.1);
-  --color-hover: rgba(168, 218, 220, 0.05);
-}
-
-/* Custom Theme - User can override via CSS variables */
-[data-theme="custom"] {
-  /* These will be set dynamically via JavaScript */
-}
-

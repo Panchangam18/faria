@@ -249,50 +249,20 @@ function createCommandBarWindow() {
   });
 }
 
-// Preset themes - single source of truth
-const PRESET_THEMES: Record<string, { background: string; text: string; accent: string }> = {
-  default: { background: '#272932', text: '#EAE0D5', accent: '#C6AC8F' },
-  comte: { background: '#07020D', text: '#FBFFFE', accent: '#3C91E6' },
-  mercedes: { background: '#46494C', text: '#DCDCDD', accent: '#9883E5' },
-  carnival: { background: '#001011', text: '#6CCFF6', accent: '#E94560' },
-};
+const VALID_THEMES = ['default', 'comte', 'mercedes', 'carnival'];
 
 // Get current theme data (used by both broadcast and direct requests)
-function getThemeData(): { theme: string; font: string; colors: { background: string; text: string; accent: string } } {
+function getThemeData(): { theme: string; font: string } {
   const db = initDatabase();
 
   const themeRow = db.prepare('SELECT value FROM settings WHERE key = ?').get('theme') as { value: string } | undefined;
   const fontRow = db.prepare('SELECT value FROM settings WHERE key = ?').get('selectedFont') as { value: string } | undefined;
-  const customPalettesRow = db.prepare('SELECT value FROM settings WHERE key = ?').get('customPalettes') as { value: string } | undefined;
-  const activeCustomPaletteRow = db.prepare('SELECT value FROM settings WHERE key = ?').get('activeCustomPalette') as { value: string } | undefined;
 
-  const theme = themeRow?.value || 'default';
+  const rawTheme = themeRow?.value || 'default';
+  const theme = VALID_THEMES.includes(rawTheme) ? rawTheme : 'default';
   const font = fontRow?.value || "'Bricolage Grotesque', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif";
 
-  let colors: { background: string; text: string; accent: string };
-
-  if (theme === 'custom' && customPalettesRow?.value && activeCustomPaletteRow?.value) {
-    try {
-      const palettes = JSON.parse(customPalettesRow.value);
-      const activePalette = palettes.find((p: any) => p.name === activeCustomPaletteRow.value);
-      if (activePalette) {
-        colors = {
-          background: activePalette.background,
-          text: activePalette.text,
-          accent: activePalette.accent
-        };
-      } else {
-        colors = PRESET_THEMES.default;
-      }
-    } catch (e) {
-      console.error('[Faria] Error parsing custom palettes:', e);
-      colors = PRESET_THEMES.default;
-    }
-  } else {
-    colors = PRESET_THEMES[theme] || PRESET_THEMES.default;
-  }
-
-  return { theme, font, colors };
+  return { theme, font };
 }
 
 // Broadcast theme changes to all windows
@@ -1046,7 +1016,7 @@ function setupIPC() {
     db.prepare('INSERT OR REPLACE INTO settings (key, value) VALUES (?, ?)').run(key, value);
     
     // Broadcast theme changes to all windows (including command bar)
-    const themeKeys = ['theme', 'activeCustomPalette', 'customPalettes', 'selectedFont'];
+    const themeKeys = ['theme', 'selectedFont'];
     if (themeKeys.includes(key)) {
       broadcastThemeChange();
     }
