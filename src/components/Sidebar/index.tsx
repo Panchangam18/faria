@@ -44,14 +44,12 @@ function Sidebar({ activeTab, onTabChange, userProfile, expanded }: SidebarProps
 
   const handleLogoClick = useCallback(() => {
     if (!expanded) {
-      // When collapsed, only breathe the flame
       const flame = iconFlameRef.current;
       if (!flame) return;
       flame.classList.remove('flame-breathing');
       void flame.getBBox();
       flame.classList.add('flame-breathing');
     } else {
-      // When expanded, breathe the whole logo
       const container = logoContainerRef.current;
       if (!container) return;
       container.classList.remove('logo-breathing');

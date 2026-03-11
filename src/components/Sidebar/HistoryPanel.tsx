@@ -18,24 +18,33 @@ function HistoryPanel({ userProfile }: HistoryPanelProps) {
   const [searchQuery, setSearchQuery] = useState('');
   const [searchOpen, setSearchOpen] = useState(false);
   const [activeMatchIndex, setActiveMatchIndex] = useState(0);
+  const panelRef = useRef<HTMLDivElement>(null);
   const greetingRef = useRef<HTMLDivElement>(null);
   const searchInputRef = useRef<HTMLInputElement>(null);
   const matchRefs = useRef<Map<number, HTMLElement>>(new Map());
 
   // Track greeting height for sticky date positioning
   useLayoutEffect(() => {
+    const panel = panelRef.current;
     const el = greetingRef.current;
-    const panel = el?.closest('.history-panel') as HTMLElement | null;
-    if (!el || !panel) {
-      panel?.style.setProperty('--greeting-height', '0px');
+    if (!panel) return;
+    if (!el) {
+      panel.style.setProperty('--date-sticky-top', '0px');
+      panel.style.setProperty('--greeting-height', '0px');
       return;
     }
-    const update = () => panel.style.setProperty('--greeting-height', `${el.offsetHeight}px`);
+    const scrollContainer = panel.closest('.main-panel') as HTMLElement | null;
+    const update = () => {
+      const h = el.offsetHeight;
+      panel.style.setProperty('--greeting-height', `${h}px`);
+      const paddingTop = scrollContainer ? parseFloat(getComputedStyle(scrollContainer).paddingTop) : 0;
+      panel.style.setProperty('--date-sticky-top', `${h - paddingTop - 1}px`);
+    };
     update();
     const ro = new ResizeObserver(update);
     ro.observe(el);
     return () => ro.disconnect();
-  }, [firstName]);
+  }, [firstName, loading]);
 
   // Load history on mount and on new responses
   useEffect(() => {
@@ -119,7 +128,7 @@ function HistoryPanel({ userProfile }: HistoryPanelProps) {
   }
 
   return (
-    <div className="history-panel" style={{ paddingBottom: 'var(--spacing-lg)' }}>
+    <div ref={panelRef} className="history-panel" style={{ paddingBottom: 'var(--spacing-lg)' }}>
       {firstName && (
         <div ref={greetingRef} className="history-greeting">
           Good day, {firstName}
