@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef, useMemo } from 'react';
+import React, { useState, useEffect, useRef, useMemo, useLayoutEffect } from 'react';
 import { MdDescription, MdChevronRight, MdExpandMore, MdClose, MdKeyboardArrowUp, MdKeyboardArrowDown } from 'react-icons/md';
 import { marked } from 'marked';
 
@@ -216,7 +216,31 @@ function parseQuery(queryString: string): string {
   return queryString;
 }
 
-function HistoryPanel() {
+interface UserProfile {
+  email: string;
+  uid: string;
+  displayName: string | null;
+  photoUrl: string | null;
+  provider: string | null;
+}
+
+interface HistoryPanelProps {
+  userProfile?: UserProfile | null;
+}
+
+function getFirstName(profile?: UserProfile | null): string | null {
+  if (!profile) return null;
+  if (profile.displayName) {
+    return profile.displayName.split(' ')[0];
+  }
+  if (profile.email) {
+    return profile.email.split('@')[0];
+  }
+  return null;
+}
+
+function HistoryPanel({ userProfile }: HistoryPanelProps) {
+  const firstName = getFirstName(userProfile);
   const [history, setHistory] = useState<HistoryItem[]>([]);
   const [expandedId, setExpandedId] = useState<number | null>(null);
   const [hoveredId, setHoveredId] = useState<number | null>(null);
@@ -224,8 +248,17 @@ function HistoryPanel() {
   const [searchQuery, setSearchQuery] = useState('');
   const [searchOpen, setSearchOpen] = useState(false);
   const [activeMatchIndex, setActiveMatchIndex] = useState(0);
+  const greetingRef = useRef<HTMLDivElement>(null);
   const searchInputRef = useRef<HTMLInputElement>(null);
   const matchRefs = useRef<Map<number, HTMLElement>>(new Map());
+
+  useLayoutEffect(() => {
+    const el = greetingRef.current;
+    const panel = el?.closest('.history-panel') as HTMLElement | null;
+    if (el && panel) {
+      panel.style.setProperty('--greeting-height', `${el.offsetHeight}px`);
+    }
+  }, [firstName]);
 
   useEffect(() => {
     loadHistory();
@@ -376,6 +409,11 @@ function HistoryPanel() {
 
   return (
     <div className="history-panel" style={{ paddingBottom: 'var(--spacing-lg)' }}>
+      {firstName && (
+        <div ref={greetingRef} className="history-greeting">
+          Hello, {firstName}
+        </div>
+      )}
       {searchOpen && (
         <div className="find-widget">
           <div className="find-widget-input-wrap">

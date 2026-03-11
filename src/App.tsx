@@ -179,7 +179,7 @@ function App() {
       <div className="app-content">
         <main className="main-panel" ref={mainPanelRef}>
           <div className="main-panel-inner">
-            {activeTab === 'history' && <HistoryPanel />}
+            {activeTab === 'history' && <HistoryPanel userProfile={userAuth} />}
             {activeTab === 'settings' && (
               <SettingsPanel
                 currentTheme={theme}
