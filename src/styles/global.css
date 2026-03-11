@@ -26,7 +26,7 @@ html, body {
   display: flex;
   overflow: hidden;
   position: relative;
-  background: color-mix(in srgb, var(--color-primary) 50%, var(--color-primary-dark) 50%);
+  background: var(--color-primary-dark);
 }
 
 .app-header {
@@ -81,7 +81,7 @@ html, body {
 
 .sidebar-expanded {
   width: 160px;
-  background: color-mix(in srgb, var(--color-primary) 50%, var(--color-primary-dark) 50%);
+  background: var(--color-primary-dark);
 }
 
 .sidebar-header {
@@ -211,11 +211,12 @@ html, body {
 }
 
 .sidebar-tab.active {
-  background: rgba(255, 255, 255, 0.12);
+  background: color-mix(in srgb, var(--color-accent) 15%, transparent);
+  color: var(--color-text);
 }
 
 .sidebar-tab.active:hover {
-  background: rgba(255, 255, 255, 0.15);
+  background: color-mix(in srgb, var(--color-accent) 20%, transparent);
 }
 
 .sidebar-label {
@@ -414,10 +415,11 @@ pre {
   position: sticky;
   top: 0;
   z-index: 20;
-  padding-top: var(--spacing-sm);
-  padding-bottom: var(--spacing-md);
-  font-size: var(--font-size-lg);
-  font-weight: 600;
+  padding-top: var(--spacing-lg);
+  padding-bottom: var(--spacing-lg);
+  padding-left: var(--spacing-md);
+  font-size: 33px;
+  font-weight: 400;
   color: var(--color-text);
   background: var(--color-primary);
 }
@@ -479,8 +481,8 @@ pre {
   position: absolute;
   left: 0;
   right: 0;
-  top: calc(-1 * var(--spacing-lg));
-  height: var(--spacing-lg);
+  bottom: 100%;
+  height: var(--greeting-height, 0px);
   background: var(--color-primary);
 }
 
@@ -843,4 +845,5 @@ pre {
   opacity: 0.3;
   cursor: not-allowed;
 }
+
 

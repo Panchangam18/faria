@@ -1,5 +1,6 @@
 import { useState, useRef, useCallback, useEffect } from 'react';
-import { MdHistory, MdSettings } from 'react-icons/md';
+import { MdSettings } from 'react-icons/md';
+import { IoMdHome } from 'react-icons/io';
 import { auth } from '../../lib/firebase';
 import FariaLogo from '../FariaLogo';
 import FariaWordmark from '../FariaWordmark';
@@ -13,8 +14,8 @@ interface UserProfile {
 }
 
 interface SidebarProps {
-  activeTab: 'history' | 'settings';
-  onTabChange: (tab: 'history' | 'settings') => void;
+  activeTab: 'home' | 'settings';
+  onTabChange: (tab: 'home' | 'settings') => void;
   userProfile: UserProfile | null;
   expanded: boolean;
 }
@@ -94,12 +95,12 @@ function Sidebar({ activeTab, onTabChange, userProfile, expanded }: SidebarProps
       </div>
 
       <button
-        className={`sidebar-tab ${activeTab === 'history' ? 'active' : ''}`}
-        onClick={() => onTabChange('history')}
-        title="History"
+        className={`sidebar-tab ${activeTab === 'home' ? 'active' : ''}`}
+        onClick={() => onTabChange('home')}
+        title="Home"
       >
-        <MdHistory size={20} />
-        <span className="sidebar-label">History</span>
+        <IoMdHome size={20} />
+        <span className="sidebar-label">Home</span>
       </button>
       <button
         className={`sidebar-tab ${activeTab === 'settings' ? 'active' : ''}`}

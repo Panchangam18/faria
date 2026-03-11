@@ -255,9 +255,17 @@ function HistoryPanel({ userProfile }: HistoryPanelProps) {
   useLayoutEffect(() => {
     const el = greetingRef.current;
     const panel = el?.closest('.history-panel') as HTMLElement | null;
-    if (el && panel) {
-      panel.style.setProperty('--greeting-height', `${el.offsetHeight}px`);
+    if (!el || !panel) {
+      panel?.style.setProperty('--greeting-height', '0px');
+      return;
     }
+    const update = () => {
+      panel.style.setProperty('--greeting-height', `${el.offsetHeight}px`);
+    };
+    update();
+    const ro = new ResizeObserver(update);
+    ro.observe(el);
+    return () => ro.disconnect();
   }, [firstName]);
 
   useEffect(() => {
@@ -411,7 +419,7 @@ function HistoryPanel({ userProfile }: HistoryPanelProps) {
     <div className="history-panel" style={{ paddingBottom: 'var(--spacing-lg)' }}>
       {firstName && (
         <div ref={greetingRef} className="history-greeting">
-          Hello, {firstName}
+          Good day, {firstName}
         </div>
       )}
       {searchOpen && (

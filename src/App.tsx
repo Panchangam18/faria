@@ -8,7 +8,7 @@ import SettingsPanel from './components/Settings/SettingsPanel';
 
 import SignIn from './components/SignIn';
 
-type Tab = 'history' | 'settings';
+type Tab = 'home' | 'settings';
 
 interface UserProfile {
   email: string;
@@ -94,7 +94,7 @@ const applyThemeColors = (colors: { background: string; text: string; accent: st
 };
 
 function App() {
-  const [activeTab, setActiveTab] = useState<Tab>('history');
+  const [activeTab, setActiveTab] = useState<Tab>('home');
   const [theme, setTheme] = useState<string>('default');
   const [userAuth, setUserAuth] = useState<UserProfile | null | undefined>(undefined);
 
@@ -179,7 +179,7 @@ function App() {
       <div className="app-content">
         <main className="main-panel" ref={mainPanelRef}>
           <div className="main-panel-inner">
-            {activeTab === 'history' && <HistoryPanel userProfile={userAuth} />}
+            {activeTab === 'home' && <HistoryPanel userProfile={userAuth} />}
             {activeTab === 'settings' && (
               <SettingsPanel
                 currentTheme={theme}
