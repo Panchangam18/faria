@@ -135,17 +135,22 @@ const PRESET_THEMES = [
   {
     id: 'comte',
     name: 'Comte',
-    colors: { background: '#07020D', text: '#FBFFFE', accent: '#3C91E6' },
+    colors: { background: '#121214', text: '#FBFFFE', accent: '#3C91E6' },
   },
   {
     id: 'mercedes',
     name: 'Mercédès',
-    colors: { background: '#46494C', text: '#DCDCDD', accent: '#9883E5' },
+    colors: { background: '#46494C', text: '#DCDCDD', accent: '#E1979C' },
+  },
+  {
+    id: 'pistols',
+    name: 'Pistols',
+    colors: { background: '#E4DED6', text: '#2C2F33', accent: '#7A5F1C' },
   },
   {
     id: 'carnival',
     name: 'Carnival',
-    colors: { background: '#001011', text: '#6CCFF6', accent: '#E94560' },
+    colors: { background: '#001011', text: '#6CCFF6', accent: '#D95055' },
   },
 ];
 

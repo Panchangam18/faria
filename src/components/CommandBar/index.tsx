@@ -183,8 +183,9 @@ function applySizeMode(mode: SizeMode) {
 // Background colors per theme (for user-adjustable opacity)
 const THEME_BACKGROUNDS: Record<string, string> = {
   default: '#272932',
-  comte: '#07020D',
+  comte: '#121214',
   mercedes: '#46494C',
+  pistols: '#E4DED6',
   carnival: '#001011',
 };
 

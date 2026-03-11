@@ -133,7 +133,7 @@ function App() {
       {helpOpen && (
         <div className="help-modal-overlay" onClick={() => setHelpOpen(false)}>
           <div className="help-modal" onClick={(e) => e.stopPropagation()}>
-            <h2 className="help-modal-title">Help</h2>
+            <h2 className="help-modal-title">Need Help?</h2>
             <textarea
               className="help-modal-textarea"
               placeholder="Send us a message..."

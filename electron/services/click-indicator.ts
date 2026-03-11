@@ -7,8 +7,9 @@ let indicatorWindow: BrowserWindow | null = null;
 const PRESET_ACCENTS: Record<string, string> = {
   default: '#C6AC8F',
   comte: '#3C91E6',
-  mercedes: '#9883E5',
-  carnival: '#E94560',
+  mercedes: '#E1979C',
+  pistols: '#7A5F1C',
+  carnival: '#D95055',
 };
 
 /**

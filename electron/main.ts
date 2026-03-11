@@ -249,7 +249,7 @@ function createCommandBarWindow() {
   });
 }
 
-const VALID_THEMES = ['default', 'comte', 'mercedes', 'carnival'];
+const VALID_THEMES = ['default', 'comte', 'mercedes', 'pistols', 'carnival'];
 
 // Get current theme data (used by both broadcast and direct requests)
 function getThemeData(): { theme: string; font: string } {

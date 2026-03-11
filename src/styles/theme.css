@@ -66,17 +66,17 @@
   --font-size-xl: 24px;
 }
 
-/* Comte Theme - Deep Purple / Bright White / Blue */
+/* Comte Theme - Dark Grey / Bright White / Blue */
 [data-theme="comte"] {
-  --color-primary: #07020D;
+  --color-primary: #121214;
   --color-secondary: #FBFFFE;
   --color-accent: #3C91E6;
 
-  --color-primary-light: #110918;
-  --color-primary-dark: #030007;
+  --color-primary-light: #1E1E21;
+  --color-primary-dark: #0A0A0C;
   --color-secondary-muted: rgba(251, 255, 254, 0.7);
-  --color-accent-hover: #7bd0ff;
-  --color-accent-active: #00408e;
+  --color-accent-hover: #5DB1FF;
+  --color-accent-active: #1572C4;
 
   --color-background: var(--color-primary);
   --color-surface: var(--color-primary-light);
@@ -85,21 +85,21 @@
   --color-border: rgba(251, 255, 254, 0.15);
   --color-hover: rgba(251, 255, 254, 0.08);
 
-  --color-command-bar-bg: rgba(7, 2, 13, 0.7);
-  --color-command-bar-menu-bg: rgba(7, 2, 13, 0.92);
+  --color-command-bar-bg: rgba(18, 18, 20, 0.7);
+  --color-command-bar-menu-bg: rgba(18, 18, 20, 0.92);
 }
 
-/* Mercédès Theme - Grey / Light Grey / Purple */
+/* Mercédès Theme - Grey / Light Grey / Dusty Rose */
 [data-theme="mercedes"] {
   --color-primary: #46494C;
   --color-secondary: #DCDCDD;
-  --color-accent: #9883E5;
+  --color-accent: #E1979C;
 
-  --color-primary-light: #54575a;
-  --color-primary-dark: #3e4144;
+  --color-primary-light: #56595C;
+  --color-primary-dark: #3B3E41;
   --color-secondary-muted: rgba(220, 220, 221, 0.7);
-  --color-accent-hover: #cdb9ff;
-  --color-accent-active: #472c86;
+  --color-accent-hover: #FFB6BB;
+  --color-accent-active: #C0787D;
 
   --color-background: var(--color-primary);
   --color-surface: var(--color-primary-light);
@@ -112,17 +112,40 @@
   --color-command-bar-menu-bg: rgba(70, 73, 76, 0.92);
 }
 
+/* Pistols Theme - Pearl / Gunmetal / Antique Gold */
+[data-theme="pistols"] {
+  --color-primary: #E4DED6;
+  --color-secondary: #2C2F33;
+  --color-accent: #7A5F1C;
+
+  --color-primary-light: #F0EAE2;
+  --color-primary-dark: #D5CFC7;
+  --color-secondary-muted: rgba(44, 47, 51, 0.7);
+  --color-accent-hover: #8B6D22;
+  --color-accent-active: #5C4710;
+
+  --color-background: var(--color-primary);
+  --color-surface: var(--color-primary-light);
+  --color-text: var(--color-secondary);
+  --color-text-muted: var(--color-secondary-muted);
+  --color-border: rgba(44, 47, 51, 0.15);
+  --color-hover: rgba(44, 47, 51, 0.08);
+
+  --color-command-bar-bg: rgba(228, 222, 214, 0.7);
+  --color-command-bar-menu-bg: rgba(228, 222, 214, 0.92);
+}
+
 /* Carnival Theme - Deep Navy / Cyan / Red */
 [data-theme="carnival"] {
   --color-primary: #001011;
   --color-secondary: #6CCFF6;
-  --color-accent: #E94560;
+  --color-accent: #D95055;
 
   --color-primary-light: #071b1c;
   --color-primary-dark: #000a0b;
   --color-secondary-muted: rgba(108, 207, 246, 0.7);
-  --color-accent-hover: #ff8c9e;
-  --color-accent-active: #8f001b;
+  --color-accent-hover: #F07E82;
+  --color-accent-active: #A42E33;
 
   --color-background: var(--color-primary);
   --color-surface: var(--color-primary-light);
