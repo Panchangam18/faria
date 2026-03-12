@@ -47,6 +47,20 @@ function HistoryPanel({ userProfile }: HistoryPanelProps) {
     return () => ro.disconnect();
   }, [firstName, loading]);
 
+  // Load app logos from connected integrations
+  const [appLogos, setAppLogos] = useState<Map<string, string>>(new Map());
+  useEffect(() => {
+    window.faria.integrations.getConnections()
+      .then((conns: Array<{ appName: string; logo?: string }>) => {
+        const map = new Map<string, string>();
+        for (const c of conns) {
+          if (c.logo) map.set(c.appName.toLowerCase(), c.logo);
+        }
+        setAppLogos(map);
+      })
+      .catch(() => {});
+  }, []);
+
   // Load history on mount and on new responses
   useEffect(() => {
     const load = async () => {
@@ -205,6 +219,7 @@ function HistoryPanel({ userProfile }: HistoryPanelProps) {
                 isExpanded={expandedId === item.id}
                 isHovered={hoveredId === item.id}
                 isActiveMatch={!!searchQuery && filteredHistory[activeMatchIndex]?.id === item.id}
+                appLogos={appLogos}
                 onToggle={() => setExpandedId(expandedId === item.id ? null : item.id)}
                 onHover={(h) => h ? setHoveredId(item.id) : setHoveredId(null)}
                 cardRef={(el) => {

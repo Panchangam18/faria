@@ -15,13 +15,32 @@ interface HistoryCardProps {
   isExpanded: boolean;
   isHovered: boolean;
   isActiveMatch: boolean;
+  appLogos: Map<string, string>;
   onToggle: () => void;
   onHover: (hovered: boolean) => void;
   cardRef: (el: HTMLElement | null) => void;
 }
 
+function getAppLogo(toolName: string, input: unknown, appLogos: Map<string, string>): string | null {
+  // For COMPOSIO_MULTI_EXECUTE_TOOL, dig into input.tools[0].tool_slug
+  if (toolName === 'COMPOSIO_MULTI_EXECUTE_TOOL') {
+    const inp = input as Record<string, unknown>;
+    const tools = inp.tools as Array<{ tool_slug?: string }> | undefined;
+    const slug = tools?.[0]?.tool_slug;
+    if (slug) {
+      const appName = slug.split('_')[0].toLowerCase();
+      return appLogos.get(appName) || null;
+    }
+  }
+  // For directly named tools: GMAIL_SEND_EMAIL → gmail
+  const parts = toolName.split('_');
+  if (parts.length < 2) return null;
+  const appName = parts[0].toLowerCase();
+  return appLogos.get(appName) || null;
+}
+
 export default function HistoryCard({
-  item, isLast, isExpanded, isHovered, isActiveMatch, onToggle, onHover, cardRef
+  item, isLast, isExpanded, isHovered, isActiveMatch, appLogos, onToggle, onHover, cardRef
 }: HistoryCardProps) {
   const userQuery = parseQuery(item.query);
   const stopPropagation = (e: React.MouseEvent) => e.stopPropagation();
@@ -76,7 +95,14 @@ export default function HistoryCard({
                     />
                   ) : (
                     <div key={idx} className="tool-bubble">
-                      <span className="tool-bubble-icon">{getToolIcon(action.tool)}</span>
+                      <span className="tool-bubble-icon">
+                        {(() => {
+                          const logo = getAppLogo(action.tool, action.input, appLogos);
+                          return logo
+                            ? <img src={logo} alt="" style={{ width: 12, height: 12, objectFit: 'contain', borderRadius: 2 }} />
+                            : getToolIcon(action.tool);
+                        })()}
+                      </span>
                       <span className="tool-bubble-text">{formatAction(action)}</span>
                     </div>
                   )
