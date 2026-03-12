@@ -124,6 +124,7 @@ const MODELS = [
   { id: 'gemini-3.1-flash-lite-preview', name: 'Gemini 3.1 Flash Lite', provider: 'google' },
   { id: 'gemini-2.5-pro', name: 'Gemini 2.5 Pro', provider: 'google' },
   { id: 'gemini-2.5-flash', name: 'Gemini 2.5 Flash', provider: 'google' },
+  { id: 'gpt-5.4', name: 'GPT-5.4 (Computer Use)', provider: 'openai' },
 ];
 
 const PRESET_THEMES = [
@@ -207,6 +208,8 @@ function SettingsPanel({ currentTheme, onThemeChange }: SettingsPanelProps) {
   const [showAnthropicKey, setShowAnthropicKey] = useState(false);
   const [googleKey, setGoogleKey] = useState('');
   const [showGoogleKey, setShowGoogleKey] = useState(false);
+  const [openaiKey, setOpenaiKey] = useState('');
+  const [showOpenaiKey, setShowOpenaiKey] = useState(false);
   const [selectedModel, setSelectedModel] = useState(MODELS[0].id);
   const [saveStatus, setSaveStatus] = useState<string | null>(null);
   const [hoveredTheme, setHoveredTheme] = useState<string | null>(null);
@@ -275,16 +278,18 @@ function SettingsPanel({ currentTheme, onThemeChange }: SettingsPanelProps) {
       setSelectedModel('none');
       saveSettings('selectedModel', 'none');
     }
-  }, [anthropicKey, googleKey, hasLoadedSettings, selectedModel]);
+  }, [anthropicKey, googleKey, openaiKey, hasLoadedSettings, selectedModel]);
 
   const loadSettings = async () => {
     const savedAnthropicKey = await window.faria.settings.get('anthropicKey');
     const savedGoogleKey = await window.faria.settings.get('googleKey');
+    const savedOpenaiKey = await window.faria.settings.get('openaiKey');
     const savedModel = await window.faria.settings.get('selectedModel');
     const savedAgentPrompt = await window.faria.settings.get('agentSystemPrompt');
 
     if (savedAnthropicKey) setAnthropicKey(savedAnthropicKey);
     if (savedGoogleKey) setGoogleKey(savedGoogleKey);
+    if (savedOpenaiKey) setOpenaiKey(savedOpenaiKey);
 
     // Load prompt: use saved if available, otherwise load default
     if (savedAgentPrompt) {
@@ -297,10 +302,12 @@ function SettingsPanel({ currentTheme, onThemeChange }: SettingsPanelProps) {
     // Check which models are available based on saved API keys
     const hasAnthropicKey = savedAnthropicKey && savedAnthropicKey.trim().length > 0;
     const hasGoogleKey = savedGoogleKey && savedGoogleKey.trim().length > 0;
+    const hasOpenaiKey = savedOpenaiKey && savedOpenaiKey.trim().length > 0;
     const availableModelIds = MODELS
       .filter(model => {
         if (model.provider === 'anthropic' && hasAnthropicKey) return true;
         if (model.provider === 'google' && hasGoogleKey) return true;
+        if (model.provider === 'openai' && hasOpenaiKey) return true;
         return false;
       })
       .map(m => m.id);
@@ -477,11 +484,15 @@ function SettingsPanel({ currentTheme, onThemeChange }: SettingsPanelProps) {
     const hasAnthropicKey = anthropicKey && anthropicKey.trim().length > 0;
     // Check if Google key is available
     const hasGoogleKey = googleKey && googleKey.trim().length > 0;
-    
+    // Check if OpenAI key is available
+    const hasOpenaiKey = openaiKey && openaiKey.trim().length > 0;
+
     MODELS.forEach(model => {
       if (model.provider === 'anthropic' && hasAnthropicKey) {
         available.push(model);
       } else if (model.provider === 'google' && hasGoogleKey) {
+        available.push(model);
+      } else if (model.provider === 'openai' && hasOpenaiKey) {
         available.push(model);
       }
     });
@@ -950,6 +961,58 @@ function SettingsPanel({ currentTheme, onThemeChange }: SettingsPanelProps) {
                 }}
               >
                 {showGoogleKey ? (
+                  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                    <path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19m-6.72-1.07a3 3 0 1 1-4.24-4.24" />
+                    <line x1="1" y1="1" x2="23" y2="23" />
+                  </svg>
+                ) : (
+                  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                    <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z" />
+                    <circle cx="12" cy="12" r="3" />
+                  </svg>
+                )}
+              </button>
+            </div>
+          </div>
+
+          <div>
+            <label style={{
+              display: 'block',
+              fontSize: 'var(--font-size-sm)',
+              marginBottom: 'var(--spacing-xs)',
+              color: 'var(--color-text-muted)'
+            }}>
+              OpenAI
+            </label>
+            <div style={{ position: 'relative' }}>
+              <input
+                type={showOpenaiKey ? 'text' : 'password'}
+                value={openaiKey}
+                onChange={(e) => {
+                  setOpenaiKey(e.target.value);
+                  saveSettings('openaiKey', e.target.value);
+                }}
+                placeholder="sk-..."
+                style={{ width: '100%', paddingRight: 36 }}
+              />
+              <button
+                onClick={() => setShowOpenaiKey(!showOpenaiKey)}
+                style={{
+                  position: 'absolute',
+                  right: 8,
+                  top: '50%',
+                  transform: 'translateY(-50%)',
+                  background: 'none',
+                  border: 'none',
+                  padding: 4,
+                  cursor: 'pointer',
+                  color: 'var(--color-text-muted)',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                }}
+              >
+                {showOpenaiKey ? (
                   <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
                     <path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19m-6.72-1.07a3 3 0 1 1-4.24-4.24" />
                     <line x1="1" y1="1" x2="23" y2="23" />

@@ -24,7 +24,7 @@ export class ToolExecutor {
   private stateExtractor: StateExtractor;
   private currentState: AppState | null = null;
   private targetApp: string | null = null; // The app that was focused when command bar opened
-  private provider: 'anthropic' | 'google' | null = null; // Which model provider is being used
+  private provider: 'anthropic' | 'google' | 'openai' | null = null; // Which model provider is being used
   private pendingImages: string[] = [];
   
   constructor(stateExtractor: StateExtractor) {
@@ -42,7 +42,7 @@ export class ToolExecutor {
   /**
    * Set the model provider (for coordinate format handling)
    */
-  setProvider(provider: 'anthropic' | 'google' | null): void {
+  setProvider(provider: 'anthropic' | 'google' | 'openai' | null): void {
     this.provider = provider;
     console.log(`[Faria] Tool executor provider set to: ${provider}`);
   }

@@ -23,6 +23,7 @@ import { getOrCreateMemoryIndexManager } from '../services/memory/memory-index';
 import { createMemorySearchTool, createMemoryGetTool } from './tools/memory-tools';
 import { appendToDailyLog } from './memory-agent';
 import { shouldRunMemoryFlush, runMemoryFlush, recordFlush, resetFlushTracking } from './memory-flush';
+import { runOpenAIComputerUseLoop } from './openai-computer-use';
 import { ComposioService } from '../services/composio';
 import { showClickIndicator, hideClickIndicator } from '../services/click-indicator';
 import { calculateResizeWidth } from '../services/screenshot';
@@ -251,8 +252,8 @@ export class AgentLoop {
     const doWarmup = async () => {
       const modelName = getSelectedModel('selectedModel');
       const providerName = getProviderName(modelName);
-      const provider: 'anthropic' | 'google' | null =
-        providerName === 'anthropic' || providerName === 'google' ? providerName : null;
+      const provider: 'anthropic' | 'google' | 'openai' | null =
+        providerName === 'anthropic' || providerName === 'google' || providerName === 'openai' ? providerName : null;
 
       this.stateExtractor.setProvider(provider);
       this.toolExecutor.setProvider(provider);
@@ -393,8 +394,8 @@ export class AgentLoop {
       // Determine provider early — needed for screenshot sizing decisions
       const modelName = getSelectedModel('selectedModel');
       const providerName = getProviderName(modelName);
-      const provider: 'anthropic' | 'google' | null =
-        providerName === 'anthropic' || providerName === 'google' ? providerName : null;
+      const provider: 'anthropic' | 'google' | 'openai' | null =
+        providerName === 'anthropic' || providerName === 'google' || providerName === 'openai' ? providerName : null;
 
       // Set provider on state extractor (controls screenshot resolution)
       // and tool executor (controls coordinate conversion)
@@ -710,6 +711,111 @@ export class AgentLoop {
 
       const promptMs = performance.now() - promptStart;
       console.log(`[Timing] Prompt & context setup: ${promptMs.toFixed(0)}ms`);
+
+      if (providerName === 'openai') {
+        // The OpenAI sample app uses the native Responses API "computer" tool
+        // rather than generic tool-calling. Keep GPT-5.4 on that path so the
+        // screenshot and click coordinate spaces stay aligned.
+        const setupMs = performance.now() - this.timingStart;
+        console.log(`[Timing] Total setup (query → ready to stream): ${setupMs.toFixed(0)}ms`);
+        this.sendTiming({
+          stateMs,
+          toolsMs,
+          promptMs,
+          modelMs: 0,
+          setupMs,
+          streamConnectMs: 0,
+          ttft: 0,
+          totalTtft: setupMs,
+        });
+
+        const result = await runOpenAIComputerUseLoop(
+          modelName,
+          this.buildUserPrompt(query, state),
+          systemPrompt,
+          {
+            sendStatus: (status) => this.sendStatus(status),
+            sendChunk: (chunk) => this.sendChunk(chunk),
+            sendChunkClear: () => this.sendChunkClear(),
+            shouldCancel: () => this.shouldCancel,
+            requestApproval: async (args) => {
+              const needsApproval = this.checkIfApprovalNeeded(
+                'computer_actions',
+                args,
+                false,
+                toolSettings
+              );
+
+              if (!needsApproval) {
+                return { approved: true };
+              }
+
+              const { displayName, details } = generateBuiltinApprovalInfo('computer_actions', args);
+              const clickCoords = this.extractClickCoordinates(args, providerName);
+
+              if (clickCoords) {
+                showClickIndicator(clickCoords.x, clickCoords.y);
+              }
+
+              this.sendStatus('Waiting for approval...');
+
+              try {
+                const approved = await this.requestToolApproval(
+                  'computer_actions',
+                  'Execute native OpenAI computer actions.',
+                  args,
+                  false,
+                  displayName,
+                  details
+                );
+
+                if (approved) {
+                  this.computerUseApproved = true;
+                }
+
+                return {
+                  approved,
+                  reason: approved ? undefined : 'Tool execution denied by user',
+                };
+              } finally {
+                hideClickIndicator();
+              }
+            },
+          }
+        );
+
+        this.conversationHistory = [];
+
+        if (result.cancelled || this.shouldCancel) {
+          console.log('[Faria] OpenAI computer-use run cancelled, saving partial response to history');
+          const db = initDatabase();
+          db.prepare('INSERT INTO history (query, response, tools_used, agent_type, actions, context_text) VALUES (?, ?, ?, ?, ?, ?)').run(
+            query,
+            result.response || '',
+            result.toolsUsed.length > 0 ? JSON.stringify(result.toolsUsed) : null,
+            'regular',
+            result.actions.length > 0 ? JSON.stringify(result.actions) : null,
+            selectedText || null
+          );
+          return '';
+        }
+
+        if (result.response) {
+          appendToDailyLog(query, result.response, result.toolsUsed);
+        }
+
+        const db = initDatabase();
+        db.prepare('INSERT INTO history (query, response, tools_used, agent_type, actions, context_text) VALUES (?, ?, ?, ?, ?, ?)').run(
+          query,
+          result.response,
+          result.toolsUsed.length > 0 ? JSON.stringify(result.toolsUsed) : null,
+          'regular',
+          result.actions.length > 0 ? JSON.stringify(result.actions) : null,
+          selectedText || null
+        );
+
+        return result.response;
+      }
 
       const modelStart = performance.now();
       const boundModel = createModelWithTools(
@@ -1253,6 +1359,12 @@ export class AgentLoop {
       const ssHeight = Math.round(nativeHeight * (ssWidth / nativeWidth));
       x = Math.round((x / ssWidth) * screenWidth);
       y = Math.round((y / ssHeight) * screenHeight);
+    } else if (providerName === 'openai') {
+      // OpenAI screenshots are at logical resolution — coords are already logical pixels
+      const primaryDisplay = screen.getPrimaryDisplay();
+      const { width: screenWidth, height: screenHeight } = primaryDisplay.size;
+      x = Math.max(0, Math.min(screenWidth - 1, Math.round(x)));
+      y = Math.max(0, Math.min(screenHeight - 1, Math.round(y)));
     }
 
     return { x, y };

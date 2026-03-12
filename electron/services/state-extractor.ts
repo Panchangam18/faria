@@ -21,7 +21,7 @@ export interface AppState {
 }
 
 export class StateExtractor {
-  private provider: 'anthropic' | 'google' | null = null;
+  private provider: 'anthropic' | 'google' | 'openai' | null = null;
 
   constructor() {
     // State extractor initialization
@@ -32,7 +32,7 @@ export class StateExtractor {
    * Google/Gemini gets full-res screenshots (uses normalized coords).
    * Anthropic/Claude gets resized screenshots (for deterministic coord mapping).
    */
-  setProvider(provider: 'anthropic' | 'google' | null): void {
+  setProvider(provider: 'anthropic' | 'google' | 'openai' | null): void {
     this.provider = provider;
   }
 
