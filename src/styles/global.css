@@ -83,47 +83,85 @@ html, body {
   100% { transform: translate(0, 0) scale(1);        opacity: 0.11; }
 }
 
+@keyframes splotch-roam-6 {
+  0%   { transform: translate(0, 0) scale(1);        opacity: 0.10; }
+  20%  { transform: translate(140px, 160px) scale(1.1);  opacity: 0.15; }
+  45%  { transform: translate(-180px, 80px) scale(0.9);  opacity: 0.07; }
+  70%  { transform: translate(-100px, -200px) scale(1.06); opacity: 0.13; }
+  100% { transform: translate(0, 0) scale(1);        opacity: 0.10; }
+}
+
+@keyframes splotch-roam-5 {
+  0%   { transform: translate(0, 0) scale(1);        opacity: 0.12; }
+  25%  { transform: translate(-160px, 120px) scale(1.08); opacity: 0.16; }
+  50%  { transform: translate(220px, -140px) scale(0.93); opacity: 0.08; }
+  75%  { transform: translate(100px, 200px) scale(1.05); opacity: 0.14; }
+  100% { transform: translate(0, 0) scale(1);        opacity: 0.12; }
+}
+
 .accent-splotch-1 {
-  width: 200px;
-  height: 200px;
+  width: 100px;
+  height: 100px;
   top: -40px;
   left: -30px;
   opacity: 0.15;
-  filter: blur(70px);
+  filter: blur(35px);
   animation: splotch-roam-1 18s ease-in-out infinite;
 }
 
 .accent-splotch-2 {
-  width: 180px;
-  height: 160px;
+  width: 90px;
+  height: 80px;
   bottom: -20px;
   right: -30px;
   opacity: 0.12;
-  filter: blur(65px);
+  filter: blur(33px);
   border-radius: 45% 55% 50% 50%;
   animation: splotch-roam-2 22s ease-in-out infinite;
 }
 
 .accent-splotch-3 {
-  width: 160px;
-  height: 180px;
+  width: 80px;
+  height: 90px;
   top: 20%;
   right: -40px;
   opacity: 0.13;
-  filter: blur(60px);
+  filter: blur(30px);
   border-radius: 50% 45% 55% 50%;
   animation: splotch-roam-3 20s ease-in-out infinite;
 }
 
 .accent-splotch-4 {
-  width: 190px;
-  height: 170px;
+  width: 95px;
+  height: 85px;
   bottom: 30%;
   left: -20px;
   opacity: 0.11;
-  filter: blur(65px);
+  filter: blur(33px);
   border-radius: 55% 45% 50% 50%;
   animation: splotch-roam-4 24s ease-in-out infinite;
+}
+
+.accent-splotch-5 {
+  width: 85px;
+  height: 95px;
+  top: 50%;
+  left: 40%;
+  opacity: 0.12;
+  filter: blur(32px);
+  border-radius: 48% 52% 46% 54%;
+  animation: splotch-roam-5 21s ease-in-out infinite;
+}
+
+.accent-splotch-6 {
+  width: 90px;
+  height: 80px;
+  top: 10%;
+  left: 60%;
+  opacity: 0.10;
+  filter: blur(30px);
+  border-radius: 52% 48% 54% 46%;
+  animation: splotch-roam-6 23s ease-in-out infinite;
 }
 
 .app-header {

@@ -101,6 +101,8 @@ function App() {
         <div className="accent-splotch accent-splotch-2" />
         <div className="accent-splotch accent-splotch-3" />
         <div className="accent-splotch accent-splotch-4" />
+        <div className="accent-splotch accent-splotch-5" />
+        <div className="accent-splotch accent-splotch-6" />
       </div>
 
       <div className="app-header"></div>
