@@ -1,3 +1,16 @@
+import React from 'react';
+import {
+  IoSearchOutline,
+  IoCreateOutline,
+  IoImageOutline,
+  IoChatbubbleOutline,
+  IoSwapHorizontalOutline,
+  IoCodeSlashOutline,
+  IoDesktopOutline,
+  IoEyeOutline,
+  IoExtensionPuzzleOutline,
+  IoBuildOutline,
+} from 'react-icons/io5';
 import { ActionData, HistoryItem, GroupedHistory } from './history-types';
 
 function truncate(text: string | undefined | null, maxLength: number): string {
@@ -86,6 +99,33 @@ function formatUnknownTool(action: ActionData): string {
     return `${toolName}: ${truncate(input[firstKey] as string, 40)}`;
   }
   return toolName;
+}
+
+export function getToolIcon(tool: string): React.ReactElement {
+  switch (tool) {
+    case 'web_search':
+      return React.createElement(IoSearchOutline, { size: 12 });
+    case 'make_edit':
+    case 'suggest_edits':
+      return React.createElement(IoCreateOutline, { size: 12 });
+    case 'insert_image':
+      return React.createElement(IoImageOutline, { size: 12 });
+    case 'answer':
+      return React.createElement(IoChatbubbleOutline, { size: 12 });
+    case 'replace_selected_text':
+      return React.createElement(IoSwapHorizontalOutline, { size: 12 });
+    case 'execute_python':
+      return React.createElement(IoCodeSlashOutline, { size: 12 });
+    case 'computer_actions':
+    case 'computer':
+      return React.createElement(IoDesktopOutline, { size: 12 });
+    case 'get_state':
+      return React.createElement(IoEyeOutline, { size: 12 });
+    default:
+      if (tool.startsWith('COMPOSIO'))
+        return React.createElement(IoExtensionPuzzleOutline, { size: 12 });
+      return React.createElement(IoBuildOutline, { size: 12 });
+  }
 }
 
 export function formatAction(action: ActionData): string {

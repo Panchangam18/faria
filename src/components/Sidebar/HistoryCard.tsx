@@ -2,7 +2,7 @@ import React from 'react';
 import { MdChevronRight, MdExpandMore } from 'react-icons/md';
 import { marked } from 'marked';
 import { HistoryItem } from './history-types';
-import { formatAction, parseQuery, formatTime } from './history-utils';
+import { formatAction, getToolIcon, parseQuery, formatTime } from './history-utils';
 
 function truncate(text: string, maxLength: number): string {
   if (text.length <= maxLength) return text;
@@ -69,14 +69,15 @@ export default function HistoryCard({
                     <div
                       key={idx}
                       className="markdown-content history-card-response"
-                      style={{ marginBottom: 'var(--spacing-sm)' }}
+                      style={{ width: '100%' }}
                       dangerouslySetInnerHTML={{
                         __html: marked.parse((action.input as Record<string, string>).text, { async: false, breaks: true, gfm: true }) as string
                       }}
                     />
                   ) : (
-                    <div key={idx} className="history-card-trace-step">
-                      {formatAction(action)}
+                    <div key={idx} className="tool-bubble">
+                      <span className="tool-bubble-icon">{getToolIcon(action.tool)}</span>
+                      <span className="tool-bubble-text">{formatAction(action)}</span>
                     </div>
                   )
                 ))}

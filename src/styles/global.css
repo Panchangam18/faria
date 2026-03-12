@@ -570,16 +570,38 @@ pre {
 
 .history-card-trace {
   margin-top: var(--spacing-sm);
-  border-left: 2px solid var(--color-border);
-  padding-left: var(--spacing-sm);
-  margin-left: 2px;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
 }
 
-.history-card-trace-step {
+.tool-bubble {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 3px 10px 3px 7px;
+  background: var(--color-surface);
+  border: 1px solid var(--color-border);
+  border-radius: 999px;
   font-size: var(--font-size-xs);
-  margin-bottom: var(--spacing-xs);
   color: var(--color-accent);
-  word-break: break-word;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  max-width: 100%;
+  transition: background var(--transition-fast);
+}
+
+.tool-bubble-icon {
+  display: flex;
+  align-items: center;
+  flex-shrink: 0;
+  opacity: 0.8;
+}
+
+.tool-bubble-text {
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
 .history-card-response {

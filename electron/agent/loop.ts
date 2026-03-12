@@ -1122,9 +1122,9 @@ export class AgentLoop {
         appendToDailyLog(query, finalResponse, toolsUsed);
       }
 
-      // Save to history — use full accumulated text so the trace includes all text blocks
+      // Save to history — use finalResponse since thinking text is already captured in actions
       const db = initDatabase();
-      const historyResponse = streamedResponseText || finalResponse;
+      const historyResponse = finalResponse || streamedResponseText;
       db.prepare('INSERT INTO history (query, response, tools_used, agent_type, actions, context_text) VALUES (?, ?, ?, ?, ?, ?)').run(
         query,
         historyResponse,
