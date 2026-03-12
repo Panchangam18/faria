@@ -65,9 +65,20 @@ export default function HistoryCard({
             {item.actions && item.actions.length > 0 && (
               <div className="history-card-trace">
                 {item.actions.map((action, idx) => (
-                  <div key={idx} className="history-card-trace-step">
-                    {formatAction(action)}
-                  </div>
+                  action.tool === '_thinking' ? (
+                    <div
+                      key={idx}
+                      className="markdown-content history-card-response"
+                      style={{ marginBottom: 'var(--spacing-sm)' }}
+                      dangerouslySetInnerHTML={{
+                        __html: marked.parse((action.input as Record<string, string>).text, { async: false, breaks: true, gfm: true }) as string
+                      }}
+                    />
+                  ) : (
+                    <div key={idx} className="history-card-trace-step">
+                      {formatAction(action)}
+                    </div>
+                  )
                 ))}
               </div>
             )}

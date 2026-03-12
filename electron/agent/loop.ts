@@ -882,6 +882,12 @@ export class AgentLoop {
 
         // Check if there are tool calls
         if (response.tool_calls && response.tool_calls.length > 0) {
+          // Capture intermediate text as a thinking entry in the trace
+          // This is the text the model outputs before tool calls (e.g. "I'll click there now")
+          if (responseContent.trim()) {
+            actions.push({ tool: '_thinking', input: { text: responseContent.trim() }, timestamp: Date.now() });
+          }
+
           // Add the assistant's response directly - preserves all metadata
           // (id, additional_kwargs, etc.) that LangChain needs for proper
           // message threading with different providers

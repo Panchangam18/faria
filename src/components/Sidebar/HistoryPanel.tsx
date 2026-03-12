@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useRef, useMemo, useLayoutEffect } from 'react';
 import { MdDescription } from 'react-icons/md';
+import { IoCalendarOutline, IoChatbubblesOutline, IoFlashOutline } from 'react-icons/io5';
 import { HistoryItem, UserProfile } from './history-types';
 import { getFirstName, groupByDate } from './history-utils';
 import FindWidget from './FindWidget';
@@ -50,7 +51,9 @@ function HistoryPanel({ userProfile }: HistoryPanelProps) {
   useEffect(() => {
     const load = async () => {
       setLoading(true);
-      setHistory(await window.faria.history.get());
+      const items = await window.faria.history.get();
+      setHistory(items);
+      if (items.length > 0) setExpandedId(items[0].id);
       setLoading(false);
     };
     load();
@@ -101,6 +104,29 @@ function HistoryPanel({ userProfile }: HistoryPanelProps) {
     return () => window.removeEventListener('keydown', handleKeyDown);
   }, [searchOpen, matchCount, activeMatchIndex]);
 
+  // Compute user stats
+  const stats = useMemo(() => {
+    if (history.length === 0) return null;
+    const oldest = Math.min(...history.map(h => h.created_at));
+    const now = Date.now();
+    const diffMs = now - oldest;
+    const diffDays = Math.floor(diffMs / (1000 * 60 * 60 * 24));
+    let streakLabel: string;
+    if (diffDays >= 365) {
+      const years = Math.floor(diffDays / 365);
+      streakLabel = `${years} ${years === 1 ? 'year' : 'years'}`;
+    } else if (diffDays >= 7) {
+      const weeks = Math.floor(diffDays / 7);
+      streakLabel = `${weeks} ${weeks === 1 ? 'week' : 'weeks'}`;
+    } else {
+      streakLabel = `${Math.max(diffDays, 1)} ${diffDays === 1 ? 'day' : 'days'}`;
+    }
+
+    const totalActions = history.reduce((sum, h) => sum + (h.actions?.length ?? 0), 0);
+
+    return { streakLabel, chatCount: history.length, totalActions };
+  }, [history]);
+
   const grouped = groupByDate(filteredHistory);
 
   if (loading) {
@@ -131,7 +157,26 @@ function HistoryPanel({ userProfile }: HistoryPanelProps) {
     <div ref={panelRef} className="history-panel" style={{ paddingBottom: 'var(--spacing-lg)' }}>
       {firstName && (
         <div ref={greetingRef} className="history-greeting">
-          Good day, {firstName}
+          <span className="greeting-text">Good day, {firstName}</span>
+          {stats && (
+            <div className="greeting-stats">
+              <div className="greeting-stat">
+                <IoCalendarOutline size={12} />
+                <span className="greeting-stat-value">{stats.streakLabel}</span>
+                <span className="greeting-stat-label">aboard</span>
+              </div>
+              <div className="greeting-stat">
+                <IoChatbubblesOutline size={12} />
+                <span className="greeting-stat-value">{stats.chatCount}</span>
+                <span className="greeting-stat-label">convos</span>
+              </div>
+              <div className="greeting-stat">
+                <IoFlashOutline size={12} />
+                <span className="greeting-stat-value">{stats.totalActions}</span>
+                <span className="greeting-stat-label">actions</span>
+              </div>
+            </div>
+          )}
         </div>
       )}
 

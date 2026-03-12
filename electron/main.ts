@@ -1071,8 +1071,7 @@ function setupIPC() {
         context_text,
         strftime('%s', created_at) * 1000 as created_at
       FROM history 
-      ORDER BY created_at DESC 
-      LIMIT 100
+      ORDER BY created_at DESC
     `).all();
     
     // Convert created_at from string to number and parse JSON fields

@@ -92,6 +92,9 @@ export function formatAction(action: ActionData): string {
   const input = action.input as Record<string, unknown>;
 
   switch (action.tool) {
+    case '_thinking':
+      return `Thought: "${truncate(input.text as string, 120)}"`;
+
     case 'web_search':
       return `Searched web for "${truncate(input.query as string, 50)}"`;
 

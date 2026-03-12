@@ -430,11 +430,56 @@ pre {
   padding-top: calc(2 * var(--spacing-lg));
   padding-bottom: var(--spacing-lg);
   padding-left: var(--spacing-md);
+  padding-right: var(--spacing-md);
   margin-top: calc(-1 * var(--spacing-lg));
   font-size: 33px;
   font-weight: 400;
   color: var(--color-text);
   background: var(--color-primary);
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-sm);
+}
+
+.greeting-stats {
+  display: flex;
+  gap: 2px;
+}
+
+.greeting-stat {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  padding: 4px 10px;
+  background: color-mix(in srgb, var(--color-accent) 12%, transparent);
+  border-radius: var(--radius-full, 999px);
+  font-size: 12px;
+  line-height: 1;
+  white-space: nowrap;
+  color: var(--color-accent);
+}
+
+.greeting-stat:first-child {
+  border-radius: var(--radius-full, 999px) 0 0 var(--radius-full, 999px);
+}
+
+.greeting-stat:last-child {
+  border-radius: 0 var(--radius-full, 999px) var(--radius-full, 999px) 0;
+}
+
+.greeting-stat:not(:first-child):not(:last-child) {
+  border-radius: 0;
+}
+
+.greeting-stat-value {
+  font-weight: 600;
+  color: var(--color-accent);
+}
+
+.greeting-stat-label {
+  font-weight: 400;
+  color: var(--color-accent);
+  opacity: 0.6;
 }
 
 
