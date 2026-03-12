@@ -176,18 +176,15 @@ function HistoryPanel({ userProfile }: HistoryPanelProps) {
             <div className="greeting-stats">
               <div className="greeting-stat">
                 <IoCalendarOutline size={12} />
-                <span className="greeting-stat-value">{stats.streakLabel}</span>
-                <span className="greeting-stat-label">aboard</span>
+                <span className="greeting-stat-value">{stats.streakLabel} aboard</span>
               </div>
               <div className="greeting-stat">
                 <IoChatbubblesOutline size={12} />
-                <span className="greeting-stat-value">{stats.chatCount}</span>
-                <span className="greeting-stat-label">convos</span>
+                <span className="greeting-stat-value">{stats.chatCount} messages</span>
               </div>
               <div className="greeting-stat">
                 <IoFlashOutline size={12} />
-                <span className="greeting-stat-value">{stats.totalActions}</span>
-                <span className="greeting-stat-label">actions</span>
+                <span className="greeting-stat-value">{stats.totalActions} actions</span>
               </div>
             </div>
           )}
