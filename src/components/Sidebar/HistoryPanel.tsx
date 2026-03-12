@@ -67,7 +67,7 @@ function HistoryPanel({ userProfile }: HistoryPanelProps) {
       setLoading(true);
       const items = await window.faria.history.get();
       setHistory(items);
-      if (items.length > 0) setExpandedId(items[0].id);
+
       setLoading(false);
     };
     load();
