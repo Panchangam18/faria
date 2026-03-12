@@ -57,7 +57,7 @@ html, body {
 }
 
 .sidebar-expanded ~ .app-content {
-  margin-left: 160px;
+  margin-left: var(--sidebar-expanded-width, 160px);
 }
 
 /* Sidebar */
@@ -80,7 +80,7 @@ html, body {
 }
 
 .sidebar-expanded {
-  width: 160px;
+  width: var(--sidebar-expanded-width, 160px);
   background: var(--color-primary-dark);
 }
 
@@ -161,7 +161,7 @@ html, body {
 
 .sidebar-expanded .sidebar-logo-text {
   opacity: 1;
-  width: 80px;
+  width: auto;
   margin-left: 6px;
 }
 
