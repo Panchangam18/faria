@@ -199,7 +199,10 @@ const ThemePreview = ({ colors, isSelected, name }: { colors: { background: stri
   );
 };
 
+type SettingsTab = 'styling' | 'shortcuts' | 'agent' | 'actions';
+
 function SettingsPanel({ currentTheme, onThemeChange }: SettingsPanelProps) {
+  const [activeTab, setActiveTab] = useState<SettingsTab>('shortcuts');
   const [anthropicKey, setAnthropicKey] = useState('');
   const [showAnthropicKey, setShowAnthropicKey] = useState(false);
   const [googleKey, setGoogleKey] = useState('');
@@ -513,140 +516,149 @@ function SettingsPanel({ currentTheme, onThemeChange }: SettingsPanelProps) {
     onThemeChange(themeId);
   };
 
+  const TABS: { id: SettingsTab; label: string }[] = [
+    { id: 'shortcuts', label: 'Shortcuts' },
+    { id: 'styling', label: 'Styling' },
+    { id: 'agent', label: 'Agent' },
+    { id: 'actions', label: 'Actions' },
+  ];
+
   return (
     <div className="settings-panel">
 
-      {/* Keyboard Shortcuts Section */}
-      <section style={{ marginBottom: 'var(--spacing-xl)' }}>
+      {/* Settings Header — matches greeting style */}
+      <div className="settings-header">
+        <span className="settings-title">Settings</span>
+        <div className="settings-tabs">
+          {TABS.map(tab => (
+            <button
+              key={tab.id}
+              className={`settings-tab ${activeTab === tab.id ? 'settings-tab-active' : ''}`}
+              onClick={() => setActiveTab(tab.id)}
+            >
+              {tab.label}
+            </button>
+          ))}
+        </div>
+      </div>
+
+      {/* Shortcuts Tab */}
+      {activeTab === 'shortcuts' && <>
+
+      <div style={{
+        display: 'flex',
+        flexDirection: 'column',
+        gap: 'var(--spacing-sm)',
+      }}>
         <div style={{
-          fontSize: 'var(--font-size-sm)',
-          color: 'var(--color-text-muted)',
-          marginBottom: 'var(--spacing-sm)',
-          textTransform: 'uppercase',
-          letterSpacing: '0.05em',
-          fontWeight: 500,
-          paddingLeft: 'var(--spacing-sm)',
-          paddingTop: 'var(--spacing-sm)',
-          paddingBottom: 'var(--spacing-sm)',
+          display: 'flex',
+          alignItems: 'center',
+          gap: 'var(--spacing-sm)',
+          padding: 'var(--spacing-sm) 0',
         }}>
-          Shortcuts
+          <button
+            onClick={() => setRecordingShortcut('commandBar')}
+            style={{
+              padding: 'var(--spacing-xs) var(--spacing-md)',
+              fontSize: 'var(--font-size-sm)',
+              fontFamily: 'system-ui',
+              background: recordingShortcut === 'commandBar' ? 'var(--color-accent)' : 'var(--color-background)',
+              color: recordingShortcut === 'commandBar' ? 'var(--color-background)' : 'var(--color-text)',
+              border: '1px solid var(--color-border)',
+              borderRadius: 'var(--radius-sm)',
+              cursor: 'pointer',
+              minWidth: 80,
+              transition: 'all 0.15s ease',
+            }}
+          >
+            {recordingShortcut === 'commandBar' ? 'Press keys...' : shortcutToDisplay(commandBarShortcut)}
+          </button>
+          <span style={{ fontSize: 'var(--font-size-sm)' }}>Open</span>
         </div>
 
         <div style={{
           display: 'flex',
-          flexDirection: 'column',
+          alignItems: 'center',
           gap: 'var(--spacing-sm)',
-          marginLeft: 'calc(var(--spacing-md) * 2)',
+          padding: 'var(--spacing-sm) 0',
         }}>
-          {/* Command Bar Toggle */}
-          <div style={{
-            display: 'flex',
-            alignItems: 'center',
-            gap: 'var(--spacing-sm)',
-            padding: 'var(--spacing-sm) 0',
-          }}>
-            <button
-              onClick={() => setRecordingShortcut('commandBar')}
-              style={{
-                padding: 'var(--spacing-xs) var(--spacing-md)',
-                fontSize: 'var(--font-size-sm)',
-                fontFamily: 'system-ui',
-                background: recordingShortcut === 'commandBar' ? 'var(--color-accent)' : 'var(--color-background)',
-                color: recordingShortcut === 'commandBar' ? 'var(--color-background)' : 'var(--color-text)',
-                border: '1px solid var(--color-border)',
-                borderRadius: 'var(--radius-sm)',
-                cursor: 'pointer',
-                minWidth: 80,
-                transition: 'all 0.15s ease',
-              }}
-            >
-              {recordingShortcut === 'commandBar' ? 'Press keys...' : shortcutToDisplay(commandBarShortcut)}
-            </button>
-            <span style={{ fontSize: 'var(--font-size-sm)' }}>Open</span>
-          </div>
-
-          {/* Reset Command Bar */}
-          <div style={{
-            display: 'flex',
-            alignItems: 'center',
-            gap: 'var(--spacing-sm)',
-            padding: 'var(--spacing-sm) 0',
-          }}>
-            <button
-              onClick={() => setRecordingShortcut('resetCommandBar')}
-              style={{
-                padding: 'var(--spacing-xs) var(--spacing-md)',
-                fontSize: 'var(--font-size-sm)',
-                fontFamily: 'system-ui',
-                background: recordingShortcut === 'resetCommandBar' ? 'var(--color-accent)' : 'var(--color-background)',
-                color: recordingShortcut === 'resetCommandBar' ? 'var(--color-background)' : 'var(--color-text)',
-                border: '1px solid var(--color-border)',
-                borderRadius: 'var(--radius-sm)',
-                cursor: 'pointer',
-                minWidth: 80,
-                transition: 'all 0.15s ease',
-              }}
-            >
-              {recordingShortcut === 'resetCommandBar' ? 'Press keys...' : shortcutToDisplay(resetCommandBarShortcut)}
-            </button>
-            <span style={{ fontSize: 'var(--font-size-sm)' }}>Reset</span>
-          </div>
-
-          {/* Move Faria Bar */}
-          <div style={{
-            display: 'flex',
-            alignItems: 'center',
-            gap: 'var(--spacing-sm)',
-            padding: 'var(--spacing-sm) 0',
-          }}>
-            <button
-              onClick={() => setRecordingShortcut('movePrefix')}
-              style={{
-                padding: 'var(--spacing-xs) var(--spacing-md)',
-                fontSize: 'var(--font-size-sm)',
-                fontFamily: 'system-ui',
-                background: recordingShortcut === 'movePrefix' ? 'var(--color-accent)' : 'var(--color-background)',
-                color: recordingShortcut === 'movePrefix' ? 'var(--color-background)' : 'var(--color-text)',
-                border: '1px solid var(--color-border)',
-                borderRadius: 'var(--radius-sm)',
-                cursor: 'pointer',
-                minWidth: 80,
-                transition: 'all 0.15s ease',
-              }}
-            >
-              {recordingShortcut === 'movePrefix' ? 'Press keys...' : prefixToDisplay(movePrefix)}
-            </button>
-            <span style={{ fontSize: 'var(--font-size-sm)' }}>Move</span>
-          </div>
-
-          {/* Transparency */}
-          <div style={{
-            display: 'flex',
-            alignItems: 'center',
-            gap: 'var(--spacing-sm)',
-            padding: 'var(--spacing-sm) 0',
-          }}>
-            <button
-              onClick={() => setRecordingShortcut('transparencyPrefix')}
-              style={{
-                padding: 'var(--spacing-xs) var(--spacing-md)',
-                fontSize: 'var(--font-size-sm)',
-                fontFamily: 'system-ui',
-                background: recordingShortcut === 'transparencyPrefix' ? 'var(--color-accent)' : 'var(--color-background)',
-                color: recordingShortcut === 'transparencyPrefix' ? 'var(--color-background)' : 'var(--color-text)',
-                border: '1px solid var(--color-border)',
-                borderRadius: 'var(--radius-sm)',
-                cursor: 'pointer',
-                minWidth: 80,
-                transition: 'all 0.15s ease',
-              }}
-            >
-              {recordingShortcut === 'transparencyPrefix' ? 'Press keys...' : prefixToDisplay(transparencyPrefix)}
-            </button>
-            <span style={{ fontSize: 'var(--font-size-sm)' }}>Transparency</span>
-          </div>
+          <button
+            onClick={() => setRecordingShortcut('resetCommandBar')}
+            style={{
+              padding: 'var(--spacing-xs) var(--spacing-md)',
+              fontSize: 'var(--font-size-sm)',
+              fontFamily: 'system-ui',
+              background: recordingShortcut === 'resetCommandBar' ? 'var(--color-accent)' : 'var(--color-background)',
+              color: recordingShortcut === 'resetCommandBar' ? 'var(--color-background)' : 'var(--color-text)',
+              border: '1px solid var(--color-border)',
+              borderRadius: 'var(--radius-sm)',
+              cursor: 'pointer',
+              minWidth: 80,
+              transition: 'all 0.15s ease',
+            }}
+          >
+            {recordingShortcut === 'resetCommandBar' ? 'Press keys...' : shortcutToDisplay(resetCommandBarShortcut)}
+          </button>
+          <span style={{ fontSize: 'var(--font-size-sm)' }}>Reset</span>
         </div>
-      </section>
+
+        <div style={{
+          display: 'flex',
+          alignItems: 'center',
+          gap: 'var(--spacing-sm)',
+          padding: 'var(--spacing-sm) 0',
+        }}>
+          <button
+            onClick={() => setRecordingShortcut('movePrefix')}
+            style={{
+              padding: 'var(--spacing-xs) var(--spacing-md)',
+              fontSize: 'var(--font-size-sm)',
+              fontFamily: 'system-ui',
+              background: recordingShortcut === 'movePrefix' ? 'var(--color-accent)' : 'var(--color-background)',
+              color: recordingShortcut === 'movePrefix' ? 'var(--color-background)' : 'var(--color-text)',
+              border: '1px solid var(--color-border)',
+              borderRadius: 'var(--radius-sm)',
+              cursor: 'pointer',
+              minWidth: 80,
+              transition: 'all 0.15s ease',
+            }}
+          >
+            {recordingShortcut === 'movePrefix' ? 'Press keys...' : prefixToDisplay(movePrefix)}
+          </button>
+          <span style={{ fontSize: 'var(--font-size-sm)' }}>Move</span>
+        </div>
+
+        <div style={{
+          display: 'flex',
+          alignItems: 'center',
+          gap: 'var(--spacing-sm)',
+          padding: 'var(--spacing-sm) 0',
+        }}>
+          <button
+            onClick={() => setRecordingShortcut('transparencyPrefix')}
+            style={{
+              padding: 'var(--spacing-xs) var(--spacing-md)',
+              fontSize: 'var(--font-size-sm)',
+              fontFamily: 'system-ui',
+              background: recordingShortcut === 'transparencyPrefix' ? 'var(--color-accent)' : 'var(--color-background)',
+              color: recordingShortcut === 'transparencyPrefix' ? 'var(--color-background)' : 'var(--color-text)',
+              border: '1px solid var(--color-border)',
+              borderRadius: 'var(--radius-sm)',
+              cursor: 'pointer',
+              minWidth: 80,
+              transition: 'all 0.15s ease',
+            }}
+          >
+            {recordingShortcut === 'transparencyPrefix' ? 'Press keys...' : prefixToDisplay(transparencyPrefix)}
+          </button>
+          <span style={{ fontSize: 'var(--font-size-sm)' }}>Transparency</span>
+        </div>
+      </div>
+
+      </>}
+
+      {/* Styling Tab */}
+      {activeTab === 'styling' && <>
 
       {/* Theme Section - Redesigned */}
       <section style={{ marginBottom: 'var(--spacing-xl)' }}>
@@ -661,7 +673,7 @@ function SettingsPanel({ currentTheme, onThemeChange }: SettingsPanelProps) {
             textTransform: 'uppercase',
             letterSpacing: '0.05em',
             fontWeight: 500,
-            paddingLeft: 'var(--spacing-sm)',
+            paddingLeft: 0,
             paddingTop: 'var(--spacing-sm)',
             paddingBottom: 'var(--spacing-sm)',
           }}>
@@ -672,7 +684,7 @@ function SettingsPanel({ currentTheme, onThemeChange }: SettingsPanelProps) {
                     display: 'flex',
                     gap: 'var(--spacing-sm)',
                     flexWrap: 'wrap',
-                    marginLeft: 'calc(var(--spacing-md) * 2)',
+                    marginLeft: 0,
                   }}>
             {PRESET_THEMES.map((theme) => {
               const isSelected = currentTheme === theme.id;
@@ -710,13 +722,13 @@ function SettingsPanel({ currentTheme, onThemeChange }: SettingsPanelProps) {
           textTransform: 'uppercase',
           letterSpacing: '0.05em',
           fontWeight: 500,
-          paddingLeft: 'var(--spacing-sm)',
+          paddingLeft: 0,
           paddingTop: 'var(--spacing-sm)',
           paddingBottom: 'var(--spacing-sm)',
         }}>
           Size
         </div>
-        <div style={{ marginLeft: 'calc(var(--spacing-md) * 2)' }}>
+        <div>
           {(() => {
             const sizes = ['small', 'medium', 'large'] as const;
             const labels: Record<string, string> = { small: 'Small', medium: 'Medium', large: 'Large' };
@@ -775,6 +787,11 @@ function SettingsPanel({ currentTheme, onThemeChange }: SettingsPanelProps) {
         </div>
       </section>
 
+      </>}
+
+      {/* Agent Tab */}
+      {activeTab === 'agent' && <>
+
       {/* Agent Model Section */}
       <section style={{ marginBottom: 'var(--spacing-xl)' }}>
         <div style={{
@@ -784,14 +801,14 @@ function SettingsPanel({ currentTheme, onThemeChange }: SettingsPanelProps) {
           textTransform: 'uppercase',
           letterSpacing: '0.05em',
           fontWeight: 500,
-          paddingLeft: 'var(--spacing-sm)',
+          paddingLeft: 0,
           paddingTop: 'var(--spacing-sm)',
           paddingBottom: 'var(--spacing-sm)',
         }}>
           Agent Model
         </div>
 
-        <div style={{ marginLeft: 'calc(var(--spacing-md) * 2)' }}>
+        <div>
           <select
             value={selectedModel}
             onChange={(e) => {
@@ -830,7 +847,7 @@ function SettingsPanel({ currentTheme, onThemeChange }: SettingsPanelProps) {
           textTransform: 'uppercase',
           letterSpacing: '0.05em',
           fontWeight: 500,
-          paddingLeft: 'var(--spacing-sm)',
+          paddingLeft: 0,
           paddingTop: 'var(--spacing-sm)',
           paddingBottom: 'var(--spacing-sm)',
         }}>
@@ -841,7 +858,7 @@ function SettingsPanel({ currentTheme, onThemeChange }: SettingsPanelProps) {
           display: 'flex',
           flexDirection: 'column',
           gap: 'var(--spacing-md)',
-          marginLeft: 'calc(var(--spacing-md) * 2)',
+          marginLeft: 0,
         }}>
           <div>
             <label style={{
@@ -949,6 +966,52 @@ function SettingsPanel({ currentTheme, onThemeChange }: SettingsPanelProps) {
         </div>
       </section>
 
+      {/* System Prompt Section */}
+      <section style={{ marginBottom: 'var(--spacing-xl)' }}>
+        <div style={{
+          fontSize: 'var(--font-size-sm)',
+          color: 'var(--color-text-muted)',
+          marginBottom: 'var(--spacing-sm)',
+          textTransform: 'uppercase',
+          letterSpacing: '0.05em',
+          fontWeight: 500,
+          paddingLeft: 0,
+          paddingTop: 'var(--spacing-sm)',
+          paddingBottom: 'var(--spacing-sm)',
+        }}>
+          System Prompt
+        </div>
+
+        <div>
+          <textarea
+            value={agentPrompt}
+            onChange={(e) => {
+              setAgentPrompt(e.target.value);
+              saveSettings('agentSystemPrompt', e.target.value);
+            }}
+            placeholder="Enter custom agent system prompt..."
+            style={{
+              width: '100%',
+              height: 120,
+              padding: 'var(--spacing-sm)',
+              fontSize: 'var(--font-size-sm)',
+              fontFamily: 'monospace',
+              borderRadius: 'var(--radius-sm)',
+              border: '1px solid var(--color-border)',
+              backgroundColor: 'var(--color-primary)',
+              color: 'var(--color-text)',
+              resize: 'none',
+              lineHeight: 1.5,
+            }}
+          />
+        </div>
+      </section>
+
+      </>}
+
+      {/* Actions Tab */}
+      {activeTab === 'actions' && <>
+
       {/* Tools Section */}
       <section style={{ marginBottom: 'var(--spacing-xl)' }}>
         <div style={{
@@ -958,7 +1021,7 @@ function SettingsPanel({ currentTheme, onThemeChange }: SettingsPanelProps) {
           textTransform: 'uppercase',
           letterSpacing: '0.05em',
           fontWeight: 500,
-          paddingLeft: 'var(--spacing-sm)',
+          paddingLeft: 0,
           paddingTop: 'var(--spacing-sm)',
           paddingBottom: 'var(--spacing-sm)',
         }}>
@@ -969,7 +1032,7 @@ function SettingsPanel({ currentTheme, onThemeChange }: SettingsPanelProps) {
           display: 'flex',
           flexDirection: 'column',
           gap: '2px',
-          marginLeft: 'calc(var(--spacing-md) * 2)',
+          marginLeft: 0,
         }}>
           {[
             { key: 'screenshot', name: 'Screenshots', description: 'Capture screen images' },
@@ -1025,7 +1088,7 @@ function SettingsPanel({ currentTheme, onThemeChange }: SettingsPanelProps) {
           alignItems: 'center',
           gap: 'var(--spacing-sm)',
           marginBottom: 'var(--spacing-sm)',
-          paddingLeft: 'var(--spacing-sm)',
+          paddingLeft: 0,
           paddingTop: 'var(--spacing-sm)',
           paddingBottom: 'var(--spacing-sm)',
         }}>
@@ -1053,7 +1116,7 @@ function SettingsPanel({ currentTheme, onThemeChange }: SettingsPanelProps) {
           </span>
         </div>
 
-        <div style={{ marginLeft: 'calc(var(--spacing-md) * 2)' }}>
+        <div>
           {integrationsLoading ? (
             <div style={{
               padding: 'var(--spacing-sm) 0',
@@ -1285,46 +1348,8 @@ function SettingsPanel({ currentTheme, onThemeChange }: SettingsPanelProps) {
         </div>
       )}
 
-      {/* System Prompt Section */}
-      <section style={{ marginBottom: 'var(--spacing-xl)' }}>
-        <div style={{
-          fontSize: 'var(--font-size-sm)',
-          color: 'var(--color-text-muted)',
-          marginBottom: 'var(--spacing-sm)',
-          textTransform: 'uppercase',
-          letterSpacing: '0.05em',
-          fontWeight: 500,
-          paddingLeft: 'var(--spacing-sm)',
-          paddingTop: 'var(--spacing-sm)',
-          paddingBottom: 'var(--spacing-sm)',
-        }}>
-          System Prompt
-        </div>
+      </>}
 
-        <div style={{ marginLeft: 'calc(var(--spacing-md) * 2)' }}>
-          <textarea
-            value={agentPrompt}
-            onChange={(e) => {
-              setAgentPrompt(e.target.value);
-              saveSettings('agentSystemPrompt', e.target.value);
-            }}
-            placeholder="Enter custom agent system prompt..."
-            style={{
-              width: '100%',
-              height: 120,
-              padding: 'var(--spacing-sm)',
-              fontSize: 'var(--font-size-sm)',
-              fontFamily: 'monospace',
-              borderRadius: 'var(--radius-sm)',
-              border: '1px solid var(--color-border)',
-              backgroundColor: 'var(--color-primary)',
-              color: 'var(--color-text)',
-              resize: 'none',
-              lineHeight: 1.5,
-            }}
-          />
-        </div>
-      </section>
     </div>
   );
 }
