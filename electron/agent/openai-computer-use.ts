@@ -278,38 +278,74 @@ async function executeOpenAIAction(action: ComputerAction): Promise<string> {
         'PAGEUP': 116, 'PAGEDOWN': 121,
       };
 
+      const modifierMap: Record<string, string> = {
+        'cmd': 'command down', 'command': 'command down', 'meta': 'command down',
+        'ctrl': 'control down', 'control': 'control down',
+        'alt': 'option down', 'option': 'option down',
+        'shift': 'shift down',
+      };
+
+      const isModifier = (k: string): boolean => !!modifierMap[k.toLowerCase()];
+
+      // OpenAI sends combos as separate array elements, e.g. ["CMD", "P"].
+      // Collect modifier keys and execute them together with the final key.
+      const collectedModifiers: string[] = [];
+      const nonModifierKeys: string[] = [];
+
       for (const key of keys) {
+        if (isModifier(key)) {
+          const mod = modifierMap[key.toLowerCase()];
+          if (!collectedModifiers.includes(mod)) collectedModifiers.push(mod);
+        } else {
+          nonModifierKeys.push(key);
+        }
+      }
+
+      // Helper to execute a single key with accumulated modifiers
+      const executeKey = async (key: string, modifiers: string[]): Promise<void> => {
+        const modClause = modifiers.length > 0 ? ` using {${modifiers.join(', ')}}` : '';
         // Handle SPACE specially
         const normalizedKey = key === 'SPACE' ? ' ' : key;
         const keyCode = keyCodeMap[key.toUpperCase()];
+
         if (keyCode !== undefined) {
-          await runAppleScript(`tell application "System Events" to key code ${keyCode}`);
+          await runAppleScript(`tell application "System Events" to key code ${keyCode}${modClause}`);
         } else if (normalizedKey.length === 1) {
           const escaped = normalizedKey.replace(/\\/g, '\\\\').replace(/"/g, '\\"');
-          await runAppleScript(`tell application "System Events" to keystroke "${escaped}"`);
+          await runAppleScript(`tell application "System Events" to keystroke "${escaped}"${modClause}`);
         } else {
-          // Try as modifier combo e.g. "Meta+a" -> cmd+a
+          // Try as "Meta+a" style combo within a single key string
           const parts = key.split('+');
           if (parts.length > 1) {
-            const modifiers: string[] = [];
+            const inlineModifiers = [...modifiers];
             const finalKey = parts[parts.length - 1];
             for (const part of parts.slice(0, -1)) {
-              const lower = part.toLowerCase();
-              if (lower === 'meta' || lower === 'cmd' || lower === 'command') modifiers.push('command down');
-              else if (lower === 'ctrl' || lower === 'control') modifiers.push('control down');
-              else if (lower === 'alt' || lower === 'option') modifiers.push('option down');
-              else if (lower === 'shift') modifiers.push('shift down');
+              const mod = modifierMap[part.toLowerCase()];
+              if (mod && !inlineModifiers.includes(mod)) inlineModifiers.push(mod);
             }
-            const modClause = modifiers.length > 0 ? ` using {${modifiers.join(', ')}}` : '';
+            const inlineModClause = inlineModifiers.length > 0 ? ` using {${inlineModifiers.join(', ')}}` : '';
             const fkc = keyCodeMap[finalKey.toUpperCase()];
             if (fkc !== undefined) {
-              await runAppleScript(`tell application "System Events" to key code ${fkc}${modClause}`);
+              await runAppleScript(`tell application "System Events" to key code ${fkc}${inlineModClause}`);
             } else {
-              await runAppleScript(`tell application "System Events" to keystroke "${finalKey}"${modClause}`);
+              await runAppleScript(`tell application "System Events" to keystroke "${finalKey}"${inlineModClause}`);
             }
           }
         }
+      };
+
+      if (nonModifierKeys.length > 0) {
+        // Execute each non-modifier key with all collected modifiers
+        for (const key of nonModifierKeys) {
+          await executeKey(key, collectedModifiers);
+        }
+      } else if (collectedModifiers.length > 0) {
+        // Only modifiers sent (rare) — just press them individually
+        for (const key of keys) {
+          await executeKey(key, []);
+        }
       }
+
       return `Pressed keys: ${keys.join(', ')}`;
     }
 
@@ -469,25 +505,30 @@ export async function runOpenAIComputerUseLoop(
     }
 
     const responseText = extractOutputText(response);
-    if (responseText) {
-      recordThinking(responseText);
-    }
 
     // Find computer_call in output
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const computerCall = response.output?.find((item: any) => item.type === 'computer_call');
 
     if (!computerCall) {
+      // Final turn — send as the response, not as thinking
       if (responseText) {
         callbacks.sendChunkClear();
         callbacks.sendChunk(responseText);
       }
       return {
-        response: responseText || 'Task completed.',
+        response: responseText || 'Done.',
         toolsUsed,
         actions,
         cancelled: false,
       };
+    }
+
+    // Intermediate turn — stream thinking text to the UI and record it
+    if (responseText) {
+      recordThinking(responseText);
+      callbacks.sendChunkClear();
+      callbacks.sendChunk(responseText);
     }
 
     // Execute all actions in the computer_call
