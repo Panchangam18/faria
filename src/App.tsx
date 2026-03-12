@@ -96,6 +96,13 @@ function App() {
 
   return (
     <div className={`app ${isFullscreen ? 'app-fullscreen' : ''}`}>
+      <div className="accent-splotch-container">
+        <div className="accent-splotch accent-splotch-1" />
+        <div className="accent-splotch accent-splotch-2" />
+        <div className="accent-splotch accent-splotch-3" />
+        <div className="accent-splotch accent-splotch-4" />
+      </div>
+
       <div className="app-header"></div>
 
       <button

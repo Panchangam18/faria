@@ -57,6 +57,7 @@ function Sidebar({ activeTab, onTabChange, userProfile, expanded }: SidebarProps
     const clearFlameAnimation = () => {
       const svg = iconFlame?.closest('svg');
       svg?.classList.remove('flame-breathing');
+      document.querySelector('.app')?.classList.remove('splotch-breathing');
     };
 
     iconFlame?.addEventListener('animationend', clearFlameAnimation);
@@ -73,6 +74,12 @@ function Sidebar({ activeTab, onTabChange, userProfile, expanded }: SidebarProps
       svg.classList.remove('flame-breathing');
       void svg.getBBox();
       svg.classList.add('flame-breathing');
+    }
+    const app = document.querySelector('.app');
+    if (app) {
+      app.classList.remove('splotch-breathing');
+      void (app as HTMLElement).offsetWidth;
+      app.classList.add('splotch-breathing');
     }
   }, []);
 
