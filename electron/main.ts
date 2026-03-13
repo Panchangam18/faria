@@ -884,10 +884,10 @@ function registerGlobalShortcuts() {
 
 function setupIPC() {
   // Agent-related IPC
-  ipcMain.handle('agent:submit', async (_event, query: string) => {
+  ipcMain.handle('agent:submit', async (_event, query: string, previousContext?: { query: string; response: string }) => {
     try {
-      console.log('[Faria] Agent submit with target app:', targetAppName, 'selectedText:', currentSelectedText ? `${currentSelectedText.length} chars` : 'none');
-      const result = await agentLoop.run(query, targetAppName, currentSelectedText);
+      console.log('[Faria] Agent submit with target app:', targetAppName, 'selectedText:', currentSelectedText ? `${currentSelectedText.length} chars` : 'none', 'previousContext:', previousContext ? 'yes' : 'no');
+      const result = await agentLoop.run(query, targetAppName, currentSelectedText, previousContext);
       // After agent finishes, re-focus the command bar so the next
       // click-away properly triggers a blur event to dismiss it
       if (isCommandBarVisible && commandBarWindow && !commandBarWindow.isFocused()) {

@@ -342,8 +342,9 @@ export class AgentLoop {
    * @param query The user's request
    * @param targetApp The app that was focused when the command bar was invoked
    * @param selectedText Optional text that was selected when the command bar was invoked
+   * @param previousContext Optional previous query+response to seed conversation history
    */
-  async run(query: string, targetApp?: string | null, selectedText?: string | null): Promise<string> {
+  async run(query: string, targetApp?: string | null, selectedText?: string | null, previousContext?: { query: string; response: string }): Promise<string> {
     if (this.isRunning) {
       throw new Error('Agent is already running');
     }
@@ -368,7 +369,7 @@ export class AgentLoop {
 
       // Run the traceable agent loop - this creates a single parent trace in LangSmith
       // with all iterations nested underneath
-      const result = await this.executeAgentLoop(query, targetApp, selectedText);
+      const result = await this.executeAgentLoop(query, targetApp, selectedText, previousContext);
 
       this.sendResponse(result);
       return result;
@@ -390,7 +391,7 @@ export class AgentLoop {
    * This ensures all iterations appear under a single trace
    */
   private executeAgentLoop = traceable(
-    async (query: string, targetApp?: string | null, selectedText?: string | null): Promise<string> => {
+    async (query: string, targetApp?: string | null, selectedText?: string | null, previousContext?: { query: string; response: string }): Promise<string> => {
       // Determine provider early — needed for screenshot sizing decisions
       const modelName = getSelectedModel('selectedModel');
       const providerName = getProviderName(modelName);
@@ -464,8 +465,19 @@ export class AgentLoop {
       const userMessage = new HumanMessage(this.buildUserPrompt(query, state));
 
       if (this.conversationHistory.length === 0) {
-        // First turn: initialize with system prompt + user message
-        this.conversationHistory = [new SystemMessage(systemPrompt), userMessage];
+        if (previousContext) {
+          // First turn with previous context: seed history with prior exchange
+          console.log(`[Faria] Seeding conversation with previous context`);
+          this.conversationHistory = [
+            new SystemMessage(systemPrompt),
+            new HumanMessage(previousContext.query),
+            new AIMessage(previousContext.response),
+            userMessage,
+          ];
+        } else {
+          // First turn: initialize with system prompt + user message
+          this.conversationHistory = [new SystemMessage(systemPrompt), userMessage];
+        }
       } else {
         // Follow-up turn: update system prompt, append new user message
         this.conversationHistory[0] = new SystemMessage(systemPrompt);
@@ -729,6 +741,18 @@ export class AgentLoop {
           totalTtft: setupMs,
         });
 
+        // Build previous messages from conversation history for CUA context
+        // Skip system message (index 0) and current user message (last element)
+        const prevMsgs: Array<{ role: 'user' | 'assistant'; content: string }> = [];
+        for (let i = 1; i < this.conversationHistory.length - 1; i++) {
+          const msg = this.conversationHistory[i];
+          if (msg instanceof HumanMessage && typeof msg.content === 'string') {
+            prevMsgs.push({ role: 'user', content: msg.content });
+          } else if (msg instanceof AIMessage && typeof msg.content === 'string') {
+            prevMsgs.push({ role: 'assistant', content: msg.content });
+          }
+        }
+
         const result = await runOpenAIComputerUseLoop(
           modelName,
           this.buildUserPrompt(query, state),
@@ -781,10 +805,13 @@ export class AgentLoop {
                 hideClickIndicator();
               }
             },
-          }
+          },
+          prevMsgs.length > 0 ? prevMsgs : undefined
         );
 
-        this.conversationHistory = [];
+        // Append the AI response to conversation history so follow-up turns have context.
+        // The user message was already appended at lines 467-484 before this CUA call.
+        this.conversationHistory.push(new AIMessage(result.response || ''));
 
         if (result.cancelled || this.shouldCancel) {
           console.log('[Faria] OpenAI computer-use run cancelled, saving partial response to history');

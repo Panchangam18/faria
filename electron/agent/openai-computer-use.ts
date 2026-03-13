@@ -423,7 +423,8 @@ export async function runOpenAIComputerUseLoop(
   model: string,
   promptText: string,
   systemPrompt: string,
-  callbacks: OpenAICUACallbacks
+  callbacks: OpenAICUACallbacks,
+  previousMessages?: Array<{ role: 'user' | 'assistant'; content: string }>
 ): Promise<OpenAIComputerUseResult> {
   const toolsUsed: string[] = [];
   const actions: TraceAction[] = [];
@@ -451,27 +452,8 @@ export async function runOpenAIComputerUseLoop(
 
   const client = new OpenAI({ apiKey: keyRow.value });
 
-  // OpenAI computer use needs an initial screenshot, but it should still go through
-  // the same computer_actions approval path as every other model.
-  const initialScreenshotAction = [{ type: 'screenshot' }];
-  recordComputerActions(initialScreenshotAction);
-  const initialApproval = await callbacks.requestApproval({ actions: initialScreenshotAction });
-  if (!initialApproval.approved) {
-    return {
-      response: callbacks.shouldCancel() ? '' : (initialApproval.reason || 'Action cancelled by user.'),
-      toolsUsed,
-      actions,
-      cancelled: callbacks.shouldCancel(),
-    };
-  }
-
-  callbacks.sendStatus('Taking screenshot...');
-  const initialScreenshot = await captureScreenshot();
-  if (callbacks.shouldCancel()) {
-    return { response: '', toolsUsed, actions, cancelled: true };
-  }
-
-  // First request: send task with computer tool enabled
+  // First request: send task with computer tool enabled (no initial screenshot —
+  // the model will request one via computer_call if it needs visual context).
   callbacks.sendStatus('Thinking...');
 
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -483,15 +465,15 @@ export async function runOpenAIComputerUseLoop(
     reasoning: { effort: 'low' as const },
     truncation: 'auto' as const,
     input: [
+      ...(previousMessages || []).map(msg =>
+        msg.role === 'assistant'
+          ? { type: 'message' as const, id: `msg_prev_${Math.random().toString(36).slice(2, 14)}`, status: 'completed' as const, role: 'assistant' as const, content: [{ type: 'output_text' as const, text: msg.content, annotations: [] as never[] }] }
+          : { role: 'user' as const, content: [{ type: 'input_text' as const, text: msg.content }] }
+      ),
       {
         role: 'user' as const,
         content: [
           { type: 'input_text' as const, text: promptText },
-          {
-            type: 'input_image' as const,
-            image_url: `data:image/png;base64,${initialScreenshot}`,
-            detail: 'original' as const,
-          },
         ],
       },
     ],

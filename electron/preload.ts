@@ -5,7 +5,7 @@ import { contextBridge, ipcRenderer } from 'electron';
 contextBridge.exposeInMainWorld('faria', {
   // Agent
   agent: {
-    submit: (query: string) => ipcRenderer.invoke('agent:submit', query),
+    submit: (query: string, previousContext?: { query: string; response: string }) => ipcRenderer.invoke('agent:submit', query, previousContext),
     cancel: (source?: string) => ipcRenderer.invoke('agent:cancel', source || 'unknown'),
     authCompleted: () => ipcRenderer.send('agent:auth-completed'),
     onStatus: (callback: (status: string) => void) => {
@@ -179,7 +179,7 @@ contextBridge.exposeInMainWorld('faria', {
 // Type definitions for the exposed API
 export interface FariaAPI {
   agent: {
-    submit: (query: string) => Promise<{ success: boolean; result?: string; error?: string }>;
+    submit: (query: string, previousContext?: { query: string; response: string }) => Promise<{ success: boolean; result?: string; error?: string }>;
     cancel: (source?: string) => Promise<{ success: boolean }>;
     authCompleted: () => void;
     onStatus: (callback: (status: string) => void) => () => void;

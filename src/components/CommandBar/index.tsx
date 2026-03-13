@@ -226,6 +226,7 @@ function CommandBar() {
   const [historyIndex, setHistoryIndex] = useState(-1); // -1 = not navigating history
   const historyRef = useRef<Array<{ query: string; response: string }>>([]);
   const draftQueryRef = useRef(''); // Saves the user's in-progress query before navigating
+  const previousContextRef = useRef<{ query: string; response: string } | undefined>(undefined); // Preserves history context across edits
   const [selectedTextLength, setSelectedTextLength] = useState<number>(0); // Character count of selected text
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [pendingAuth, setPendingAuth] = useState<{ toolkit: string; redirectUrl: string } | null>(null);
@@ -547,6 +548,7 @@ function CommandBar() {
       // Reset history navigation
       setHistoryIndex(-1);
       historyRef.current = [];
+      previousContextRef.current = undefined;
       // Don't clear isProcessing, status, response, or pendingAuth - keep them when command bar reopens
     });
 
@@ -663,6 +665,7 @@ function CommandBar() {
       setToolApprovalExpanded(false);
       setHistoryIndex(-1);
       historyRef.current = [];
+      previousContextRef.current = undefined;
     });
 
     // Listen for set-query event
@@ -733,8 +736,9 @@ function CommandBar() {
     return () => document.removeEventListener('keydown', handleGlobalKeyDown);
   }, [pendingToolApproval, isProcessing]);
 
-  const handleSubmit = useCallback(async () => {
+  const handleSubmit = useCallback(async (previousContext?: { query: string; response: string }) => {
     if (!query.trim() || isProcessing || errorMessage) return;
+    console.log('[CommandBar] handleSubmit called with previousContext:', previousContext ? 'yes' : 'no');
 
     setIsProcessing(true);
     setResponse('');
@@ -743,7 +747,7 @@ function CommandBar() {
 
     try {
       setStatus('Extracting state...');
-      const result = await window.faria.agent.submit(query);
+      const result = await window.faria.agent.submit(query, previousContext);
       if (result.success && result.result) {
         setResponse(result.result);
       } else if (result.error) {
@@ -805,10 +809,13 @@ function CommandBar() {
 
     if (e.key === 'Enter' && !e.shiftKey) {
       e.preventDefault();
-      // Reset history navigation on submit
+      // Capture previous context before resetting history navigation
+      const prevContext = previousContextRef.current;
+      console.log('[CommandBar] Submit with previousContext:', prevContext ? `query="${prevContext.query.substring(0, 50)}" response="${prevContext.response?.substring(0, 50)}"` : 'none');
+      previousContextRef.current = undefined;
       setHistoryIndex(-1);
       historyRef.current = [];
-      handleSubmit();
+      handleSubmit(prevContext);
     }
     if (e.key === 'Escape') {
       window.faria.commandBar.hide();
@@ -859,6 +866,7 @@ function CommandBar() {
           setHistoryIndex(0);
           setQuery(entries[0].query);
           setResponse(entries[0].response);
+          previousContextRef.current = { query: entries[0].query, response: entries[0].response };
         });
         return;
       }
@@ -872,6 +880,7 @@ function CommandBar() {
         setHistoryIndex(newIndex);
         setQuery(history[newIndex].query);
         setResponse(history[newIndex].response);
+        previousContextRef.current = { query: history[newIndex].query, response: history[newIndex].response };
       } else {
         // ArrowDown
         const newIndex = historyIndex - 1;
@@ -881,10 +890,12 @@ function CommandBar() {
           setQuery(draftQueryRef.current);
           setResponse('');
           historyRef.current = [];
+          previousContextRef.current = undefined;
         } else {
           setHistoryIndex(newIndex);
           setQuery(history[newIndex].query);
           setResponse(history[newIndex].response);
+          previousContextRef.current = { query: history[newIndex].query, response: history[newIndex].response };
         }
       }
     }
@@ -1047,7 +1058,7 @@ function CommandBar() {
           ) : (
             <button
               className="send-button"
-              onClick={handleSubmit}
+              onClick={() => handleSubmit()}
               disabled={!query.trim() || !!errorMessage}
               title="Send message"
             >
