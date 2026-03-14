@@ -121,14 +121,14 @@ function ChatPanel() {
   const lastUserMsgRef = useRef<HTMLDivElement>(null);
   const bottomSpacerRef = useRef<HTMLDivElement>(null);
 
-  const updateSpacer = useCallback(() => {
+const updateSpacer = useCallback(() => {
     const container = messagesContainerRef.current;
     const target = lastUserMsgRef.current;
     const spacer = bottomSpacerRef.current;
-    if (!container || !target || !spacer) return;
+  if (!container || !target || !spacer) return 0;
 
     const inner = target.parentElement;
-    if (!inner) return;
+  if (!inner) return 0;
 
     // Measure content height excluding the spacer (subtract spacer from total)
     const currentSpacerHeight = parseFloat(spacer.style.height) || 0;
@@ -137,7 +137,8 @@ function ChatPanel() {
     // Spacer should fill the gap so total content from user msg = container height
     const needed = Math.max(0, container.clientHeight - contentFromTarget);
     spacer.style.height = needed + 'px';
-  }, []);
+  return needed;
+}, []);
 
   const scrollToLastUserMsg = useCallback(() => {
     updateSpacer();
@@ -148,8 +149,13 @@ function ChatPanel() {
   }, [updateSpacer]);
 
   const scrollToBottom = useCallback(() => {
-    messagesEndRef.current?.scrollIntoView({ behavior: 'instant' as ScrollBehavior });
-  }, []);
+  const spacerHeight = updateSpacer();
+  if (lastUserMsgRef.current && spacerHeight > 0) {
+    scrollToLastUserMsg();
+    return;
+  }
+  messagesEndRef.current?.scrollIntoView({ behavior: 'instant' as ScrollBehavior });
+}, [scrollToLastUserMsg, updateSpacer]);
 
   const flushBufferedChunks = useCallback((syncToUi = true) => {
     const pending = pendingChunkRef.current;
@@ -453,8 +459,8 @@ function ChatPanel() {
   if (!loaded) {
     return (
       <div className="chat-panel">
-        <div className="chat-loading">
-          <div className="chat-loading-spinner" />
+        <div className="loading-state">
+          <div className="loading-spinner" />
         </div>
       </div>
     );

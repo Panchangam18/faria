@@ -837,7 +837,15 @@ pre {
   border-top-color: var(--color-accent);
   border-radius: 50%;
   animation: spin 0.8s linear infinite;
-  margin-bottom: var(--spacing-md);
+}
+
+/* Full-screen centered loading state — use for any panel/screen initial load */
+.loading-state {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex: 1;
+  min-height: 100%;
 }
 
 .date-group-title {
@@ -1537,27 +1545,6 @@ pre {
   max-width: 82%;
   min-width: 0;
   animation: message-enter 0.2s ease-out both;
-}
-
-/* Status indicator with fire animation */
-.chat-loading {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  flex: 1;
-}
-
-.chat-loading-spinner {
-  width: 24px;
-  height: 24px;
-  border: 2px solid rgba(255, 255, 255, 0.1);
-  border-top-color: var(--color-accent, rgba(255, 255, 255, 0.5));
-  border-radius: 50%;
-  animation: chat-spin 0.7s linear infinite;
-}
-
-@keyframes chat-spin {
-  to { transform: rotate(360deg); }
 }
 
 .chat-status-fire {

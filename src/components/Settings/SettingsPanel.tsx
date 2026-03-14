@@ -1174,12 +1174,8 @@ function SettingsPanel({ currentTheme, onThemeChange }: SettingsPanelProps) {
 
         <div>
           {integrationsLoading ? (
-            <div style={{
-              padding: 'var(--spacing-sm) 0',
-              color: 'var(--color-text-muted)',
-              fontSize: 'var(--font-size-sm)',
-            }}>
-              Loading integrations...
+            <div className="loading-state" style={{ minHeight: '80px' }}>
+              <div className="loading-spinner" />
             </div>
           ) : connections.length === 0 ? (
             <div style={{

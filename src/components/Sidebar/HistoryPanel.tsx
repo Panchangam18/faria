@@ -145,10 +145,8 @@ function HistoryPanel({ userProfile }: HistoryPanelProps) {
 
   if (loading) {
     return (
-      <div className="history-panel">
-        <div className="empty-state">
-          <div className="loading-spinner" />
-        </div>
+      <div className="loading-state">
+        <div className="loading-spinner" />
       </div>
     );
   }
