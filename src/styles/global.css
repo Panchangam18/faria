@@ -794,6 +794,7 @@ pre {
   overflow: hidden;
   text-overflow: ellipsis;
   max-width: 100%;
+  min-width: 0;
   transition: background var(--transition-fast);
 }
 
@@ -805,6 +806,7 @@ pre {
 }
 
 .tool-bubble-text {
+  min-width: 0;
   overflow: hidden;
   text-overflow: ellipsis;
 }
@@ -1232,13 +1234,16 @@ pre {
   width: 100%;
   max-width: 720px;
   min-height: 0;
+  min-width: 0;
 }
 
 .chat-messages {
   flex: 1;
   overflow-y: auto;
+  overflow-x: hidden;
   scrollbar-width: none;
   min-height: 0;
+  min-width: 0;
   display: grid;
 }
 
@@ -1247,6 +1252,7 @@ pre {
   flex-direction: column;
   gap: 20px;
   min-height: 100%;
+  min-width: 0;
   padding: var(--spacing-xl) 0;
 }
 
@@ -1322,19 +1328,24 @@ pre {
 /* Message alignment: user right, assistant left */
 .chat-message {
   display: flex;
+  flex-direction: column;
+  gap: 6px;
+  width: 100%;
+  min-width: 0;
   animation: message-enter 0.25s ease-out both;
 }
 
 .chat-message-user {
-  justify-content: flex-end;
+  align-items: flex-end;
 }
 
 .chat-message-assistant {
-  justify-content: flex-start;
+  align-items: flex-start;
 }
 
 .chat-message-bubble {
   max-width: 82%;
+  min-width: 0;
   display: flex;
   flex-direction: column;
   gap: 6px;
@@ -1514,6 +1525,18 @@ pre {
 
 .chat-tool-btn-deny .chat-tool-shortcut {
   background: var(--color-border);
+}
+
+/* Tool action trace in chat */
+.chat-tool-trace {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  width: 100%;
+  padding: 4px 0;
+  max-width: 82%;
+  min-width: 0;
+  animation: message-enter 0.2s ease-out both;
 }
 
 /* Status indicator with fire animation */

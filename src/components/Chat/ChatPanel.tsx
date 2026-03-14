@@ -1,9 +1,16 @@
-import React, { useState, useEffect, useLayoutEffect, useRef, useCallback } from 'react';
+import React, { memo, useState, useEffect, useLayoutEffect, useRef, useCallback, useMemo } from 'react';
 import { IoMdSend } from 'react-icons/io';
 import { BsStopFill } from 'react-icons/bs';
 import { IoChevronDown } from 'react-icons/io5';
 import { marked } from 'marked';
 import FariaLogo from '../FariaLogo';
+import { formatAction, getToolIcon } from '../Sidebar/history-utils';
+
+interface ActionData {
+  tool: string;
+  input: unknown;
+  timestamp: number;
+}
 
 interface ChatMessage {
   id: string;
@@ -11,6 +18,7 @@ interface ChatMessage {
   content: string;
   timestamp: number;
   isStreaming?: boolean;
+  actions?: ActionData[];
 }
 
 interface ToolApproval {
@@ -30,14 +38,81 @@ function createMessageId(): string {
   return `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
 }
 
+const STREAM_FLUSH_INTERVAL_MS = 32;
+
+const MARKDOWN_OPTIONS = { async: false, breaks: true, gfm: true } as const;
+
+const ActionTrace = memo(function ActionTrace({ actions }: { actions: ActionData[] }) {
+  if (actions.length === 0) return null;
+  return (
+    <div className="chat-tool-trace">
+      {actions.map((action, idx) => (
+        action.tool === '_thinking' ? (
+          <div key={idx} className="chat-message-bubble">
+            <div
+              className="chat-message-content markdown-content"
+              dangerouslySetInnerHTML={{
+                __html: marked.parse(((action.input as Record<string, unknown>).text as string) || '', MARKDOWN_OPTIONS) as string,
+              }}
+            />
+          </div>
+        ) : (
+          <div key={idx} className="tool-bubble">
+            <span className="tool-bubble-icon">{getToolIcon(action.tool)}</span>
+            <span className="tool-bubble-text">{formatAction(action)}</span>
+          </div>
+        )
+      ))}
+    </div>
+  );
+});
+
+const ChatMessageItem = memo(function ChatMessageItem({
+  message,
+  anchorRef,
+}: {
+  message: ChatMessage;
+  anchorRef?: React.Ref<HTMLDivElement>;
+}) {
+  const html = useMemo(
+    () => ({ __html: marked.parse(message.content, MARKDOWN_OPTIONS) as string }),
+    [message.content]
+  );
+  const hasContent = message.content.trim().length > 0;
+
+  return (
+    <div
+      className={`chat-message chat-message-${message.role}`}
+      ref={anchorRef}
+    >
+      {message.actions && message.actions.length > 0 && (
+        <ActionTrace actions={message.actions} />
+      )}
+      {hasContent && (
+        <div className="chat-message-bubble">
+          <div
+            className="chat-message-content markdown-content"
+            dangerouslySetInnerHTML={html}
+          />
+        </div>
+      )}
+    </div>
+  );
+});
+
 function ChatPanel() {
   const [messages, setMessages] = useState<ChatMessage[]>([]);
+  const [streamingMessage, setStreamingMessage] = useState<ChatMessage | null>(null);
   const [input, setInput] = useState('');
   const [isProcessing, setIsProcessing] = useState(false);
   const streamingRef = useRef('');
   const streamingMessageIdRef = useRef<string | null>(null);
+  const pendingChunkRef = useRef('');
+  const chunkFlushTimeoutRef = useRef<number | null>(null);
   const [status, setStatus] = useState('');
   const [pendingToolApproval, setPendingToolApproval] = useState<ToolApproval | null>(null);
+  const [pendingActions, setPendingActions] = useState<ActionData[]>([]);
+  const pendingActionsRef = useRef<ActionData[]>([]);
   const [showScrollDown, setShowScrollDown] = useState(false);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const messagesContainerRef = useRef<HTMLDivElement>(null);
@@ -75,6 +150,50 @@ function ChatPanel() {
     messagesEndRef.current?.scrollIntoView({ behavior: 'instant' as ScrollBehavior });
   }, []);
 
+  const flushBufferedChunks = useCallback((syncToUi = true) => {
+    const pending = pendingChunkRef.current;
+    if (!pending) {
+      if (chunkFlushTimeoutRef.current !== null) {
+        clearTimeout(chunkFlushTimeoutRef.current);
+        chunkFlushTimeoutRef.current = null;
+      }
+      return streamingRef.current;
+    }
+
+    if (chunkFlushTimeoutRef.current !== null) {
+      clearTimeout(chunkFlushTimeoutRef.current);
+      chunkFlushTimeoutRef.current = null;
+    }
+
+    pendingChunkRef.current = '';
+    streamingRef.current += pending;
+
+    if (syncToUi) {
+      const messageId = streamingMessageIdRef.current ?? createMessageId();
+      streamingMessageIdRef.current = messageId;
+      setStreamingMessage({
+        id: messageId,
+        role: 'assistant',
+        content: streamingRef.current,
+        timestamp: Date.now(),
+        isStreaming: true,
+      });
+    }
+
+    return streamingRef.current;
+  }, []);
+
+  const clearStreamingState = useCallback(() => {
+    if (chunkFlushTimeoutRef.current !== null) {
+      clearTimeout(chunkFlushTimeoutRef.current);
+      chunkFlushTimeoutRef.current = null;
+    }
+    pendingChunkRef.current = '';
+    streamingMessageIdRef.current = null;
+    streamingRef.current = '';
+    setStreamingMessage(null);
+  }, []);
+
   // Autofocus input on mount
   useEffect(() => {
     textareaRef.current?.focus();
@@ -89,8 +208,15 @@ function ChatPanel() {
       const msgs: ChatMessage[] = [];
       for (const item of items) {
         msgs.push({ id: createMessageId(), role: 'user', content: item.query, timestamp: item.created_at });
-        if (item.response) {
-          msgs.push({ id: createMessageId(), role: 'assistant', content: item.response, timestamp: item.created_at + 1 });
+        const actions = item.actions && item.actions.length > 0 ? item.actions : undefined;
+        if (item.response || actions) {
+          msgs.push({
+            id: createMessageId(),
+            role: 'assistant',
+            content: item.response || '',
+            timestamp: item.created_at + 1,
+            actions,
+          });
         }
       }
       setMessages(msgs);
@@ -100,10 +226,10 @@ function ChatPanel() {
 
   // Keep the latest user message anchored as the assistant response grows.
   useLayoutEffect(() => {
-    if (messages.length > 0) {
+    if (messages.length > 0 || streamingMessage) {
       scrollToLastUserMsg();
     }
-  }, [messages, scrollToLastUserMsg]);
+  }, [messages, streamingMessage, scrollToLastUserMsg]);
 
   // Listen for chat:focus and chat:clear from main process
   useEffect(() => {
@@ -126,36 +252,16 @@ function ChatPanel() {
   // Listen for agent events
   useEffect(() => {
     const cleanupChunk = window.faria.agent.onChunk((chunk: string) => {
-      const currentId = streamingMessageIdRef.current;
-      if (!currentId) {
-        const newId = createMessageId();
-        streamingMessageIdRef.current = newId;
-        streamingRef.current = chunk;
-        setMessages(prev => [...prev, {
-          id: newId,
-          role: 'assistant',
-          content: chunk,
-          timestamp: Date.now(),
-          isStreaming: true,
-        }]);
-        return;
+      pendingChunkRef.current += chunk;
+      if (chunkFlushTimeoutRef.current === null) {
+        chunkFlushTimeoutRef.current = window.setTimeout(() => {
+          flushBufferedChunks(true);
+        }, STREAM_FLUSH_INTERVAL_MS);
       }
-
-      streamingRef.current += chunk;
-      setMessages(prev => prev.map((msg) => (
-        msg.id === currentId
-          ? { ...msg, content: msg.content + chunk }
-          : msg
-      )));
     });
 
     const cleanupChunkClear = window.faria.agent.onChunkClear(() => {
-      const currentId = streamingMessageIdRef.current;
-      if (currentId) {
-        setMessages(prev => prev.filter((msg) => msg.id !== currentId));
-      }
-      streamingMessageIdRef.current = null;
-      streamingRef.current = '';
+      clearStreamingState();
     });
 
     const cleanupStatus = window.faria.agent.onStatus((newStatus: string) => {
@@ -164,35 +270,34 @@ function ChatPanel() {
 
     const cleanupResponse = window.faria.agent.onResponse((newResponse: string) => {
       const currentId = streamingMessageIdRef.current;
-      const partial = streamingRef.current;
+      const partial = flushBufferedChunks(false);
       const finalContent = newResponse || partial;
+      const actions = pendingActionsRef.current.length > 0 ? [...pendingActionsRef.current] : undefined;
 
       if (currentId) {
-        if (finalContent) {
-          setMessages(prev => prev.map((msg) => (
-            msg.id === currentId
-              ? {
-                ...msg,
-                content: finalContent,
-                timestamp: Date.now(),
-                isStreaming: false,
-              }
-              : msg
-          )));
-        } else {
-          setMessages(prev => prev.filter((msg) => msg.id !== currentId));
+        if (finalContent || actions) {
+          setMessages(prev => [...prev, {
+            id: currentId,
+            role: 'assistant',
+            content: finalContent,
+            timestamp: Date.now(),
+            isStreaming: false,
+            actions,
+          }]);
         }
-      } else if (newResponse) {
+      } else if (newResponse || actions) {
         setMessages(prev => [...prev, {
           id: createMessageId(),
           role: 'assistant',
-          content: newResponse,
+          content: newResponse || '',
           timestamp: Date.now(),
+          actions,
         }]);
       }
 
-      streamingMessageIdRef.current = null;
-      streamingRef.current = '';
+      clearStreamingState();
+      pendingActionsRef.current = [];
+      setPendingActions([]);
       setIsProcessing(false);
       setStatus('');
       setPendingToolApproval(null);
@@ -204,14 +309,24 @@ function ChatPanel() {
       setStatus('Waiting for approval...');
     });
 
+    const cleanupToolAction = window.faria.agent.onToolAction((action) => {
+      if (action.tool === '_thinking') {
+        clearStreamingState();
+      }
+      pendingActionsRef.current = [...pendingActionsRef.current, action];
+      setPendingActions(pendingActionsRef.current);
+    });
+
     return () => {
+      clearStreamingState();
       cleanupChunk();
       cleanupChunkClear();
       cleanupStatus();
       cleanupResponse();
       cleanupToolApproval();
+      cleanupToolAction();
     };
-  }, []);
+  }, [clearStreamingState, flushBufferedChunks]);
 
   const handleToolApprove = useCallback(() => {
     setPendingToolApproval(null);
@@ -236,8 +351,9 @@ function ChatPanel() {
     }
     textareaRef.current?.focus();
     setIsProcessing(true);
-    streamingMessageIdRef.current = null;
-    streamingRef.current = '';
+    clearStreamingState();
+    pendingActionsRef.current = [];
+    setPendingActions([]);
 
     // Build previousContext from the last exchange
     let previousContext: { query: string; response: string } | undefined;
@@ -268,7 +384,7 @@ function ChatPanel() {
       setIsProcessing(false);
       setStatus('');
     }
-  }, [input, isProcessing, messages]);
+  }, [clearStreamingState, input, isProcessing, messages]);
 
   const handleStop = useCallback(async () => {
     if (!isProcessing) return;
@@ -321,11 +437,16 @@ function ChatPanel() {
     ta.style.height = Math.min(ta.scrollHeight, 150) + 'px';
   };
 
-  const renderMarkdown = (text: string) => {
-    return { __html: marked.parse(text, { async: false, breaks: true, gfm: true }) as string };
-  };
-
-  const hasStreamingMessage = messages.some((msg) => msg.isStreaming);
+  const hasStreamingMessage = streamingMessage !== null;
+  const displayMessages = streamingMessage ? [...messages, streamingMessage] : messages;
+  const lastUserIdx = useMemo(() => {
+    for (let i = messages.length - 1; i >= 0; i--) {
+      if (messages[i].role === 'user') {
+        return i;
+      }
+    }
+    return -1;
+  }, [messages]);
 
   return (
     <div className="chat-panel">
@@ -341,27 +462,16 @@ function ChatPanel() {
             </div>
           )}
           <div style={{ flex: '1 0 0' }} />
-          {(() => {
-            // Find the index of the last user message
-            let lastUserIdx = -1;
-            for (let i = messages.length - 1; i >= 0; i--) {
-              if (messages[i].role === 'user') { lastUserIdx = i; break; }
-            }
-            return messages.map((msg, i) => (
-              <div
-                key={msg.id}
-                className={`chat-message chat-message-${msg.role}`}
-                ref={i === lastUserIdx ? lastUserMsgRef : undefined}
-              >
-                <div className="chat-message-bubble">
-                  <div
-                    className={`chat-message-content markdown-content`}
-                    dangerouslySetInnerHTML={renderMarkdown(msg.content)}
-                  />
-                </div>
-              </div>
-            ));
-          })()}
+          {displayMessages.map((msg, i) => (
+            <ChatMessageItem
+              key={msg.id}
+              message={msg}
+              anchorRef={i === lastUserIdx ? lastUserMsgRef : undefined}
+            />
+          ))}
+          {isProcessing && pendingActions.length > 0 && !hasStreamingMessage && (
+            <ActionTrace actions={pendingActions} />
+          )}
           {isProcessing && pendingToolApproval && (
             <div className="chat-tool-approval">
               <div className="chat-tool-approval-header">

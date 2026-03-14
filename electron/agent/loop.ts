@@ -1018,7 +1018,9 @@ export class AgentLoop {
           // Capture intermediate text as a thinking entry in the trace
           // This is the text the model outputs before tool calls (e.g. "I'll click there now")
           if (responseContent.trim()) {
-            actions.push({ tool: '_thinking', input: { text: responseContent.trim() }, timestamp: Date.now() });
+            const thinkingAction = { tool: '_thinking', input: { text: responseContent.trim() }, timestamp: Date.now() };
+            actions.push(thinkingAction);
+            this.sendToolAction(thinkingAction);
           }
 
           // Add the assistant's response directly - preserves all metadata
@@ -1051,7 +1053,9 @@ export class AgentLoop {
           for (const { toolCall } of classified) {
             console.log(`[Faria] Tool call: ${toolCall.name}`, JSON.stringify(toolCall.args).slice(0, 500));
             toolsUsed.push(toolCall.name);
-            actions.push({ tool: toolCall.name, input: toolCall.args, timestamp: Date.now() });
+            const action = { tool: toolCall.name, input: toolCall.args, timestamp: Date.now() };
+            actions.push(action);
+            this.sendToolAction(action);
           }
 
           // Split into parallel-safe and sequential groups
@@ -1631,6 +1635,16 @@ export class AgentLoop {
     const windows = BrowserWindow.getAllWindows();
     windows.forEach(win => {
       win.webContents.send('agent:chunk-clear');
+    });
+  }
+
+  /**
+   * Send a tool action event to UI (for live tool call display in chat)
+   */
+  private sendToolAction(action: { tool: string; input: unknown; timestamp: number }): void {
+    const windows = BrowserWindow.getAllWindows();
+    windows.forEach(win => {
+      win.webContents.send('agent:tool-action', action);
     });
   }
 
