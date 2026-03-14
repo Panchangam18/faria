@@ -102,6 +102,7 @@ const ChatMessageItem = memo(function ChatMessageItem({
 
 function ChatPanel() {
   const [messages, setMessages] = useState<ChatMessage[]>([]);
+  const [loaded, setLoaded] = useState(false);
   const [streamingMessage, setStreamingMessage] = useState<ChatMessage | null>(null);
   const [input, setInput] = useState('');
   const [isProcessing, setIsProcessing] = useState(false);
@@ -220,6 +221,7 @@ function ChatPanel() {
         }
       }
       setMessages(msgs);
+      setLoaded(true);
     };
     load();
   }, []);
@@ -448,6 +450,16 @@ function ChatPanel() {
     return -1;
   }, [messages]);
 
+  if (!loaded) {
+    return (
+      <div className="chat-panel">
+        <div className="chat-loading">
+          <div className="chat-loading-spinner" />
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div className="chat-panel">
       <div className="chat-messages" ref={messagesContainerRef} onScroll={handleScroll}>
@@ -501,10 +513,10 @@ function ChatPanel() {
               </div>
             </div>
           )}
-          {isProcessing && status && !hasStreamingMessage && !pendingToolApproval && (
-            <div className="chat-status-fire">
+          {!pendingToolApproval && (
+            <div className={`chat-status-fire${isProcessing ? ' active' : ''}`}>
               <FariaLogo size={24} className="flame-breathing" />
-              <span className="chat-status-text">{status}</span>
+              {isProcessing && status && !hasStreamingMessage && <span className="chat-status-text">{status}</span>}
             </div>
           )}
           <div ref={bottomSpacerRef} style={{ flexShrink: 0 }} />

@@ -1232,7 +1232,7 @@ pre {
   display: flex;
   flex-direction: column;
   width: 100%;
-  max-width: 720px;
+  max-width: 640px;
   min-height: 0;
   min-width: 0;
 }
@@ -1540,11 +1540,31 @@ pre {
 }
 
 /* Status indicator with fire animation */
+.chat-loading {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex: 1;
+}
+
+.chat-loading-spinner {
+  width: 24px;
+  height: 24px;
+  border: 2px solid rgba(255, 255, 255, 0.1);
+  border-top-color: var(--color-accent, rgba(255, 255, 255, 0.5));
+  border-radius: 50%;
+  animation: chat-spin 0.7s linear infinite;
+}
+
+@keyframes chat-spin {
+  to { transform: rotate(360deg); }
+}
+
 .chat-status-fire {
   display: flex;
   align-items: center;
   gap: 10px;
-  padding: 8px 0;
+  padding: 4px 0 32px 0;
   animation: message-enter 0.2s ease-out both;
 }
 
@@ -1552,11 +1572,11 @@ pre {
   flex-shrink: 0;
 }
 
-.chat-status-fire .flame-inner {
+.chat-status-fire.active .flame-inner {
   animation: cb-flame-breathe 1.2s cubic-bezier(0.4, 0, 0.2, 1) infinite;
 }
 
-.chat-status-fire .flame-outer {
+.chat-status-fire.active .flame-outer {
   animation: cb-flame-breathe 1.2s cubic-bezier(0.4, 0, 0.2, 1) 0.06s infinite;
 }
 
