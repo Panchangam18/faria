@@ -100,6 +100,21 @@ contextBridge.exposeInMainWorld('faria', {
     report: (text: string) => ipcRenderer.send('selection:report', text),
   },
 
+  // Main window chat integration
+  chat: {
+    reportActiveTab: (tab: string) => ipcRenderer.send('main:active-tab', tab),
+    onFocus: (callback: () => void) => {
+      const handler = () => callback();
+      ipcRenderer.on('chat:focus', handler);
+      return () => ipcRenderer.removeListener('chat:focus', handler);
+    },
+    onClear: (callback: () => void) => {
+      const handler = () => callback();
+      ipcRenderer.on('chat:clear', handler);
+      return () => ipcRenderer.removeListener('chat:clear', handler);
+    },
+  },
+
   // Window management
   window: {
     setSize: (width: number, height: number) => ipcRenderer.invoke('window:setSize', width, height),
@@ -250,6 +265,11 @@ export interface FariaAPI {
   };
   selection: {
     report: (text: string) => void;
+  };
+  chat: {
+    reportActiveTab: (tab: string) => void;
+    onFocus: (callback: () => void) => () => void;
+    onClear: (callback: () => void) => () => void;
   };
   shell: {
     openExternal: (url: string) => Promise<void>;

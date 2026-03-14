@@ -5,10 +5,11 @@ import { IoMdSend } from 'react-icons/io';
 import Sidebar from './components/Sidebar';
 import HistoryPanel from './components/Sidebar/HistoryPanel';
 import SettingsPanel from './components/Settings/SettingsPanel';
+import ChatPanel from './components/Chat/ChatPanel';
 
 import SignIn from './components/SignIn';
 
-type Tab = 'home' | 'settings';
+type Tab = 'home' | 'chat' | 'settings';
 
 interface UserProfile {
   email: string;
@@ -46,6 +47,7 @@ function App() {
 
   useEffect(() => {
     mainPanelRef.current?.scrollTo(0, 0);
+    window.faria.chat.reportActiveTab(activeTab);
   }, [activeTab]);
 
   useEffect(() => {
@@ -129,6 +131,7 @@ function App() {
         <main className="main-panel" ref={mainPanelRef}>
           <div className="main-panel-inner">
             {activeTab === 'home' && <HistoryPanel userProfile={userAuth} />}
+            {activeTab === 'chat' && <ChatPanel />}
             {activeTab === 'settings' && (
               <SettingsPanel
                 currentTheme={theme}

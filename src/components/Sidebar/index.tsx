@@ -1,6 +1,7 @@
 import { useState, useRef, useCallback, useEffect, useLayoutEffect } from 'react';
 import { MdSettings } from 'react-icons/md';
 import { IoMdHome } from 'react-icons/io';
+import { IoMdChatbubbles } from 'react-icons/io';
 import { auth } from '../../lib/firebase';
 import FariaLogo from '../FariaLogo';
 
@@ -14,8 +15,8 @@ interface UserProfile {
 }
 
 interface SidebarProps {
-  activeTab: 'home' | 'settings';
-  onTabChange: (tab: 'home' | 'settings') => void;
+  activeTab: 'home' | 'chat' | 'settings';
+  onTabChange: (tab: 'home' | 'chat' | 'settings') => void;
   userProfile: UserProfile | null;
   expanded: boolean;
 }
@@ -124,6 +125,14 @@ function Sidebar({ activeTab, onTabChange, userProfile, expanded }: SidebarProps
       >
         <IoMdHome size={20} />
         <span className="sidebar-label">Home</span>
+      </button>
+      <button
+        className={`sidebar-tab ${activeTab === 'chat' ? 'active' : ''}`}
+        onClick={() => onTabChange('chat')}
+        title="Chat"
+      >
+        <IoMdChatbubbles size={20} />
+        <span className="sidebar-label">Chat</span>
       </button>
       <button
         className={`sidebar-tab ${activeTab === 'settings' ? 'active' : ''}`}

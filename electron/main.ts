@@ -57,6 +57,9 @@ try {
 // Track if main window is visible (for Dock icon management)
 let isMainWindowVisible = false;
 
+// Track if the main window's active tab is 'chat' so the global shortcut can redirect
+let mainWindowActiveTab: string = 'home';
+
 // Command bar size modes
 type CommandBarSizeMode = 'small' | 'medium' | 'large';
 
@@ -334,6 +337,11 @@ function createTray() {
   tray.setIgnoreDoubleClickEvents(true); // Removes click delay — fires single-click immediately
 
   tray.on('click', () => {
+    // If main window is focused and on the chat tab, focus the chat input instead
+    if (mainWindow && mainWindow.isFocused() && mainWindowActiveTab === 'chat') {
+      mainWindow.webContents.send('chat:focus');
+      return;
+    }
     // If command bar is visible, hide it immediately (synchronous path, never blocks)
     if (isCommandBarVisible) {
       toggleCommandBar();
@@ -349,6 +357,10 @@ function createTray() {
     {
       label: 'Command Bar',
       click: () => {
+        if (mainWindow && mainWindow.isFocused() && mainWindowActiveTab === 'chat') {
+          mainWindow.webContents.send('chat:focus');
+          return;
+        }
         if (isCommandBarVisible) {
           toggleCommandBar();
           return;
@@ -810,6 +822,11 @@ function registerGlobalShortcuts() {
 
   // Register command bar toggle shortcut with lock to prevent queued toggles
   const ret = globalShortcut.register(commandBarShortcut, () => {
+    // If main window is focused and on the chat tab, focus the chat input instead
+    if (mainWindow && mainWindow.isFocused() && mainWindowActiveTab === 'chat') {
+      mainWindow.webContents.send('chat:focus');
+      return;
+    }
     // Hide path is synchronous — always allow it immediately
     if (isCommandBarVisible) {
       toggleCommandBar();
@@ -827,6 +844,11 @@ function registerGlobalShortcuts() {
 
   // Register reset command bar shortcut
   const retReset = globalShortcut.register(resetShortcut, () => {
+    // If main window is focused and on the chat tab, clear the chat input instead
+    if (mainWindow && mainWindow.isFocused() && mainWindowActiveTab === 'chat') {
+      mainWindow.webContents.send('chat:clear');
+      return;
+    }
     resetCommandBar();
   });
 
@@ -1118,6 +1140,11 @@ function setupIPC() {
     mainWindowSelectedText = text && text.length > 0 ? text : null;
   });
 
+  // Track which tab is active in the main window
+  ipcMain.on('main:active-tab', (_event: Electron.IpcMainEvent, tab: string) => {
+    mainWindowActiveTab = tab;
+  });
+
   ipcMain.on('command-bar:hide', () => {
     if (commandBarWindow && isCommandBarVisible) {
       // Send hide event BEFORE hiding so renderer can reset state
@@ -1285,7 +1312,11 @@ async function initializeServices() {
   agentLoop = new AgentLoop(stateExtractor, toolExecutor, composioService);
 
   // Auto-reopen command bar when agent needs user attention
+  // Skip if the user is on the chat tab — the chat UI handles responses/approvals inline
   agentLoop.setOnNeedsAttention(() => {
+    if (mainWindow && mainWindow.isFocused() && mainWindowActiveTab === 'chat') {
+      return;
+    }
     if (!isCommandBarVisible) {
       console.log('[Faria] Agent needs attention, auto-showing command bar');
       showCommandBar();
