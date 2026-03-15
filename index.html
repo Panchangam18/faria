@@ -4,6 +4,23 @@
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>Faria</title>
+    <script>
+      // Apply saved theme before first paint to prevent flash of default theme
+      (function() {
+        var theme = localStorage.getItem('faria-theme');
+        if (theme && theme !== 'default') {
+          document.documentElement.setAttribute('data-theme', theme);
+        }
+        var bgMap = {
+          'comte': '#121214',
+          'mercedes': '#46494C',
+          'pistols': '#E4DED6',
+          'carnival': '#001011'
+        };
+        var bg = bgMap[theme] || '#272932';
+        document.documentElement.style.backgroundColor = bg;
+      })();
+    </script>
   </head>
   <body>
     <div id="root"></div>

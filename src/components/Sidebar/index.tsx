@@ -261,7 +261,7 @@ function Sidebar({ activeTab, onTabChange, userProfile, expanded }: SidebarProps
               {initial}
             </div>
           )}
-          <span className="sidebar-label" style={{ fontSize: 11, fontWeight: 500, overflow: 'hidden', textOverflow: 'ellipsis' }}>
+          <span className="sidebar-label" style={{ overflow: 'hidden', textOverflow: 'ellipsis' }}>
             {isGuest ? 'Guest' : userProfile.displayName?.split(' ')[0] || userProfile.email}
           </span>
         </button>

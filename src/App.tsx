@@ -32,6 +32,8 @@ const applyTheme = (themeId: string) => {
     document.documentElement.style.removeProperty(prop);
   }
   document.documentElement.setAttribute('data-theme', themeId === 'default' ? '' : themeId);
+  // Persist so the inline script in index.html can apply it before next paint
+  localStorage.setItem('faria-theme', themeId);
 };
 
 function App() {

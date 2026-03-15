@@ -86,11 +86,23 @@ const MOVE_STEP = 50;
 // Opacity step (0-100 scale, will be converted to 0-1)
 const OPACITY_STEP = 5;
 
+const THEME_BG_COLORS: Record<string, string> = {
+  default:  '#272932',
+  comte:    '#121214',
+  mercedes: '#46494C',
+  pistols:  '#E4DED6',
+  carnival: '#001011',
+};
+
 function createMainWindow() {
   // Check if user is already logged in to set the correct initial window size
   const db = initDatabase();
   const userRow = db.prepare('SELECT value FROM settings WHERE key = ?').get('userEmail') as { value: string } | undefined;
   const isLoggedIn = !!userRow?.value;
+
+  const themeRow = db.prepare('SELECT value FROM settings WHERE key = ?').get('theme') as { value: string } | undefined;
+  const savedTheme = themeRow?.value || 'default';
+  const backgroundColor = THEME_BG_COLORS[savedTheme] || THEME_BG_COLORS.default;
 
   const width = isLoggedIn ? 1200 : 400;
   const height = isLoggedIn ? 800 : 500;
@@ -104,7 +116,7 @@ function createMainWindow() {
     minHeight,
     titleBarStyle: 'hiddenInset',
     trafficLightPosition: { x: 16, y: 16 },
-    backgroundColor: '#272932',
+    backgroundColor,
     webPreferences: {
       preload: join(__dirname, 'preload.js'),
       contextIsolation: true,
