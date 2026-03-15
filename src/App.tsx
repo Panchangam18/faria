@@ -147,7 +147,10 @@ function App() {
       {helpOpen && (
         <div className="help-modal-overlay" onClick={() => setHelpOpen(false)}>
           <div className="help-modal" onClick={(e) => e.stopPropagation()}>
-            <h2 className="help-modal-title">Need Help?</h2>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 8 }}>
+              <MdHelpOutline size={20} style={{ color: 'var(--color-accent)', flexShrink: 0 }} />
+              <span className="help-modal-title" style={{ marginBottom: 0 }}>Need Help?</span>
+            </div>
             <textarea
               className="help-modal-textarea"
               placeholder="Send us a message..."

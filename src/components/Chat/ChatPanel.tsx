@@ -595,7 +595,7 @@ const updateSpacer = useCallback(() => {
           )}
           {!pendingToolApproval && (
             <div className={`chat-status-fire${isProcessing ? ' active' : ''}`}>
-              <FariaLogo size={24} className="flame-breathing" />
+              <FariaLogo size={24} noFilter />
               {isProcessing && status && !hasStreamingMessage && <span className="chat-status-text">{status}</span>}
             </div>
           )}

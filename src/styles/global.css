@@ -210,7 +210,7 @@ html, body {
   flex-direction: column;
   padding: 0 10px var(--spacing-md) 10px;
   gap: 6px;
-  overflow: hidden;
+  overflow: visible;
   transition: width 200ms ease;
   flex-shrink: 0;
   z-index: 20;

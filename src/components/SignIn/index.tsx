@@ -1,13 +1,48 @@
-import React, { useState } from 'react';
+import React, { useState, useRef, useCallback, useEffect } from 'react';
 import { auth } from '../../lib/firebase';
 import { signInWithEmailAndPassword, createUserWithEmailAndPassword, signInAnonymously, updateProfile } from 'firebase/auth';
-import FariaWordmark from '../FariaWordmark';
+import FariaLogo from '../FariaLogo';
 
 interface SignInProps {
   onSignIn: () => void;
 }
 
 function SignIn({ onSignIn }: SignInProps) {
+  const iconFlameRef = useRef<SVGPathElement>(null);
+  const containerRef = useRef<HTMLDivElement>(null);
+
+  const handleLogoClick = useCallback(() => {
+    const flame = iconFlameRef.current;
+    const svg = flame?.closest('svg');
+    if (svg) {
+      svg.classList.remove('flame-breathing');
+      void svg.getBBox();
+      svg.classList.add('flame-breathing');
+    }
+    const container = containerRef.current;
+    if (container) {
+      container.classList.remove('splotch-breathing');
+      void container.offsetWidth;
+      container.classList.add('splotch-breathing');
+    }
+  }, []);
+
+  useEffect(() => {
+    const iconFlame = iconFlameRef.current;
+    const svg = iconFlame?.closest('svg');
+    const clearFlameAnimation = (e: Event) => {
+      const animEvent = e as AnimationEvent;
+      if (animEvent.animationName !== 'flame-breathe') return;
+      svg?.classList.remove('flame-breathing');
+      void (svg as SVGSVGElement | null)?.getBBox();
+      containerRef.current?.classList.remove('splotch-breathing');
+    };
+    svg?.addEventListener('animationend', clearFlameAnimation);
+    return () => {
+      svg?.removeEventListener('animationend', clearFlameAnimation);
+    };
+  }, []);
+
   const [mode, setMode] = useState<'buttons' | 'email'>('buttons');
   const [emailMode, setEmailMode] = useState<'signin' | 'signup'>('signin');
   const [email, setEmail] = useState('');
@@ -288,13 +323,23 @@ function SignIn({ onSignIn }: SignInProps) {
   );
 
   return (
-    <div style={{
+    <div ref={containerRef} style={{
       height: '100%',
       display: 'flex',
       alignItems: 'center',
       justifyContent: 'center',
       background: 'var(--color-background)',
+      position: 'relative',
+      overflow: 'hidden',
     }}>
+      <div className="accent-splotch-container">
+        <div className="accent-splotch accent-splotch-1" />
+        <div className="accent-splotch accent-splotch-2" />
+        <div className="accent-splotch accent-splotch-3" />
+        <div className="accent-splotch accent-splotch-4" />
+        <div className="accent-splotch accent-splotch-5" />
+        <div className="accent-splotch accent-splotch-6" />
+      </div>
       {/* Draggable title bar area */}
       <div style={{
         position: 'absolute',
@@ -311,7 +356,19 @@ function SignIn({ onSignIn }: SignInProps) {
         alignItems: 'center',
         gap: 32,
       }}>
-        <FariaWordmark height={60} animate />
+        <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+          <div onClick={handleLogoClick} style={{ cursor: 'pointer', display: 'flex', flexShrink: 0, marginLeft: -16 }}>
+            <FariaLogo size={56} noFilter flameRef={iconFlameRef} />
+          </div>
+          <span onClick={handleLogoClick} style={{
+            fontFamily: "'Bricolage Grotesque', var(--font-family)",
+            fontSize: 66,
+            fontWeight: 400,
+            color: 'var(--color-text)',
+            whiteSpace: 'nowrap',
+            cursor: 'pointer',
+          }}>Faria</span>
+        </div>
 
         {mode === 'buttons' ? renderButtons() : renderEmailForm()}
 

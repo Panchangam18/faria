@@ -1,8 +1,9 @@
 import { useState, useRef, useCallback, useEffect, useLayoutEffect } from 'react';
 import { MdSettings } from 'react-icons/md';
-import { IoMdHome } from 'react-icons/io';
+import { IoMdCheckmark, IoMdHome } from 'react-icons/io';
 import { IoMdChatbubbles } from 'react-icons/io';
 import { IoGiftSharp } from 'react-icons/io5';
+import { FaCopy } from 'react-icons/fa';
 import { auth } from '../../lib/firebase';
 import FariaLogo from '../FariaLogo';
 
@@ -59,20 +60,24 @@ function ReferralModal({ uid, onClose }: { uid: string; onClose: () => void }) {
           />
           <button
             onClick={handleCopy}
+            aria-label={copied ? 'Copied' : 'Copy link'}
+            title={copied ? 'Copied' : 'Copy link'}
             style={{
-              padding: '8px 14px',
-              background: copied ? 'var(--color-accent)' : 'var(--color-surface)',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              width: 40,
+              height: 40,
+              flexShrink: 0,
+              background: 'var(--color-surface)',
               border: '1px solid var(--color-border)',
               borderRadius: 'var(--radius-md)',
-              color: copied ? 'var(--color-background)' : 'var(--color-text)',
-              fontSize: 'var(--font-size-sm)',
-              fontFamily: 'var(--font-family)',
+              color: 'var(--color-text)',
               cursor: 'pointer',
               transition: 'all 150ms ease',
-              whiteSpace: 'nowrap',
             }}
           >
-            {copied ? 'Copied!' : 'Copy Link'}
+            {copied ? <IoMdCheckmark size={18} /> : <FaCopy size={18} />}
           </button>
         </div>
       </div>
@@ -115,16 +120,21 @@ function Sidebar({ activeTab, onTabChange, userProfile, expanded }: SidebarProps
   useEffect(() => {
     const iconFlame = iconFlameRef.current;
 
-    const clearFlameAnimation = () => {
+    const clearFlameAnimation = (e: Event) => {
+      const animEvent = e as AnimationEvent;
+      if (animEvent.animationName !== 'flame-breathe') return;
       const svg = iconFlame?.closest('svg');
-      svg?.classList.remove('flame-breathing');
+      if (svg) {
+        svg.classList.remove('flame-breathing');
+        void (svg as SVGSVGElement).getBBox();
+      }
       document.querySelector('.app')?.classList.remove('splotch-breathing');
     };
 
-    iconFlame?.addEventListener('animationend', clearFlameAnimation);
+    iconFlame?.closest('svg')?.addEventListener('animationend', clearFlameAnimation);
 
     return () => {
-      iconFlame?.removeEventListener('animationend', clearFlameAnimation);
+      iconFlame?.closest('svg')?.removeEventListener('animationend', clearFlameAnimation);
     };
   }, []);
 
@@ -174,7 +184,7 @@ function Sidebar({ activeTab, onTabChange, userProfile, expanded }: SidebarProps
 
       {/* Logo — flame icon always visible, text "Faria" appears when expanded */}
       <div className="sidebar-logo" onClick={handleLogoClick} style={{ cursor: 'pointer' }}>
-        <FariaLogo size={28} className="sidebar-logo-icon" flameRef={iconFlameRef} />
+        <FariaLogo size={28} noFilter className="sidebar-logo-icon" flameRef={iconFlameRef} />
         <span className="sidebar-logo-text">Faria</span>
       </div>
 

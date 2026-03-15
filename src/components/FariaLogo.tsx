@@ -6,12 +6,14 @@ interface FariaLogoProps {
   className?: string;
   style?: React.CSSProperties;
   flameRef?: React.Ref<SVGPathElement>;
+  filterId?: string;
+  noFilter?: boolean;
 }
 
 // Tight bounding box around the flame path with small padding
 const VB_X = 78;
 const VB_Y = 30;
-const VB_W = 220;
+const VB_W = 192;
 const VB_H = 314;
 
 // Inner flame (small piece, top-right area)
@@ -26,8 +28,10 @@ const FariaLogo: React.FC<FariaLogoProps> = ({
   className,
   style,
   flameRef,
+  filterId = 'flame-turbulence',
+  noFilter = false,
 }) => {
-  const width = size * (VB_W / VB_H);
+  const width = Math.round(size * (VB_W / VB_H));
 
   return (
     <svg
@@ -39,7 +43,7 @@ const FariaLogo: React.FC<FariaLogoProps> = ({
       style={{ ...style, overflow: 'visible' }}
     >
       <defs>
-        <filter id="flame-turbulence" x="-20%" y="-20%" width="140%" height="140%">
+        <filter id={filterId} x="-20%" y="-20%" width="140%" height="140%">
           <feTurbulence
             type="turbulence"
             baseFrequency="0.015 0.04"
@@ -69,7 +73,8 @@ const FariaLogo: React.FC<FariaLogoProps> = ({
         d={OUTER_FLAME}
         fill={flameColor}
         fillRule="nonzero"
-        filter="url(#flame-turbulence)"
+        filter={noFilter ? undefined : `url(#${filterId})`}
+        shapeRendering={noFilter ? 'geometricPrecision' : undefined}
       />
       {/* Inner flame — smaller piece, leads the swirl */}
       <path
@@ -78,7 +83,8 @@ const FariaLogo: React.FC<FariaLogoProps> = ({
         d={INNER_FLAME}
         fill={flameColor}
         fillRule="nonzero"
-        filter="url(#flame-turbulence)"
+        filter={noFilter ? undefined : `url(#${filterId})`}
+        shapeRendering={noFilter ? 'geometricPrecision' : undefined}
       />
     </svg>
   );
