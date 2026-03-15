@@ -1592,8 +1592,9 @@ pre {
 .chat-scroll-down {
   position: absolute;
   bottom: 126px;
-  left: 50%;
-  transform: translateX(-50%);
+  left: 0;
+  right: 0;
+  margin: 0 auto;
   z-index: 2;
   width: 36px;
   height: 36px;
@@ -1613,7 +1614,7 @@ pre {
 .chat-scroll-down:hover {
   color: var(--color-text);
   border-color: var(--color-text-muted);
-  transform: translateX(-50%) translateY(-1px);
+  transform: translateY(-1px);
   box-shadow: 0 4px 12px rgba(0, 0, 0, 0.2);
 }
 

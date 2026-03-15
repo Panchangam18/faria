@@ -2,6 +2,7 @@ import { useState, useRef, useCallback, useEffect, useLayoutEffect } from 'react
 import { MdSettings } from 'react-icons/md';
 import { IoMdHome } from 'react-icons/io';
 import { IoMdChatbubbles } from 'react-icons/io';
+import { IoGiftSharp } from 'react-icons/io5';
 import { auth } from '../../lib/firebase';
 import FariaLogo from '../FariaLogo';
 
@@ -21,8 +22,67 @@ interface SidebarProps {
   expanded: boolean;
 }
 
+function ReferralModal({ uid, onClose }: { uid: string; onClose: () => void }) {
+  const referralUrl = `https://yourapp.com/join?ref=${uid}`;
+  const [copied, setCopied] = useState(false);
+
+  const handleCopy = () => {
+    navigator.clipboard.writeText(referralUrl);
+    setCopied(true);
+    setTimeout(() => setCopied(false), 2000);
+  };
+
+  return (
+    <div className="help-modal-overlay" onClick={onClose}>
+      <div className="help-modal" onClick={e => e.stopPropagation()} style={{ minWidth: 360 }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 8 }}>
+          <IoGiftSharp size={20} style={{ color: 'var(--color-accent)', flexShrink: 0 }} />
+          <span className="help-modal-title" style={{ marginBottom: 0 }}>Refer a Friend</span>
+        </div>
+        <p className="help-modal-desc">Share your link and earn rewards when friends sign up.</p>
+        <div style={{ display: 'flex', gap: 8 }}>
+          <input
+            readOnly
+            value={referralUrl}
+            style={{
+              flex: 1,
+              padding: '8px 10px',
+              background: 'var(--color-surface)',
+              border: '1px solid var(--color-border)',
+              borderRadius: 'var(--radius-md)',
+              color: 'var(--color-text)',
+              fontSize: 'var(--font-size-sm)',
+              fontFamily: 'var(--font-family)',
+              outline: 'none',
+            }}
+            onFocus={e => e.target.select()}
+          />
+          <button
+            onClick={handleCopy}
+            style={{
+              padding: '8px 14px',
+              background: copied ? 'var(--color-accent)' : 'var(--color-surface)',
+              border: '1px solid var(--color-border)',
+              borderRadius: 'var(--radius-md)',
+              color: copied ? 'var(--color-background)' : 'var(--color-text)',
+              fontSize: 'var(--font-size-sm)',
+              fontFamily: 'var(--font-family)',
+              cursor: 'pointer',
+              transition: 'all 150ms ease',
+              whiteSpace: 'nowrap',
+            }}
+          >
+            {copied ? 'Copied!' : 'Copy Link'}
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 function Sidebar({ activeTab, onTabChange, userProfile, expanded }: SidebarProps) {
   const [imgFailed, setImgFailed] = useState(false);
+  const [showReferral, setShowReferral] = useState(false);
   const iconFlameRef = useRef<SVGPathElement>(null);
   const navRef = useRef<HTMLElement>(null);
 
@@ -145,6 +205,22 @@ function Sidebar({ activeTab, onTabChange, userProfile, expanded }: SidebarProps
 
       {/* Spacer pushes profile to bottom */}
       <div style={{ flex: 1 }} />
+
+      {/* Refer a friend button */}
+      {userProfile && (
+        <button
+          className="sidebar-tab"
+          onClick={() => setShowReferral(true)}
+          title="Refer a Friend"
+        >
+          <IoGiftSharp size={20} />
+          <span className="sidebar-label">Rewards</span>
+        </button>
+      )}
+
+      {showReferral && userProfile && (
+        <ReferralModal uid={userProfile.uid} onClose={() => setShowReferral(false)} />
+      )}
 
       {/* Profile button — opens native context menu */}
       {userProfile && (
