@@ -180,56 +180,42 @@ function applySizeMode(mode: SizeMode) {
   doc.style.setProperty('--cb-scrollbar-width', `${c.scrollbarWidth}px`);
 }
 
-// Default theme colors (fallback only)
-const DEFAULT_COLORS = { background: '#272932', text: '#EAE0D5', accent: '#C6AC8F' };
+// Background colors per theme (for user-adjustable opacity)
+const THEME_BACKGROUNDS: Record<string, string> = {
+  default: '#272932',
+  comte: '#121214',
+  mercedes: '#46494C',
+  pistols: '#E4DED6',
+  carnival: '#001011',
+};
 
-// Apply theme CSS variables to document
-function applyTheme(theme: string, colors?: { background: string; text: string; accent: string }, font?: string) {
-  const c = colors || DEFAULT_COLORS;
-
-  // Helper to lighten/darken colors
-  const adjustColor = (hex: string, factor: number): string => {
-    const h = hex.replace('#', '');
-    const r = Math.min(255, Math.max(0, Math.round(parseInt(h.substring(0, 2), 16) * factor)));
-    const g = Math.min(255, Math.max(0, Math.round(parseInt(h.substring(2, 4), 16) * factor)));
-    const b = Math.min(255, Math.max(0, Math.round(parseInt(h.substring(4, 6), 16) * factor)));
-    return `#${r.toString(16).padStart(2, '0')}${g.toString(16).padStart(2, '0')}${b.toString(16).padStart(2, '0')}`;
-  };
-
+// Apply theme by setting data-theme attribute — CSS handles all colors.
+// Also clears any old inline CSS color properties that may have been set by
+// previous versions, since inline style.setProperty overrides CSS selectors.
+function applyTheme(theme: string, font?: string) {
   const doc = document.documentElement;
 
-  // Set base colors
-  doc.style.setProperty('--color-primary', c.background);
-  doc.style.setProperty('--color-secondary', c.text);
-  doc.style.setProperty('--color-accent', c.accent);
+  // Clear legacy inline color overrides so CSS [data-theme] selectors take effect
+  const colorProps = [
+    '--color-primary', '--color-secondary', '--color-accent',
+    '--color-primary-light', '--color-primary-dark',
+    '--color-secondary-muted', '--color-accent-hover', '--color-accent-active',
+    '--color-background', '--color-surface', '--color-text', '--color-text-muted',
+    '--color-border', '--color-hover',
+  ];
+  for (const prop of colorProps) {
+    doc.style.removeProperty(prop);
+  }
 
-  // Derive additional colors
-  doc.style.setProperty('--color-primary-light', adjustColor(c.background, 1.2));
-  doc.style.setProperty('--color-primary-dark', adjustColor(c.background, 0.7));
-  doc.style.setProperty('--color-secondary-muted', c.text + 'B3');
-  doc.style.setProperty('--color-accent-hover', adjustColor(c.accent, 1.15));
-  doc.style.setProperty('--color-accent-active', adjustColor(c.accent, 0.85));
-
-  // UI colors
-  doc.style.setProperty('--color-background', c.background);
-  doc.style.setProperty('--color-surface', adjustColor(c.background, 1.2));
-  doc.style.setProperty('--color-text', c.text);
-  doc.style.setProperty('--color-text-muted', c.text + 'B3');
-  doc.style.setProperty('--color-border', c.text + '26');
-  doc.style.setProperty('--color-hover', c.text + '14');
-
-  // Font
+  doc.setAttribute('data-theme', theme === 'default' ? '' : theme);
   if (font) {
     doc.style.setProperty('--font-family', font);
   }
-
-  // Set data-theme attribute
-  doc.setAttribute('data-theme', theme === 'custom' ? 'custom' : theme);
 }
 
 function CommandBar() {
   const [query, setQuery] = useState('');
-  const placeholder = 'Awaiting your command...';
+  const [firstName, setFirstName] = useState<string | null>(null);
   const [response, setResponse] = useState('');
   const [streamingResponse, setStreamingResponse] = useState('');
   const streamingResponseRef = useRef(''); // Tracks streaming text for cancel-promotion
@@ -240,6 +226,7 @@ function CommandBar() {
   const [historyIndex, setHistoryIndex] = useState(-1); // -1 = not navigating history
   const historyRef = useRef<Array<{ query: string; response: string }>>([]);
   const draftQueryRef = useRef(''); // Saves the user's in-progress query before navigating
+  const previousContextRef = useRef<{ query: string; response: string } | undefined>(undefined); // Preserves history context across edits
   const [selectedTextLength, setSelectedTextLength] = useState<number>(0); // Character count of selected text
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [pendingAuth, setPendingAuth] = useState<{ toolkit: string; redirectUrl: string } | null>(null);
@@ -484,8 +471,8 @@ function CommandBar() {
       try {
         // Get theme data from main process (single source of truth for colors)
         const themeData = await window.faria.settings.getThemeData();
-        applyTheme(themeData.theme, themeData.colors, themeData.font);
-        setBackgroundColor(themeData.colors.background);
+        applyTheme(themeData.theme, themeData.font);
+        setBackgroundColor(THEME_BACKGROUNDS[themeData.theme] || THEME_BACKGROUNDS.default);
 
         // Load opacity setting
         const savedOpacity = await window.faria.settings.get('commandBarOpacity');
@@ -506,6 +493,11 @@ function CommandBar() {
         if (savedResponseHeight) {
           setUserMaxResponseHeight(parseInt(savedResponseHeight, 10));
         }
+        // Load user's first name
+        const user = await window.faria.auth.getUser();
+        if (user?.displayName) {
+          setFirstName(user.displayName.split(' ')[0]);
+        }
       } catch (e) {
         console.error('[CommandBar] Error loading settings:', e);
       }
@@ -515,8 +507,8 @@ function CommandBar() {
 
     // Listen for theme changes - colors are always provided by main process
     const cleanupTheme = window.faria.settings.onThemeChange((themeData) => {
-      applyTheme(themeData.theme, themeData.colors, themeData.font);
-      setBackgroundColor(themeData.colors.background);
+      applyTheme(themeData.theme, themeData.font);
+      setBackgroundColor(THEME_BACKGROUNDS[themeData.theme] || THEME_BACKGROUNDS.default);
     });
 
     // Listen for opacity changes
@@ -556,6 +548,7 @@ function CommandBar() {
       // Reset history navigation
       setHistoryIndex(-1);
       historyRef.current = [];
+      previousContextRef.current = undefined;
       // Don't clear isProcessing, status, response, or pendingAuth - keep them when command bar reopens
     });
 
@@ -672,6 +665,7 @@ function CommandBar() {
       setToolApprovalExpanded(false);
       setHistoryIndex(-1);
       historyRef.current = [];
+      previousContextRef.current = undefined;
     });
 
     // Listen for set-query event
@@ -742,8 +736,9 @@ function CommandBar() {
     return () => document.removeEventListener('keydown', handleGlobalKeyDown);
   }, [pendingToolApproval, isProcessing]);
 
-  const handleSubmit = useCallback(async () => {
+  const handleSubmit = useCallback(async (previousContext?: { query: string; response: string }) => {
     if (!query.trim() || isProcessing || errorMessage) return;
+    console.log('[CommandBar] handleSubmit called with previousContext:', previousContext ? 'yes' : 'no');
 
     setIsProcessing(true);
     setResponse('');
@@ -752,7 +747,7 @@ function CommandBar() {
 
     try {
       setStatus('Extracting state...');
-      const result = await window.faria.agent.submit(query);
+      const result = await window.faria.agent.submit(query, previousContext);
       if (result.success && result.result) {
         setResponse(result.result);
       } else if (result.error) {
@@ -814,10 +809,13 @@ function CommandBar() {
 
     if (e.key === 'Enter' && !e.shiftKey) {
       e.preventDefault();
-      // Reset history navigation on submit
+      // Capture previous context before resetting history navigation
+      const prevContext = previousContextRef.current;
+      console.log('[CommandBar] Submit with previousContext:', prevContext ? `query="${prevContext.query.substring(0, 50)}" response="${prevContext.response?.substring(0, 50)}"` : 'none');
+      previousContextRef.current = undefined;
       setHistoryIndex(-1);
       historyRef.current = [];
-      handleSubmit();
+      handleSubmit(prevContext);
     }
     if (e.key === 'Escape') {
       window.faria.commandBar.hide();
@@ -868,6 +866,7 @@ function CommandBar() {
           setHistoryIndex(0);
           setQuery(entries[0].query);
           setResponse(entries[0].response);
+          previousContextRef.current = { query: entries[0].query, response: entries[0].response };
         });
         return;
       }
@@ -881,6 +880,7 @@ function CommandBar() {
         setHistoryIndex(newIndex);
         setQuery(history[newIndex].query);
         setResponse(history[newIndex].response);
+        previousContextRef.current = { query: history[newIndex].query, response: history[newIndex].response };
       } else {
         // ArrowDown
         const newIndex = historyIndex - 1;
@@ -890,10 +890,12 @@ function CommandBar() {
           setQuery(draftQueryRef.current);
           setResponse('');
           historyRef.current = [];
+          previousContextRef.current = undefined;
         } else {
           setHistoryIndex(newIndex);
           setQuery(history[newIndex].query);
           setResponse(history[newIndex].response);
+          previousContextRef.current = { query: history[newIndex].query, response: history[newIndex].response };
         }
       }
     }
@@ -1013,7 +1015,8 @@ function CommandBar() {
                 <div className="command-bar-status">
                   <div className="status-logo">
                     <svg xmlns="http://www.w3.org/2000/svg" viewBox="105 30 190 310">
-                      <path fill="currentColor" d="M 261.371094 240.617188 C 292.65625 207.25 277.347656 165.910156 261.371094 152.6875 C 259.621094 195.109375 214.199219 215.757812 194.632812 247.582031 C 187.792969 258.722656 182.789062 270.523438 185.25 289.296875 C 186.792969 301.101562 203.769531 341.183594 250.941406 334.132812 C 238.265625 322.832031 229.839844 312.488281 231.925781 293.71875 C 235.054688 269.734375 246.773438 257.300781 261.371094 240.617188 Z M 238.097656 161.742188 C 212.027344 202.410156 156.050781 227.769531 161.972656 285.457031 C 163.976562 305.269531 180.035156 334.132812 199.847656 338.304688 C 135.195312 332.382812 82.347656 265.3125 128.9375 189.1875 C 147.375 159.070312 188.375 140.175781 202.976562 108.890625 C 216.53125 81.78125 205.0625 46.324219 174.820312 37.980469 C 204.019531 33.8125 240.976562 57.085938 249.191406 85.949219 C 256.867188 112.726562 252.695312 139.84375 238.097656 161.742188" fillRule="nonzero"/>
+                      <path className="flame-outer" fill="currentColor" d="M 238.097656 161.742188 C 212.027344 202.410156 156.050781 227.769531 161.972656 285.457031 C 163.976562 305.269531 180.035156 334.132812 199.847656 338.304688 C 135.195312 332.382812 82.347656 265.3125 128.9375 189.1875 C 147.375 159.070312 188.375 140.175781 202.976562 108.890625 C 216.53125 81.78125 205.0625 46.324219 174.820312 37.980469 C 204.019531 33.8125 240.976562 57.085938 249.191406 85.949219 C 256.867188 112.726562 252.695312 139.84375 238.097656 161.742188" fillRule="nonzero"/>
+                      <path className="flame-inner" fill="currentColor" d="M 261.371094 240.617188 C 292.65625 207.25 277.347656 165.910156 261.371094 152.6875 C 259.621094 195.109375 214.199219 215.757812 194.632812 247.582031 C 187.792969 258.722656 182.789062 270.523438 185.25 289.296875 C 186.792969 301.101562 203.769531 341.183594 250.941406 334.132812 C 238.265625 322.832031 229.839844 312.488281 231.925781 293.71875 C 235.054688 269.734375 246.773438 257.300781 261.371094 240.617188 Z" fillRule="nonzero"/>
                     </svg>
                   </div>
                   <span>{status}</span>
@@ -1032,7 +1035,7 @@ function CommandBar() {
           <textarea
             ref={inputRef}
             className="command-bar-input"
-            placeholder={placeholder}
+            placeholder={firstName ? `At the ready, ${firstName}` : 'Awaiting your command...'}
             value={query}
             onChange={handleInputChange}
             onKeyDown={handleKeyDown}
@@ -1055,7 +1058,7 @@ function CommandBar() {
           ) : (
             <button
               className="send-button"
-              onClick={handleSubmit}
+              onClick={() => handleSubmit()}
               disabled={!query.trim() || !!errorMessage}
               title="Send message"
             >

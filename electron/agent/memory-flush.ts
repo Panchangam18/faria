@@ -68,6 +68,16 @@ export async function runMemoryFlush(conversationSummary: string): Promise<boole
       });
       const textBlock = response.content.find((b) => b.type === 'text') as { type: 'text'; text: string } | undefined;
       responseText = textBlock?.text || '[NO_FLUSH]';
+    } else if (client.provider === 'openai') {
+      const response = await client.client.chat.completions.create({
+        model: client.model,
+        max_tokens: 1024,
+        messages: [
+          { role: 'system', content: MEMORY_FLUSH_SYSTEM_PROMPT },
+          { role: 'user', content: conversationSummary + '\n\n' + MEMORY_FLUSH_PROMPT },
+        ],
+      });
+      responseText = response.choices[0]?.message?.content || '[NO_FLUSH]';
     } else {
       // Google
       const chat = client.model.startChat({

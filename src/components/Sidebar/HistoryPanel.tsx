@@ -1,354 +1,152 @@
-import React, { useState, useEffect, useRef, useMemo } from 'react';
-import { MdDescription, MdChevronRight, MdExpandMore, MdClose, MdKeyboardArrowUp, MdKeyboardArrowDown } from 'react-icons/md';
-import { marked } from 'marked';
+import React, { useState, useEffect, useRef, useMemo, useLayoutEffect } from 'react';
+import { MdDescription } from 'react-icons/md';
+import { IoCalendarOutline, IoChatbubblesOutline, IoFlashOutline } from 'react-icons/io5';
+import { HistoryItem, UserProfile } from './history-types';
+import { getFirstName, groupByDate } from './history-utils';
+import FindWidget from './FindWidget';
+import HistoryCard from './HistoryCard';
 
-interface ActionData {
-  tool: string;
-  input: unknown;
-  timestamp: number;
+interface HistoryPanelProps {
+  userProfile?: UserProfile | null;
 }
 
-interface HistoryItem {
-  id: number;
-  query: string;
-  response: string;
-  created_at: number;
-  tools_used?: string[] | null;
-  agent_type?: string;
-  actions?: ActionData[] | null;
-  context_text?: string | null;
-}
-
-interface GroupedHistory {
-  [date: string]: HistoryItem[];
-}
-
-/**
- * Truncate text with ellipsis
- */
-function truncate(text: string | undefined | null, maxLength: number): string {
-  if (!text) return '';
-  if (text.length <= maxLength) return text;
-  return text.substring(0, maxLength) + '...';
-}
-
-/**
- * Format an action into human-readable text
- */
-function formatAction(action: ActionData): string {
-  const input = action.input as Record<string, unknown>;
-
-  switch (action.tool) {
-    case 'web_search':
-      return `Searched web for "${truncate(input.query as string, 50)}"`;
-
-    case 'make_edit':
-    case 'suggest_edits': {
-      const edits = input.edits as Array<{ oldText?: string; newText?: string }>;
-      if (edits && edits.length > 0) {
-        const edit = edits[0];
-        const newText = truncate(edit.newText, 60);
-        return `Made edit: "${newText}"`;
-      }
-      return 'Made edit';
-    }
-
-    case 'insert_image':
-      return `Inserted image: "${truncate(input.query as string, 50)}"`;
-
-    case 'answer':
-      return `Answered: "${truncate(input.text as string, 80)}"`;
-
-    case 'replace_selected_text':
-      return `Replaced text with: "${truncate(input.text as string, 60)}"`;
-
-    case 'execute_python': {
-      const code = input.code as string;
-      if (code) {
-        // Show first line or truncated code
-        const firstLine = code.split('\n')[0];
-        return `Executed Python: ${truncate(firstLine, 50)}`;
-      }
-      return 'Executed Python code';
-    }
-
-    case 'computer_actions': {
-      const actions = input.actions as Array<{
-        type: string;
-        text?: string;
-        key?: string;
-        app?: string;
-        script?: string;
-        query?: string;
-        x?: number;
-        y?: number;
-        coordinate?: number[];
-      }>;
-      if (actions && actions.length > 0) {
-        const summaries = actions.map(a => {
-          switch (a.type) {
-            case 'type':
-              return `typed "${truncate(a.text, 30)}"`;
-            case 'key':
-              return `pressed ${a.key}`;
-            case 'hotkey':
-              return 'pressed hotkey';
-            case 'activate':
-              return `activated ${a.app}`;
-            case 'click':
-              if (a.coordinate) return `clicked at (${a.coordinate[0]}, ${a.coordinate[1]})`;
-              if (a.x !== undefined && a.y !== undefined) return `clicked at (${a.x}, ${a.y})`;
-              return 'clicked';
-            case 'right_click':
-              return 'right-clicked';
-            case 'double_click':
-              return 'double-clicked';
-            case 'scroll':
-              return 'scrolled';
-            case 'drag':
-              return 'dragged';
-            case 'wait':
-              return 'waited';
-            case 'screenshot':
-              return 'took screenshot';
-            case 'insert_image':
-              return `inserted image "${truncate(a.query, 30)}"`;
-            case 'applescript':
-              return 'ran AppleScript';
-            case 'mouse_move':
-              return 'moved mouse';
-            default:
-              return a.type;
-          }
-        });
-        return summaries.join(' → ');
-      }
-      return 'Performed actions';
-    }
-
-    case 'get_state':
-      return 'Retrieved app state';
-
-    case 'computer':
-      return `Computer: ${input.action}`;
-
-    // Composio tools
-    case 'COMPOSIO_SEARCH_TOOLS': {
-      const queries = input.queries as Array<{ use_case?: string }>;
-      if (queries && queries.length > 0 && queries[0].use_case) {
-        return `Search tools: "${truncate(queries[0].use_case, 50)}"`;
-      }
-      return 'Search tools';
-    }
-
-    case 'COMPOSIO_MULTI_EXECUTE_TOOL': {
-      const tools = input.tools as Array<{ tool_slug?: string; arguments?: Record<string, unknown> }>;
-      if (tools && tools.length > 0) {
-        const firstTool = tools[0];
-        const toolSlug = firstTool.tool_slug || '';
-        const toolArgs = firstTool.arguments || {};
-
-        // Format tool slug: GOOGLECALENDAR_EVENTS_LIST -> Google Calendar Events List
-        const displayName = toolSlug
-          .split('_')
-          .map(word => word.charAt(0).toUpperCase() + word.slice(1).toLowerCase())
-          .join(' ');
-
-        // Extract key details from arguments
-        const detailParts: string[] = [];
-        if (toolArgs.recipient_email) detailParts.push(`to: ${toolArgs.recipient_email}`);
-        if (toolArgs.subject) detailParts.push(`"${truncate(String(toolArgs.subject), 30)}"`);
-        if (toolArgs.to) detailParts.push(`to: ${toolArgs.to}`);
-        if (toolArgs.message) detailParts.push(`"${truncate(String(toolArgs.message), 30)}"`);
-        if (toolArgs.title) detailParts.push(`"${truncate(String(toolArgs.title), 30)}"`);
-        if (toolArgs.query) detailParts.push(`"${truncate(String(toolArgs.query), 30)}"`);
-        if (toolArgs.calendarId) detailParts.push(`calendar: ${toolArgs.calendarId}`);
-        if (toolArgs.timezone) detailParts.push(`tz: ${toolArgs.timezone}`);
-
-        if (detailParts.length > 0) {
-          return `${displayName} (${detailParts.slice(0, 2).join(', ')})`;
-        }
-        return displayName;
-      }
-      return 'Execute integration';
-    }
-
-    default: {
-      // For unknown tools (including Composio tools), format nicely
-      // Convert SCREAMING_SNAKE_CASE or snake_case to Title Case
-      const toolName = action.tool
-        .replace(/^COMPOSIO_/i, '') // Remove COMPOSIO_ prefix
-        .replace(/_/g, ' ')
-        .toLowerCase()
-        .replace(/\b\w/g, c => c.toUpperCase()); // Title case
-
-      // Try to extract meaningful info from input
-      const inputKeys = Object.keys(input);
-      if (inputKeys.length > 0) {
-        // Look for common meaningful fields
-        const meaningfulFields = ['query', 'text', 'message', 'content', 'name', 'title', 'url', 'path', 'body', 'subject'];
-        for (const field of meaningfulFields) {
-          if (input[field] && typeof input[field] === 'string') {
-            return `${toolName}: "${truncate(input[field] as string, 50)}"`;
-          }
-        }
-        // If no meaningful field found, just show the tool name with first key
-        const firstKey = inputKeys[0];
-        const firstValue = input[firstKey];
-        if (typeof firstValue === 'string' && firstValue.length > 0) {
-          return `${toolName}: ${truncate(firstValue, 40)}`;
-        }
-      }
-      return toolName;
-    }
-  }
-}
-
-/**
- * Parse query string to extract the actual query (removing context text format)
- */
-function parseQuery(queryString: string): string {
-  // Match pattern: "query" "context" - return just the query
-  const match = queryString.match(/^"([^"]+)"(?:\s+"[^"]*")?$/);
-  if (match) {
-    return match[1];
-  }
-  return queryString;
-}
-
-function HistoryPanel() {
+function HistoryPanel({ userProfile }: HistoryPanelProps) {
+  const firstName = getFirstName(userProfile);
   const [history, setHistory] = useState<HistoryItem[]>([]);
   const [expandedId, setExpandedId] = useState<number | null>(null);
   const [hoveredId, setHoveredId] = useState<number | null>(null);
-  const [loading, setLoading] = useState<boolean>(true);
+  const [loading, setLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState('');
   const [searchOpen, setSearchOpen] = useState(false);
   const [activeMatchIndex, setActiveMatchIndex] = useState(0);
+  const panelRef = useRef<HTMLDivElement>(null);
+  const greetingRef = useRef<HTMLDivElement>(null);
   const searchInputRef = useRef<HTMLInputElement>(null);
   const matchRefs = useRef<Map<number, HTMLElement>>(new Map());
 
+  // Track greeting height for sticky date positioning
+  useLayoutEffect(() => {
+    const panel = panelRef.current;
+    const el = greetingRef.current;
+    if (!panel) return;
+    if (!el) {
+      panel.style.setProperty('--date-sticky-top', '0px');
+      panel.style.setProperty('--greeting-height', '0px');
+      return;
+    }
+    const scrollContainer = panel.closest('.main-panel') as HTMLElement | null;
+    const update = () => {
+      const h = el.offsetHeight;
+      panel.style.setProperty('--greeting-height', `${h}px`);
+      const paddingTop = scrollContainer ? parseFloat(getComputedStyle(scrollContainer).paddingTop) : 0;
+      panel.style.setProperty('--date-sticky-top', `${h - paddingTop - 1}px`);
+    };
+    update();
+    const ro = new ResizeObserver(update);
+    ro.observe(el);
+    return () => ro.disconnect();
+  }, [firstName, loading]);
+
+  // Load app logos from connected integrations
+  const [appLogos, setAppLogos] = useState<Map<string, string>>(new Map());
   useEffect(() => {
-    loadHistory();
-    const cleanup = window.faria.agent.onResponse(() => {
-      loadHistory();
-    });
-    return cleanup;
+    window.faria.integrations.getConnections()
+      .then((conns: Array<{ appName: string; logo?: string }>) => {
+        const map = new Map<string, string>();
+        for (const c of conns) {
+          if (c.logo) map.set(c.appName.toLowerCase(), c.logo);
+        }
+        setAppLogos(map);
+      })
+      .catch(() => {});
   }, []);
 
-  const loadHistory = async () => {
-    setLoading(true);
-    const items = await window.faria.history.get();
-    setHistory(items);
-    setLoading(false);
-  };
+  // Load history on mount and on new responses
+  useEffect(() => {
+    const load = async () => {
+      setLoading(true);
+      const items = await window.faria.history.get();
+      setHistory(items);
 
-  const groupByDate = (items: HistoryItem[]): GroupedHistory => {
-    const groups: GroupedHistory = {};
-    const today = new Date().toDateString();
-    const yesterday = new Date(Date.now() - 86400000).toDateString();
+      setLoading(false);
+    };
+    load();
+    return window.faria.agent.onResponse(() => load());
+  }, []);
 
-    items.forEach((item) => {
-      const itemDate = new Date(item.created_at).toDateString();
-      let groupName: string;
-
-      if (itemDate === today) {
-        groupName = 'Today';
-      } else if (itemDate === yesterday) {
-        groupName = 'Yesterday';
-      } else {
-        groupName = new Date(item.created_at).toLocaleDateString('en-US', {
-          weekday: 'long',
-          month: 'short',
-          day: 'numeric',
-        });
-      }
-
-      if (!groups[groupName]) {
-        groups[groupName] = [];
-      }
-      groups[groupName].push(item);
-    });
-
-    return groups;
-  };
-
+  // Filter history by search
   const filteredHistory = useMemo(() => {
     if (!searchQuery) return history;
     const q = searchQuery.toLowerCase();
     return history.filter(item =>
       item.query.toLowerCase().includes(q) ||
-      (item.response && item.response.toLowerCase().includes(q)) ||
-      (item.context_text && item.context_text.toLowerCase().includes(q))
+      item.response?.toLowerCase().includes(q) ||
+      item.context_text?.toLowerCase().includes(q)
     );
   }, [history, searchQuery]);
 
   const matchCount = filteredHistory.length;
 
-  // Reset active match when query changes
-  useEffect(() => {
-    setActiveMatchIndex(0);
-  }, [searchQuery]);
+  // Reset match index on query change
+  useEffect(() => setActiveMatchIndex(0), [searchQuery]);
 
   // Scroll active match into view
   useEffect(() => {
     if (!searchQuery || matchCount === 0) return;
     const item = filteredHistory[activeMatchIndex];
-    if (item) {
-      const el = matchRefs.current.get(item.id);
-      el?.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
-    }
+    if (item) matchRefs.current.get(item.id)?.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
   }, [activeMatchIndex, searchQuery, matchCount]);
 
-  const goToNext = () => {
-    if (matchCount > 0) setActiveMatchIndex((activeMatchIndex + 1) % matchCount);
-  };
-  const goToPrev = () => {
-    if (matchCount > 0) setActiveMatchIndex((activeMatchIndex - 1 + matchCount) % matchCount);
-  };
+  const goToNext = () => { if (matchCount > 0) setActiveMatchIndex(i => (i + 1) % matchCount); };
+  const goToPrev = () => { if (matchCount > 0) setActiveMatchIndex(i => (i - 1 + matchCount) % matchCount); };
 
-  // Cmd+F to toggle search, Enter/Shift+Enter to navigate matches
+  // Keyboard shortcuts: Cmd+F, Escape, Enter/Shift+Enter
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
       if ((e.metaKey || e.ctrlKey) && e.key === 'f') {
         e.preventDefault();
-        if (searchOpen) {
-          setSearchOpen(false);
-          setSearchQuery('');
-        } else {
-          setSearchOpen(true);
-          setTimeout(() => searchInputRef.current?.focus(), 0);
-        }
+        if (searchOpen) { setSearchOpen(false); setSearchQuery(''); }
+        else { setSearchOpen(true); setTimeout(() => searchInputRef.current?.focus(), 0); }
       }
-      if (e.key === 'Escape' && searchOpen) {
-        setSearchOpen(false);
-        setSearchQuery('');
-      }
+      if (e.key === 'Escape' && searchOpen) { setSearchOpen(false); setSearchQuery(''); }
       if (searchOpen && e.key === 'Enter' && document.activeElement === searchInputRef.current) {
         e.preventDefault();
-        if (e.shiftKey) goToPrev();
-        else goToNext();
+        e.shiftKey ? goToPrev() : goToNext();
       }
     };
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
   }, [searchOpen, matchCount, activeMatchIndex]);
 
+  // Compute user stats
+  const stats = useMemo(() => {
+    if (history.length === 0) return null;
+    const oldest = Math.min(...history.map(h => h.created_at));
+    const now = Date.now();
+    const diffMs = now - oldest;
+    const diffDays = Math.floor(diffMs / (1000 * 60 * 60 * 24));
+    let streakLabel: string;
+    if (diffDays >= 365) {
+      const years = Math.floor(diffDays / 365);
+      streakLabel = `${years} ${years === 1 ? 'year' : 'years'}`;
+    } else if (diffDays >= 7) {
+      const weeks = Math.floor(diffDays / 7);
+      streakLabel = `${weeks} ${weeks === 1 ? 'week' : 'weeks'}`;
+    } else {
+      streakLabel = `${Math.max(diffDays, 1)} ${diffDays === 1 ? 'day' : 'days'}`;
+    }
+
+    const totalActions = history.reduce((sum, h) => sum + (h.actions?.length ?? 0), 0);
+
+    return { streakLabel, chatCount: history.length, totalActions };
+  }, [history]);
+
   const grouped = groupByDate(filteredHistory);
 
   if (loading) {
     return (
-      <div className="history-panel">
-        <div className="empty-state">
-          <div className="loading-spinner" style={{
-            width: '24px',
-            height: '24px',
-            border: '3px solid var(--color-border)',
-            borderTopColor: 'var(--color-accent)',
-            borderRadius: '50%',
-            animation: 'spin 0.8s linear infinite',
-            marginBottom: 'var(--spacing-md)'
-          }} />
-        </div>
+      <div className="loading-state">
+        <div className="loading-spinner" />
       </div>
     );
   }
@@ -357,17 +155,10 @@ function HistoryPanel() {
     return (
       <div className="history-panel">
         <div className="empty-state">
-          <div className="empty-state-icon">
-            <MdDescription size={48} />
-          </div>
+          <div className="empty-state-icon"><MdDescription size={48} /></div>
           <p>No queries yet</p>
-          <p style={{ fontSize: 'var(--font-size-sm)', marginTop: 'var(--spacing-sm)' }}>
-            Press <kbd style={{ 
-              background: 'var(--color-surface)', 
-              padding: '2px 6px', 
-              borderRadius: '4px',
-              border: '1px solid var(--color-border)'
-          }}>⌘ ⏎</kbd> to open Faria
+          <p className="empty-state-hint">
+            Press <kbd className="kbd">&#8984; &#9166;</kbd> to open Faria
           </p>
         </div>
       </div>
@@ -375,208 +166,65 @@ function HistoryPanel() {
   }
 
   return (
-    <div className="history-panel">
-      {searchOpen && (
-        <div className="find-widget">
-          <div className="find-widget-input-wrap">
-            <input
-              ref={searchInputRef}
-              type="text"
-              placeholder="Find"
-              value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
-              className="find-widget-input"
-            />
-            {searchQuery && (
-              <span className="find-widget-count">
-                {matchCount === 0
-                  ? 'No results'
-                  : `${activeMatchIndex + 1} of ${matchCount}`}
-              </span>
-            )}
-          </div>
-          <button
-            className="find-widget-btn"
-            onClick={goToPrev}
-            disabled={matchCount === 0}
-            title="Previous match (Shift+Enter)"
-          >
-            <MdKeyboardArrowUp size={16} />
-          </button>
-          <button
-            className="find-widget-btn"
-            onClick={goToNext}
-            disabled={matchCount === 0}
-            title="Next match (Enter)"
-          >
-            <MdKeyboardArrowDown size={16} />
-          </button>
-          <button
-            className="find-widget-btn"
-            onClick={() => { setSearchOpen(false); setSearchQuery(''); }}
-            title="Close (Escape)"
-          >
-            <MdClose size={14} />
-          </button>
+    <div ref={panelRef} className="history-panel" style={{ paddingBottom: 'var(--spacing-lg)' }}>
+      {firstName && (
+        <div ref={greetingRef} className="history-greeting">
+          <span className="greeting-text">Good day, {firstName}</span>
+          {stats && (
+            <div className="greeting-stats">
+              <div className="greeting-stat">
+                <IoCalendarOutline size={12} />
+                <span className="greeting-stat-value">{stats.streakLabel} aboard</span>
+              </div>
+              <div className="greeting-stat">
+                <IoChatbubblesOutline size={12} />
+                <span className="greeting-stat-value">{stats.chatCount} messages</span>
+              </div>
+              <div className="greeting-stat">
+                <IoFlashOutline size={12} />
+                <span className="greeting-stat-value">{stats.totalActions} actions</span>
+              </div>
+            </div>
+          )}
         </div>
       )}
+
+      {searchOpen && (
+        <FindWidget
+          query={searchQuery}
+          onChange={setSearchQuery}
+          onClose={() => { setSearchOpen(false); setSearchQuery(''); }}
+          onNext={goToNext}
+          onPrev={goToPrev}
+          matchCount={matchCount}
+          activeIndex={activeMatchIndex}
+          inputRef={searchInputRef}
+        />
+      )}
+
       {Object.entries(grouped).map(([date, items]) => (
-        <div key={date} className="date-group">
+        <React.Fragment key={date}>
           <div className="date-group-title">{date}</div>
-            {items.map((item, index) => {
-              const isLastItem = index === items.length - 1;
-              const userQuery = parseQuery(item.query);
-              const contextText = item.context_text;
-
-              const isExpanded = expandedId === item.id;
-              const isHovered = hoveredId === item.id;
-              const isActiveMatch = searchQuery && filteredHistory[activeMatchIndex]?.id === item.id;
-
-              return (
-                <div
-                  key={item.id}
-                  ref={(el) => {
-                    if (el) matchRefs.current.set(item.id, el);
-                    else matchRefs.current.delete(item.id);
-                  }}
-                  className={`list-item${isActiveMatch ? ' find-active-match' : ''}`}
-                  style={{ marginLeft: 'var(--spacing-md)', borderBottom: 'none', paddingBottom: 0 }}
-                  onClick={() => setExpandedId(isExpanded ? null : item.id)}
-                  onMouseEnter={() => setHoveredId(item.id)}
-                  onMouseLeave={() => setHoveredId(null)}
-                >
-                  {/* Header */}
-                  <div style={{
-                    display: 'flex',
-                    alignItems: 'flex-start',
-                    justifyContent: 'space-between'
-                  }}>
-                    <span style={{
-                      display: 'flex',
-                      alignItems: 'flex-start',
-                      overflow: isExpanded ? 'visible' : 'hidden',
-                      flex: 1
-                    }}>
-                      <span
-                        style={{
-                          cursor: 'text',
-                          ...(isExpanded ? {
-                            wordBreak: 'break-word',
-                            whiteSpace: 'pre-wrap'
-                          } : {
-                            overflow: 'hidden',
-                            textOverflow: 'ellipsis',
-                            whiteSpace: 'nowrap'
-                          })
-                        }}
-                        onClick={(e) => e.stopPropagation()}
-                      >
-                        {userQuery}
-                      </span>
-                      {(isHovered || isExpanded) && (
-                        isExpanded ? (
-                          <MdExpandMore size={16} style={{ flexShrink: 0, marginLeft: '4px' }} />
-                        ) : (
-                          <MdChevronRight size={16} style={{ flexShrink: 0, marginLeft: '4px' }} />
-                        )
-                      )}
-                    </span>
-                    <span
-                      style={{
-                        fontSize: 'var(--font-size-xs)',
-                        color: 'var(--color-text-muted)',
-                        marginLeft: 'var(--spacing-md)',
-                        cursor: 'text',
-                        flexShrink: 0
-                      }}
-                      onClick={(e) => e.stopPropagation()}
-                    >
-                      {new Date(item.created_at).toLocaleTimeString('en-US', {
-                        hour: 'numeric',
-                        minute: '2-digit',
-                      })}
-                    </span>
-                  </div>
-
-                  {/* Expanded content */}
-                  {isExpanded && (
-                    <div
-                      style={{
-                        marginTop: 'var(--spacing-sm)',
-                        fontSize: 'var(--font-size-sm)',
-                        lineHeight: 1.6,
-                        cursor: 'text'
-                      }}
-                      onClick={(e) => e.stopPropagation()}
-                    >
-                      {/* Selected text (if any) */}
-                      {contextText && (
-                        <span style={{
-                          fontSize: 'var(--font-size-xs)',
-                          color: 'var(--color-text-muted)',
-                          marginBottom: 'var(--spacing-sm)',
-                          padding: '2px 6px',
-                          background: 'var(--color-surface)',
-                          borderRadius: '4px',
-                          border: '1px solid var(--color-border)',
-                          display: 'inline-block',
-                          fontStyle: 'italic',
-                          maxWidth: '100%',
-                          wordBreak: 'break-word'
-                        }}>
-                          {truncate(contextText, 100)}
-                        </span>
-                      )}
-
-                      {/* Agent trace - human readable actions */}
-                      {item.actions && item.actions.length > 0 && (
-                        <div style={{
-                          marginTop: 'var(--spacing-sm)',
-                          borderLeft: '2px solid var(--color-border)',
-                          paddingLeft: 'var(--spacing-sm)',
-                          marginLeft: '2px'
-                        }}>
-                          {item.actions.map((action, idx) => (
-                            <div key={idx} style={{
-                              fontSize: 'var(--font-size-xs)',
-                              marginBottom: 'var(--spacing-xs)',
-                              color: 'var(--color-accent)',
-                              wordBreak: 'break-word'
-                            }}>
-                              {formatAction(action)}
-                            </div>
-                          ))}
-                        </div>
-                      )}
-
-                      {/* Final response */}
-                      {item.response && (
-                        <div
-                          className="markdown-content"
-                          style={{
-                            marginTop: 'var(--spacing-sm)',
-                            color: 'var(--color-accent)',
-                            fontSize: 'var(--font-size-xs)',
-                            lineHeight: 1.5,
-                            wordBreak: 'break-word',
-                          }}
-                          dangerouslySetInnerHTML={{ __html: marked.parse(item.response, { async: false, breaks: true, gfm: true }) as string }}
-                        />
-                      )}
-                    </div>
-                  )}
-                  {/* Separator line aligned with content */}
-                  {!isLastItem && (
-                    <div style={{
-                      height: '1px',
-                      backgroundColor: 'var(--color-border)',
-                      marginTop: 'var(--spacing-md)'
-                    }} />
-                  )}
-                </div>
-              );
-            })}
-        </div>
+          <div className="history-timeline">
+            {items.map((item, index) => (
+              <HistoryCard
+                key={item.id}
+                item={item}
+                isLast={index === items.length - 1}
+                isExpanded={expandedId === item.id}
+                isHovered={hoveredId === item.id}
+                isActiveMatch={!!searchQuery && filteredHistory[activeMatchIndex]?.id === item.id}
+                appLogos={appLogos}
+                onToggle={() => setExpandedId(expandedId === item.id ? null : item.id)}
+                onHover={(h) => h ? setHoveredId(item.id) : setHoveredId(null)}
+                cardRef={(el) => {
+                  if (el) matchRefs.current.set(item.id, el);
+                  else matchRefs.current.delete(item.id);
+                }}
+              />
+            ))}
+          </div>
+        </React.Fragment>
       ))}
     </div>
   );

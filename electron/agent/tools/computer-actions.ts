@@ -5,7 +5,11 @@ import { ToolResult, ToolContext } from './types';
 import { runAppleScript, focusApp, escapeForAppleScript } from '../../services/applescript';
 import { insertImageFromUrl } from '../../services/text-extraction';
 import * as cliclick from '../../services/cliclick';
-import { takeScreenshot, calculateResizeWidth } from '../../services/screenshot';
+import {
+  takeScreenshot,
+  calculateResizeWidth,
+  getScreenshotDimensionsForProvider,
+} from '../../services/screenshot';
 // NOTE: calculateResizeWidth must use the same constants as screenshot.ts to keep
 // the coordinate conversion in sync with the actual screenshot dimensions.
 import { screen, clipboard } from 'electron';
@@ -50,6 +54,15 @@ function getEnabledActionTypes(toolSettings: ToolSettings): readonly string[] {
   return ALL_ACTION_TYPES.filter(action => !isActionDisabled(action, toolSettings));
 }
 
+function getCoordinateGuidance(provider: ToolContext['provider']): string {
+  if (provider === 'google') {
+    return 'Coordinates for click/move/drag should be normalized to 0-1000 relative to the screenshot image.';
+  }
+
+  const dims = getScreenshotDimensionsForProvider(provider);
+  return `Coordinates for click/move/drag should be pixel coordinates relative to the screenshot image. The screenshot image size for this provider is ${dims.width}x${dims.height}, so the image center is approximately (${Math.round(dims.width / 2)}, ${Math.round(dims.height / 2)}).`;
+}
+
 // Zod schema for the tool (full version with all actions)
 export const ChainActionsSchema = z.object({
   actions: z.array(
@@ -91,7 +104,7 @@ export const ChainActionsSchema = z.object({
  *   We use the same calculateResizeWidth() to know the exact image dimensions
  *   Claude sees, then scale coordinates back to logical screen points.
  */
-function convertCoordinates(x: number, y: number, provider: 'anthropic' | 'google' | null): { x: number; y: number } {
+function convertCoordinates(x: number, y: number, provider: 'anthropic' | 'google' | 'openai' | null): { x: number; y: number } {
   const primaryDisplay = screen.getPrimaryDisplay();
   const { width: screenWidth, height: screenHeight } = primaryDisplay.size;
   const scaleFactor = primaryDisplay.scaleFactor || 1;
@@ -109,9 +122,9 @@ function convertCoordinates(x: number, y: number, provider: 'anthropic' | 'googl
   }
 
   if (provider === 'anthropic') {
-    // Screenshots are pre-resized using calculateResizeWidth() before sending to Claude.
+    // Screenshots are pre-resized using calculateResizeWidth() before sending to the model.
     // This is the same function used by the screenshot service, so we know the exact
-    // image dimensions Claude sees. Scale coordinates from image space to logical screen.
+    // image dimensions the model sees. Scale coordinates from image space to logical screen.
     const nativeWidth = screenWidth * scaleFactor;
     const nativeHeight = screenHeight * scaleFactor;
     const ssWidth = calculateResizeWidth(nativeWidth, nativeHeight);
@@ -119,7 +132,16 @@ function convertCoordinates(x: number, y: number, provider: 'anthropic' | 'googl
 
     const pixelX = Math.round((x / ssWidth) * screenWidth);
     const pixelY = Math.round((y / ssHeight) * screenHeight);
-    console.log(`[Faria] Converting Anthropic coords (${x},${y}) from screenshot ${ssWidth}x${ssHeight} -> logical (${pixelX},${pixelY}) for screen ${screenWidth}x${screenHeight}`);
+    console.log(`[Faria] Converting ${provider} coords (${x},${y}) from screenshot ${ssWidth}x${ssHeight} -> logical (${pixelX},${pixelY}) for screen ${screenWidth}x${screenHeight}`);
+    return { x: pixelX, y: pixelY };
+  }
+
+  if (provider === 'openai') {
+    // OpenAI screenshots are resized to logical screen resolution, so the model
+    // returns coordinates already in logical pixel space. Just clamp to bounds.
+    const pixelX = Math.max(0, Math.min(screenWidth - 1, Math.round(x)));
+    const pixelY = Math.max(0, Math.min(screenHeight - 1, Math.round(y)));
+    console.log(`[Faria] OpenAI coords (${x},${y}) -> logical (${pixelX},${pixelY}) for screen ${screenWidth}x${screenHeight}`);
     return { x: pixelX, y: pixelY };
   }
 
@@ -232,7 +254,7 @@ function createDynamicSchema(toolSettings: ToolSettings) {
 export function createChainActionsTool(context: ToolContext, toolSettings: ToolSettings): DynamicStructuredTool {
   const enabledActions = getEnabledActionTypes(toolSettings);
   const schema = createDynamicSchema(toolSettings);
-  const description = `Execute a sequence of UI actions with automatic timing. Available actions: ${enabledActions.join(', ')}.`;
+  const description = `Execute a sequence of UI actions with automatic timing. Available actions: ${enabledActions.join(', ')}. ${getCoordinateGuidance(context.provider)} Always request a screenshot before choosing visual coordinates unless the exact target position is already known from the current screenshot.`;
 
   return tool(
     async (input) => {
@@ -272,14 +294,19 @@ export function createChainActionsTool(context: ToolContext, toolSettings: ToolS
             return summary;
           }
 
-          const imageParts = images.map((data) => ({
-            type: 'image',
-            source: {
-              type: 'base64',
-              media_type: 'image/png',
-              data,
-            },
-          }));
+          const imageParts = context.provider === 'openai'
+            ? images.map((data) => ({
+                type: 'image_url',
+                image_url: { url: `data:image/png;base64,${data}`, detail: 'original' },
+              }))
+            : images.map((data) => ({
+                type: 'image',
+                source: {
+                  type: 'base64',
+                  media_type: 'image/png',
+                  data,
+                },
+              }));
 
           return [{ type: 'text', text: summary }, ...imageParts];
         }
@@ -568,7 +595,14 @@ async function executeAction(
     case 'screenshot': {
       const screenshot = await takeScreenshot({ provider: context.provider });
       const base64Data = screenshot.replace(/^data:image\/\w+;base64,/, '');
-      return { message: 'Screenshot captured', image: base64Data };
+      const dims = getScreenshotDimensionsForProvider(context.provider);
+      const guidance = context.provider === 'google'
+        ? `Use normalized coordinates from 0-1000 relative to this screenshot.`
+        : `Use pixel coordinates relative to this screenshot image (${dims.width}x${dims.height}). The center is approximately (${Math.round(dims.width / 2)}, ${Math.round(dims.height / 2)}).`;
+      return {
+        message: `Screenshot captured (${dims.width}x${dims.height}). ${guidance}`,
+        image: base64Data,
+      };
     }
 
     case 'drag': {

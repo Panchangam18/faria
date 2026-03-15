@@ -5,7 +5,7 @@ import { contextBridge, ipcRenderer } from 'electron';
 contextBridge.exposeInMainWorld('faria', {
   // Agent
   agent: {
-    submit: (query: string) => ipcRenderer.invoke('agent:submit', query),
+    submit: (query: string, previousContext?: { query: string; response: string }) => ipcRenderer.invoke('agent:submit', query, previousContext),
     cancel: (source?: string) => ipcRenderer.invoke('agent:cancel', source || 'unknown'),
     authCompleted: () => ipcRenderer.send('agent:auth-completed'),
     onStatus: (callback: (status: string) => void) => {
@@ -39,6 +39,11 @@ contextBridge.exposeInMainWorld('faria', {
       return () => ipcRenderer.removeListener('agent:tool-approval-required', handler);
     },
     toolApprovalResponse: (approved: boolean) => ipcRenderer.send('agent:tool-approval-response', approved),
+    onToolAction: (callback: (action: { tool: string; input: unknown; timestamp: number }) => void) => {
+      const handler = (_event: Electron.IpcRendererEvent, action: { tool: string; input: unknown; timestamp: number }) => callback(action);
+      ipcRenderer.on('agent:tool-action', handler);
+      return () => ipcRenderer.removeListener('agent:tool-action', handler);
+    },
     onTiming: (callback: (timing: Record<string, number>) => void) => {
       const handler = (_event: Electron.IpcRendererEvent, timing: Record<string, number>) => callback(timing);
       ipcRenderer.on('agent:timing', handler);
@@ -56,9 +61,9 @@ contextBridge.exposeInMainWorld('faria', {
     get: (key: string) => ipcRenderer.invoke('settings:get', key),
     set: (key: string, value: string) => ipcRenderer.invoke('settings:set', key, value),
     getDefaultPrompt: () => ipcRenderer.invoke('settings:getDefaultPrompt'),
-    getThemeData: () => ipcRenderer.invoke('settings:getThemeData') as Promise<{ theme: string; colors: { background: string; text: string; accent: string }; font: string }>,
-    onThemeChange: (callback: (themeData: { theme: string; colors: { background: string; text: string; accent: string }; font: string }) => void) => {
-      const handler = (_event: Electron.IpcRendererEvent, themeData: { theme: string; colors: { background: string; text: string; accent: string }; font: string }) => callback(themeData);
+    getThemeData: () => ipcRenderer.invoke('settings:getThemeData') as Promise<{ theme: string; font: string }>,
+    onThemeChange: (callback: (themeData: { theme: string; font: string }) => void) => {
+      const handler = (_event: Electron.IpcRendererEvent, themeData: { theme: string; font: string }) => callback(themeData);
       ipcRenderer.on('settings:theme-change', handler);
       return () => ipcRenderer.removeListener('settings:theme-change', handler);
     },
@@ -98,6 +103,21 @@ contextBridge.exposeInMainWorld('faria', {
   // Selection - report main window selection to main process
   selection: {
     report: (text: string) => ipcRenderer.send('selection:report', text),
+  },
+
+  // Main window chat integration
+  chat: {
+    reportActiveTab: (tab: string) => ipcRenderer.send('main:active-tab', tab),
+    onFocus: (callback: () => void) => {
+      const handler = () => callback();
+      ipcRenderer.on('chat:focus', handler);
+      return () => ipcRenderer.removeListener('chat:focus', handler);
+    },
+    onClear: (callback: () => void) => {
+      const handler = () => callback();
+      ipcRenderer.on('chat:clear', handler);
+      return () => ipcRenderer.removeListener('chat:clear', handler);
+    },
   },
 
   // Window management
@@ -179,7 +199,7 @@ contextBridge.exposeInMainWorld('faria', {
 // Type definitions for the exposed API
 export interface FariaAPI {
   agent: {
-    submit: (query: string) => Promise<{ success: boolean; result?: string; error?: string }>;
+    submit: (query: string, previousContext?: { query: string; response: string }) => Promise<{ success: boolean; result?: string; error?: string }>;
     cancel: (source?: string) => Promise<{ success: boolean }>;
     authCompleted: () => void;
     onStatus: (callback: (status: string) => void) => () => void;
@@ -189,6 +209,7 @@ export interface FariaAPI {
     onAuthRequired: (callback: (data: { toolkit: string; redirectUrl: string }) => void) => () => void;
     onToolApprovalRequired: (callback: (data: { toolName: string; toolDescription: string; args: Record<string, unknown>; isComposio: boolean; displayName?: string; details?: Record<string, string> }) => void) => () => void;
     toolApprovalResponse: (approved: boolean) => void;
+    onToolAction: (callback: (action: { tool: string; input: unknown; timestamp: number }) => void) => () => void;
     onTiming: (callback: (timing: Record<string, number>) => void) => () => void;
   };
   state: {
@@ -198,8 +219,8 @@ export interface FariaAPI {
     get: (key: string) => Promise<string | null>;
     set: (key: string, value: string) => Promise<{ success: boolean }>;
     getDefaultPrompt: () => Promise<string>;
-    getThemeData: () => Promise<{ theme: string; colors: { background: string; text: string; accent: string }; font: string }>;
-    onThemeChange: (callback: (themeData: { theme: string; colors: { background: string; text: string; accent: string }; font: string }) => void) => () => void;
+    getThemeData: () => Promise<{ theme: string; font: string }>;
+    onThemeChange: (callback: (themeData: { theme: string; font: string }) => void) => () => void;
     notifyOpacityChange: (opacity: number) => void;
     onOpacityChange: (callback: (opacity: number) => void) => () => void;
     getSizeMode: () => Promise<string>;
@@ -211,6 +232,14 @@ export interface FariaAPI {
       query: string;
       response: string;
       created_at: number; // Unix timestamp in milliseconds
+      tools_used?: string[] | null;
+      agent_type?: string;
+      actions?: Array<{
+        tool: string;
+        input: unknown;
+        timestamp: number;
+      }> | null;
+      context_text?: string | null;
     }>>;
     add: (query: string, response: string) => Promise<{ success: boolean }>;
   };
@@ -250,6 +279,11 @@ export interface FariaAPI {
   };
   selection: {
     report: (text: string) => void;
+  };
+  chat: {
+    reportActiveTab: (tab: string) => void;
+    onFocus: (callback: () => void) => () => void;
+    onClear: (callback: () => void) => () => void;
   };
   shell: {
     openExternal: (url: string) => Promise<void>;

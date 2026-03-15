@@ -4,6 +4,7 @@ import { tmpdir } from 'os';
 import { join } from 'path';
 import { readFile, unlink } from 'fs/promises';
 import { v4 as uuidv4 } from 'uuid';
+import { screen } from 'electron';
 
 const execAsync = promisify(exec);
 
@@ -27,6 +28,35 @@ export function calculateResizeWidth(width: number, height: number): number {
   const scale = Math.min(1.0, longEdgeScale, totalPixelScale);
 
   return Math.round(width * scale);
+}
+
+export function getScreenshotDimensionsForProvider(
+  provider: 'anthropic' | 'google' | 'openai' | null
+): { width: number; height: number } {
+  const primaryDisplay = screen.getPrimaryDisplay();
+  const { width: logicalWidth, height: logicalHeight } = primaryDisplay.size;
+  const scaleFactor = primaryDisplay.scaleFactor || 1;
+  const nativeWidth = logicalWidth * scaleFactor;
+  const nativeHeight = logicalHeight * scaleFactor;
+
+  if (provider === 'google') {
+    return { width: nativeWidth, height: nativeHeight };
+  }
+
+  if (provider === 'openai') {
+    // OpenAI screenshots are resized to logical screen resolution (not native/Retina)
+    return { width: logicalWidth, height: logicalHeight };
+  }
+
+  if (provider === 'anthropic') {
+    const width = calculateResizeWidth(nativeWidth, nativeHeight);
+    const height = Math.round(nativeHeight * (width / nativeWidth));
+    return { width, height };
+  }
+
+  const width = calculateResizeWidth(nativeWidth, nativeHeight);
+  const height = Math.round(nativeHeight * (width / nativeWidth));
+  return { width, height };
 }
 
 /**
@@ -56,10 +86,11 @@ export interface ScreenshotOptions {
   /**
    * Which model provider will receive this screenshot.
    * - 'anthropic': resize to fit within Anthropic's vision constraints for deterministic coord mapping
+   * - 'openai': preserve the original screenshot for best computer-use fidelity
    * - 'google': preserve full resolution (Gemini uses 0-1000 normalized coords, unaffected by image size)
    * - null/undefined: resize to save tokens (default)
    */
-  provider?: 'anthropic' | 'google' | null;
+  provider?: 'anthropic' | 'google' | 'openai' | null;
 }
 
 /**
@@ -84,6 +115,24 @@ export async function takeScreenshot(options: ScreenshotOptions = {}): Promise<s
       const imageBuffer = await readFile(tempPath);
       const base64 = imageBuffer.toString('base64');
       await unlink(tempPath).catch(() => {});
+      return `data:image/png;base64,${base64}`;
+    }
+
+    if (options.provider === 'openai') {
+      // OpenAI's computer-use model is calibrated for ~1440x900 resolution images.
+      // macOS screencapture produces native/Retina resolution (e.g. 2880x1800 on 2x),
+      // so we resize down to logical screen size to match what the model expects.
+      // The model will return pixel coordinates in this resized image space.
+      const primaryDisplay = screen.getPrimaryDisplay();
+      const logicalWidth = primaryDisplay.size.width;
+      await execAsync(`sips --resampleWidth ${logicalWidth} "${tempPath}" --out "${resizedPath}"`, { timeout: 10000 });
+
+      const imageBuffer = await readFile(resizedPath);
+      const base64 = imageBuffer.toString('base64');
+
+      await unlink(tempPath).catch(() => {});
+      await unlink(resizedPath).catch(() => {});
+
       return `data:image/png;base64,${base64}`;
     }
 

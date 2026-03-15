@@ -1,12 +1,15 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { FiSidebar } from 'react-icons/fi';
+import { BsLayoutSidebar } from 'react-icons/bs';
+import { MdHelpOutline } from 'react-icons/md';
+import { IoMdSend } from 'react-icons/io';
 import Sidebar from './components/Sidebar';
 import HistoryPanel from './components/Sidebar/HistoryPanel';
 import SettingsPanel from './components/Settings/SettingsPanel';
+import ChatPanel from './components/Chat/ChatPanel';
 
 import SignIn from './components/SignIn';
 
-type Tab = 'history' | 'settings';
+type Tab = 'home' | 'chat' | 'settings';
 
 interface UserProfile {
   email: string;
@@ -16,92 +19,37 @@ interface UserProfile {
   provider: string | null;
 }
 
-const PRESET_THEMES = [
-  {
-    id: 'default',
-    name: 'Chateau',
-    colors: { background: '#272932', text: '#EAE0D5', accent: '#C6AC8F' },
-  },
-  {
-    id: 'comte',
-    name: 'Comte',
-    colors: { background: '#07020D', text: '#FBFFFE', accent: '#3C91E6' },
-  },
-  {
-    id: 'mercedes',
-    name: 'Mercédès',
-    colors: { background: '#46494C', text: '#DCDCDD', accent: '#9883E5' },
-  },
-  {
-    id: 'carnival',
-    name: 'Carnival',
-    colors: { background: '#001011', text: '#6CCFF6', accent: '#E94560' },
-  },
-];
-
-const deriveAccentColors = (accent: string): { hover: string; active: string } => {
-  const hex = accent.replace('#', '');
-  const r = parseInt(hex.substring(0, 2), 16);
-  const g = parseInt(hex.substring(2, 4), 16);
-  const b = parseInt(hex.substring(4, 6), 16);
-  const brightness = (r * 299 + g * 587 + b * 114) / 1000;
-  const hoverFactor = brightness > 128 ? 0.85 : 1.15;
-  const activeFactor = brightness > 128 ? 0.75 : 1.25;
-  const hoverR = Math.min(255, Math.max(0, Math.round(r * hoverFactor)));
-  const hoverG = Math.min(255, Math.max(0, Math.round(g * hoverFactor)));
-  const hoverB = Math.min(255, Math.max(0, Math.round(b * hoverFactor)));
-  const activeR = Math.min(255, Math.max(0, Math.round(r * activeFactor)));
-  const activeG = Math.min(255, Math.max(0, Math.round(g * activeFactor)));
-  const activeB = Math.min(255, Math.max(0, Math.round(b * activeFactor)));
-  const toHex = (n: number) => n.toString(16).padStart(2, '0');
-  return {
-    hover: `#${toHex(hoverR)}${toHex(hoverG)}${toHex(hoverB)}`,
-    active: `#${toHex(activeR)}${toHex(activeG)}${toHex(activeB)}`
-  };
-};
-
-const applyThemeColors = (colors: { background: string; text: string; accent: string }, themeId: string) => {
-  const accentColors = deriveAccentColors(colors.accent);
-  const bgHex = colors.background.replace('#', '');
-  const bgR = parseInt(bgHex.substring(0, 2), 16);
-  const bgG = parseInt(bgHex.substring(2, 4), 16);
-  const bgB = parseInt(bgHex.substring(4, 6), 16);
-  const lightR = Math.min(255, Math.round(bgR * 1.2));
-  const lightG = Math.min(255, Math.round(bgG * 1.2));
-  const lightB = Math.min(255, Math.round(bgB * 1.2));
-  const darkR = Math.max(0, Math.round(bgR * 0.7));
-  const darkG = Math.max(0, Math.round(bgG * 0.7));
-  const darkB = Math.max(0, Math.round(bgB * 0.7));
-  const toHex = (n: number) => n.toString(16).padStart(2, '0');
-
-  document.documentElement.style.setProperty('--color-primary', colors.background);
-  document.documentElement.style.setProperty('--color-secondary', colors.text);
-  document.documentElement.style.setProperty('--color-accent', colors.accent);
-  document.documentElement.style.setProperty('--color-primary-light', `#${toHex(lightR)}${toHex(lightG)}${toHex(lightB)}`);
-  document.documentElement.style.setProperty('--color-primary-dark', `#${toHex(darkR)}${toHex(darkG)}${toHex(darkB)}`);
-  document.documentElement.style.setProperty('--color-secondary-muted', colors.text + 'B3');
-  document.documentElement.style.setProperty('--color-accent-hover', accentColors.hover);
-  document.documentElement.style.setProperty('--color-accent-active', accentColors.active);
-  document.documentElement.style.setProperty('--color-background', colors.background);
-  document.documentElement.style.setProperty('--color-surface', `#${toHex(lightR)}${toHex(lightG)}${toHex(lightB)}`);
-  document.documentElement.style.setProperty('--color-text', colors.text);
-  document.documentElement.style.setProperty('--color-text-muted', colors.text + 'B3');
-  document.documentElement.style.setProperty('--color-border', colors.text + '26');
-  document.documentElement.style.setProperty('--color-hover', colors.text + '14');
-  document.documentElement.setAttribute('data-theme', themeId);
+const applyTheme = (themeId: string) => {
+  // Clear any legacy inline color overrides so CSS [data-theme] selectors take effect
+  const colorProps = [
+    '--color-primary', '--color-secondary', '--color-accent',
+    '--color-primary-light', '--color-primary-dark',
+    '--color-secondary-muted', '--color-accent-hover', '--color-accent-active',
+    '--color-background', '--color-surface', '--color-text', '--color-text-muted',
+    '--color-border', '--color-hover',
+  ];
+  for (const prop of colorProps) {
+    document.documentElement.style.removeProperty(prop);
+  }
+  document.documentElement.setAttribute('data-theme', themeId === 'default' ? '' : themeId);
+  // Persist so the inline script in index.html can apply it before next paint
+  localStorage.setItem('faria-theme', themeId);
 };
 
 function App() {
-  const [activeTab, setActiveTab] = useState<Tab>('history');
+  const [activeTab, setActiveTab] = useState<Tab>('home');
   const [theme, setTheme] = useState<string>('default');
   const [userAuth, setUserAuth] = useState<UserProfile | null | undefined>(undefined);
 
   const [sidebarExpanded, setSidebarExpanded] = useState(false);
   const [isFullscreen, setIsFullscreen] = useState(false);
+  const [helpOpen, setHelpOpen] = useState(false);
+  const [helpMessage, setHelpMessage] = useState('');
   const mainPanelRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     mainPanelRef.current?.scrollTo(0, 0);
+    window.faria.chat.reportActiveTab(activeTab);
   }, [activeTab]);
 
   useEffect(() => {
@@ -111,7 +59,7 @@ function App() {
 
       const themeData = await window.faria.settings.getThemeData();
       setTheme(themeData.theme);
-      applyThemeColors(themeData.colors, themeData.theme);
+      applyTheme(themeData.theme);
     };
     init();
   }, []);
@@ -152,6 +100,15 @@ function App() {
 
   return (
     <div className={`app ${isFullscreen ? 'app-fullscreen' : ''}`}>
+      <div className="accent-splotch-container">
+        <div className="accent-splotch accent-splotch-1" />
+        <div className="accent-splotch accent-splotch-2" />
+        <div className="accent-splotch accent-splotch-3" />
+        <div className="accent-splotch accent-splotch-4" />
+        <div className="accent-splotch accent-splotch-5" />
+        <div className="accent-splotch accent-splotch-6" />
+      </div>
+
       <div className="app-header"></div>
 
       <button
@@ -159,15 +116,24 @@ function App() {
         onClick={() => setSidebarExpanded(e => !e)}
         title={sidebarExpanded ? 'Collapse sidebar' : 'Expand sidebar'}
       >
-        <FiSidebar size={16} />
+        <BsLayoutSidebar size={15} />
+      </button>
+
+      <Sidebar activeTab={activeTab} onTabChange={setActiveTab} userProfile={userAuth} expanded={sidebarExpanded} />
+
+      <button
+        className="help-toggle"
+        onClick={() => setHelpOpen(true)}
+        title="Help"
+      >
+        <MdHelpOutline size={18} />
       </button>
 
       <div className="app-content">
-        <Sidebar activeTab={activeTab} onTabChange={setActiveTab} userProfile={userAuth} expanded={sidebarExpanded} />
-
         <main className="main-panel" ref={mainPanelRef}>
           <div className="main-panel-inner">
-            {activeTab === 'history' && <HistoryPanel />}
+            {activeTab === 'home' && <HistoryPanel userProfile={userAuth} />}
+            {activeTab === 'chat' && <ChatPanel userProfile={userAuth} />}
             {activeTab === 'settings' && (
               <SettingsPanel
                 currentTheme={theme}
@@ -177,6 +143,34 @@ function App() {
           </div>
         </main>
       </div>
+
+      {helpOpen && (
+        <div className="help-modal-overlay" onClick={() => setHelpOpen(false)}>
+          <div className="help-modal" onClick={(e) => e.stopPropagation()}>
+            <h2 className="help-modal-title">Need Help?</h2>
+            <textarea
+              className="help-modal-textarea"
+              placeholder="Send us a message..."
+              value={helpMessage}
+              onChange={(e) => setHelpMessage(e.target.value)}
+              rows={4}
+              style={{ marginTop: '10px' }}
+            />
+            <div className="help-modal-footer">
+              <button
+                className="help-modal-send"
+                disabled={!helpMessage.trim()}
+                onClick={() => {
+                  setHelpMessage('');
+                  setHelpOpen(false);
+                }}
+              >
+                <IoMdSend />
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

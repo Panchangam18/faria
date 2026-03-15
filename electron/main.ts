@@ -57,6 +57,9 @@ try {
 // Track if main window is visible (for Dock icon management)
 let isMainWindowVisible = false;
 
+// Track if the main window's active tab is 'chat' so the global shortcut can redirect
+let mainWindowActiveTab: string = 'home';
+
 // Command bar size modes
 type CommandBarSizeMode = 'small' | 'medium' | 'large';
 
@@ -83,11 +86,23 @@ const MOVE_STEP = 50;
 // Opacity step (0-100 scale, will be converted to 0-1)
 const OPACITY_STEP = 5;
 
+const THEME_BG_COLORS: Record<string, string> = {
+  default:  '#272932',
+  comte:    '#121214',
+  mercedes: '#46494C',
+  pistols:  '#E4DED6',
+  carnival: '#001011',
+};
+
 function createMainWindow() {
   // Check if user is already logged in to set the correct initial window size
   const db = initDatabase();
   const userRow = db.prepare('SELECT value FROM settings WHERE key = ?').get('userEmail') as { value: string } | undefined;
   const isLoggedIn = !!userRow?.value;
+
+  const themeRow = db.prepare('SELECT value FROM settings WHERE key = ?').get('theme') as { value: string } | undefined;
+  const savedTheme = themeRow?.value || 'default';
+  const backgroundColor = THEME_BG_COLORS[savedTheme] || THEME_BG_COLORS.default;
 
   const width = isLoggedIn ? 1200 : 400;
   const height = isLoggedIn ? 800 : 500;
@@ -101,7 +116,7 @@ function createMainWindow() {
     minHeight,
     titleBarStyle: 'hiddenInset',
     trafficLightPosition: { x: 16, y: 16 },
-    backgroundColor: '#272932',
+    backgroundColor,
     webPreferences: {
       preload: join(__dirname, 'preload.js'),
       contextIsolation: true,
@@ -249,50 +264,20 @@ function createCommandBarWindow() {
   });
 }
 
-// Preset themes - single source of truth
-const PRESET_THEMES: Record<string, { background: string; text: string; accent: string }> = {
-  default: { background: '#272932', text: '#EAE0D5', accent: '#C6AC8F' },
-  comte: { background: '#07020D', text: '#FBFFFE', accent: '#3C91E6' },
-  mercedes: { background: '#46494C', text: '#DCDCDD', accent: '#9883E5' },
-  carnival: { background: '#001011', text: '#6CCFF6', accent: '#E94560' },
-};
+const VALID_THEMES = ['default', 'comte', 'mercedes', 'pistols', 'carnival'];
 
 // Get current theme data (used by both broadcast and direct requests)
-function getThemeData(): { theme: string; font: string; colors: { background: string; text: string; accent: string } } {
+function getThemeData(): { theme: string; font: string } {
   const db = initDatabase();
 
   const themeRow = db.prepare('SELECT value FROM settings WHERE key = ?').get('theme') as { value: string } | undefined;
   const fontRow = db.prepare('SELECT value FROM settings WHERE key = ?').get('selectedFont') as { value: string } | undefined;
-  const customPalettesRow = db.prepare('SELECT value FROM settings WHERE key = ?').get('customPalettes') as { value: string } | undefined;
-  const activeCustomPaletteRow = db.prepare('SELECT value FROM settings WHERE key = ?').get('activeCustomPalette') as { value: string } | undefined;
 
-  const theme = themeRow?.value || 'default';
+  const rawTheme = themeRow?.value || 'default';
+  const theme = VALID_THEMES.includes(rawTheme) ? rawTheme : 'default';
   const font = fontRow?.value || "'Bricolage Grotesque', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif";
 
-  let colors: { background: string; text: string; accent: string };
-
-  if (theme === 'custom' && customPalettesRow?.value && activeCustomPaletteRow?.value) {
-    try {
-      const palettes = JSON.parse(customPalettesRow.value);
-      const activePalette = palettes.find((p: any) => p.name === activeCustomPaletteRow.value);
-      if (activePalette) {
-        colors = {
-          background: activePalette.background,
-          text: activePalette.text,
-          accent: activePalette.accent
-        };
-      } else {
-        colors = PRESET_THEMES.default;
-      }
-    } catch (e) {
-      console.error('[Faria] Error parsing custom palettes:', e);
-      colors = PRESET_THEMES.default;
-    }
-  } else {
-    colors = PRESET_THEMES[theme] || PRESET_THEMES.default;
-  }
-
-  return { theme, font, colors };
+  return { theme, font };
 }
 
 // Broadcast theme changes to all windows
@@ -364,6 +349,11 @@ function createTray() {
   tray.setIgnoreDoubleClickEvents(true); // Removes click delay — fires single-click immediately
 
   tray.on('click', () => {
+    // If main window is focused and on the chat tab, focus the chat input instead
+    if (mainWindow && mainWindow.isFocused() && mainWindowActiveTab === 'chat') {
+      mainWindow.webContents.send('chat:focus');
+      return;
+    }
     // If command bar is visible, hide it immediately (synchronous path, never blocks)
     if (isCommandBarVisible) {
       toggleCommandBar();
@@ -379,6 +369,10 @@ function createTray() {
     {
       label: 'Command Bar',
       click: () => {
+        if (mainWindow && mainWindow.isFocused() && mainWindowActiveTab === 'chat') {
+          mainWindow.webContents.send('chat:focus');
+          return;
+        }
         if (isCommandBarVisible) {
           toggleCommandBar();
           return;
@@ -840,6 +834,11 @@ function registerGlobalShortcuts() {
 
   // Register command bar toggle shortcut with lock to prevent queued toggles
   const ret = globalShortcut.register(commandBarShortcut, () => {
+    // If main window is focused and on the chat tab, focus the chat input instead
+    if (mainWindow && mainWindow.isFocused() && mainWindowActiveTab === 'chat') {
+      mainWindow.webContents.send('chat:focus');
+      return;
+    }
     // Hide path is synchronous — always allow it immediately
     if (isCommandBarVisible) {
       toggleCommandBar();
@@ -857,6 +856,11 @@ function registerGlobalShortcuts() {
 
   // Register reset command bar shortcut
   const retReset = globalShortcut.register(resetShortcut, () => {
+    // If main window is focused and on the chat tab, clear the chat input instead
+    if (mainWindow && mainWindow.isFocused() && mainWindowActiveTab === 'chat') {
+      mainWindow.webContents.send('chat:clear');
+      return;
+    }
     resetCommandBar();
   });
 
@@ -914,10 +918,10 @@ function registerGlobalShortcuts() {
 
 function setupIPC() {
   // Agent-related IPC
-  ipcMain.handle('agent:submit', async (_event, query: string) => {
+  ipcMain.handle('agent:submit', async (_event, query: string, previousContext?: { query: string; response: string }) => {
     try {
-      console.log('[Faria] Agent submit with target app:', targetAppName, 'selectedText:', currentSelectedText ? `${currentSelectedText.length} chars` : 'none');
-      const result = await agentLoop.run(query, targetAppName, currentSelectedText);
+      console.log('[Faria] Agent submit with target app:', targetAppName, 'selectedText:', currentSelectedText ? `${currentSelectedText.length} chars` : 'none', 'previousContext:', previousContext ? 'yes' : 'no');
+      const result = await agentLoop.run(query, targetAppName, currentSelectedText, previousContext);
       // After agent finishes, re-focus the command bar so the next
       // click-away properly triggers a blur event to dismiss it
       if (isCommandBarVisible && commandBarWindow && !commandBarWindow.isFocused()) {
@@ -973,13 +977,25 @@ function setupIPC() {
     const email = db.prepare('SELECT value FROM settings WHERE key = ?').get('userEmail') as { value: string } | undefined;
     const uid = db.prepare('SELECT value FROM settings WHERE key = ?').get('userUid') as { value: string } | undefined;
     if (email?.value && uid?.value) {
-      const displayName = db.prepare('SELECT value FROM settings WHERE key = ?').get('userDisplayName') as { value: string } | undefined;
+      const displayNameRow = db.prepare('SELECT value FROM settings WHERE key = ?').get('userDisplayName') as { value: string } | undefined;
+      let displayName = displayNameRow?.value || null;
+      // Fallback: check legacy firstName/lastName keys
+      if (!displayName) {
+        const fn = db.prepare('SELECT value FROM settings WHERE key = ?').get('firstName') as { value: string } | undefined;
+        const ln = db.prepare('SELECT value FROM settings WHERE key = ?').get('lastName') as { value: string } | undefined;
+        const combined = `${fn?.value || ''} ${ln?.value || ''}`.trim();
+        if (combined) {
+          displayName = combined;
+          // Migrate to canonical key
+          db.prepare('INSERT OR REPLACE INTO settings (key, value) VALUES (?, ?)').run('userDisplayName', combined);
+        }
+      }
       const photoUrl = db.prepare('SELECT value FROM settings WHERE key = ?').get('userPhotoUrl') as { value: string } | undefined;
       const provider = db.prepare('SELECT value FROM settings WHERE key = ?').get('authProvider') as { value: string } | undefined;
       return {
         email: email.value,
         uid: uid.value,
-        displayName: displayName?.value || null,
+        displayName,
         photoUrl: photoUrl?.value || null,
         provider: provider?.value || null,
       };
@@ -1034,7 +1050,7 @@ function setupIPC() {
     db.prepare('INSERT OR REPLACE INTO settings (key, value) VALUES (?, ?)').run(key, value);
     
     // Broadcast theme changes to all windows (including command bar)
-    const themeKeys = ['theme', 'activeCustomPalette', 'customPalettes', 'selectedFont'];
+    const themeKeys = ['theme', 'selectedFont'];
     if (themeKeys.includes(key)) {
       broadcastThemeChange();
     }
@@ -1089,8 +1105,7 @@ function setupIPC() {
         context_text,
         strftime('%s', created_at) * 1000 as created_at
       FROM history 
-      ORDER BY created_at DESC 
-      LIMIT 100
+      ORDER BY created_at DESC
     `).all();
     
     // Convert created_at from string to number and parse JSON fields
@@ -1135,6 +1150,11 @@ function setupIPC() {
   // Cache text selection reported by the main window renderer
   ipcMain.on('selection:report', (_event, text: string) => {
     mainWindowSelectedText = text && text.length > 0 ? text : null;
+  });
+
+  // Track which tab is active in the main window
+  ipcMain.on('main:active-tab', (_event: Electron.IpcMainEvent, tab: string) => {
+    mainWindowActiveTab = tab;
   });
 
   ipcMain.on('command-bar:hide', () => {
@@ -1304,7 +1324,11 @@ async function initializeServices() {
   agentLoop = new AgentLoop(stateExtractor, toolExecutor, composioService);
 
   // Auto-reopen command bar when agent needs user attention
+  // Skip if the user is on the chat tab — the chat UI handles responses/approvals inline
   agentLoop.setOnNeedsAttention(() => {
+    if (mainWindow && mainWindow.isFocused() && mainWindowActiveTab === 'chat') {
+      return;
+    }
     if (!isCommandBarVisible) {
       console.log('[Faria] Agent needs attention, auto-showing command bar');
       showCommandBar();

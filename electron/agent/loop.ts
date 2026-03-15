@@ -23,6 +23,7 @@ import { getOrCreateMemoryIndexManager } from '../services/memory/memory-index';
 import { createMemorySearchTool, createMemoryGetTool } from './tools/memory-tools';
 import { appendToDailyLog } from './memory-agent';
 import { shouldRunMemoryFlush, runMemoryFlush, recordFlush, resetFlushTracking } from './memory-flush';
+import { runOpenAIComputerUseLoop } from './openai-computer-use';
 import { ComposioService } from '../services/composio';
 import { showClickIndicator, hideClickIndicator } from '../services/click-indicator';
 import { calculateResizeWidth } from '../services/screenshot';
@@ -251,8 +252,8 @@ export class AgentLoop {
     const doWarmup = async () => {
       const modelName = getSelectedModel('selectedModel');
       const providerName = getProviderName(modelName);
-      const provider: 'anthropic' | 'google' | null =
-        providerName === 'anthropic' || providerName === 'google' ? providerName : null;
+      const provider: 'anthropic' | 'google' | 'openai' | null =
+        providerName === 'anthropic' || providerName === 'google' || providerName === 'openai' ? providerName : null;
 
       this.stateExtractor.setProvider(provider);
       this.toolExecutor.setProvider(provider);
@@ -341,8 +342,9 @@ export class AgentLoop {
    * @param query The user's request
    * @param targetApp The app that was focused when the command bar was invoked
    * @param selectedText Optional text that was selected when the command bar was invoked
+   * @param previousContext Optional previous query+response to seed conversation history
    */
-  async run(query: string, targetApp?: string | null, selectedText?: string | null): Promise<string> {
+  async run(query: string, targetApp?: string | null, selectedText?: string | null, previousContext?: { query: string; response: string }): Promise<string> {
     if (this.isRunning) {
       throw new Error('Agent is already running');
     }
@@ -367,7 +369,7 @@ export class AgentLoop {
 
       // Run the traceable agent loop - this creates a single parent trace in LangSmith
       // with all iterations nested underneath
-      const result = await this.executeAgentLoop(query, targetApp, selectedText);
+      const result = await this.executeAgentLoop(query, targetApp, selectedText, previousContext);
 
       this.sendResponse(result);
       return result;
@@ -389,12 +391,12 @@ export class AgentLoop {
    * This ensures all iterations appear under a single trace
    */
   private executeAgentLoop = traceable(
-    async (query: string, targetApp?: string | null, selectedText?: string | null): Promise<string> => {
+    async (query: string, targetApp?: string | null, selectedText?: string | null, previousContext?: { query: string; response: string }): Promise<string> => {
       // Determine provider early — needed for screenshot sizing decisions
       const modelName = getSelectedModel('selectedModel');
       const providerName = getProviderName(modelName);
-      const provider: 'anthropic' | 'google' | null =
-        providerName === 'anthropic' || providerName === 'google' ? providerName : null;
+      const provider: 'anthropic' | 'google' | 'openai' | null =
+        providerName === 'anthropic' || providerName === 'google' || providerName === 'openai' ? providerName : null;
 
       // Set provider on state extractor (controls screenshot resolution)
       // and tool executor (controls coordinate conversion)
@@ -463,8 +465,19 @@ export class AgentLoop {
       const userMessage = new HumanMessage(this.buildUserPrompt(query, state));
 
       if (this.conversationHistory.length === 0) {
-        // First turn: initialize with system prompt + user message
-        this.conversationHistory = [new SystemMessage(systemPrompt), userMessage];
+        if (previousContext) {
+          // First turn with previous context: seed history with prior exchange
+          console.log(`[Faria] Seeding conversation with previous context`);
+          this.conversationHistory = [
+            new SystemMessage(systemPrompt),
+            new HumanMessage(previousContext.query),
+            new AIMessage(previousContext.response),
+            userMessage,
+          ];
+        } else {
+          // First turn: initialize with system prompt + user message
+          this.conversationHistory = [new SystemMessage(systemPrompt), userMessage];
+        }
       } else {
         // Follow-up turn: update system prompt, append new user message
         this.conversationHistory[0] = new SystemMessage(systemPrompt);
@@ -711,6 +724,126 @@ export class AgentLoop {
       const promptMs = performance.now() - promptStart;
       console.log(`[Timing] Prompt & context setup: ${promptMs.toFixed(0)}ms`);
 
+      if (providerName === 'openai') {
+        // The OpenAI sample app uses the native Responses API "computer" tool
+        // rather than generic tool-calling. Keep GPT-5.4 on that path so the
+        // screenshot and click coordinate spaces stay aligned.
+        const setupMs = performance.now() - this.timingStart;
+        console.log(`[Timing] Total setup (query → ready to stream): ${setupMs.toFixed(0)}ms`);
+        this.sendTiming({
+          stateMs,
+          toolsMs,
+          promptMs,
+          modelMs: 0,
+          setupMs,
+          streamConnectMs: 0,
+          ttft: 0,
+          totalTtft: setupMs,
+        });
+
+        // Build previous messages from conversation history for CUA context
+        // Skip system message (index 0) and current user message (last element)
+        const prevMsgs: Array<{ role: 'user' | 'assistant'; content: string }> = [];
+        for (let i = 1; i < this.conversationHistory.length - 1; i++) {
+          const msg = this.conversationHistory[i];
+          if (msg instanceof HumanMessage && typeof msg.content === 'string') {
+            prevMsgs.push({ role: 'user', content: msg.content });
+          } else if (msg instanceof AIMessage && typeof msg.content === 'string') {
+            prevMsgs.push({ role: 'assistant', content: msg.content });
+          }
+        }
+
+        const result = await runOpenAIComputerUseLoop(
+          modelName,
+          this.buildUserPrompt(query, state),
+          systemPrompt,
+          {
+            sendStatus: (status) => this.sendStatus(status),
+            sendChunk: (chunk) => this.sendChunk(chunk),
+            sendChunkClear: () => this.sendChunkClear(),
+            shouldCancel: () => this.shouldCancel,
+            requestApproval: async (args) => {
+              const needsApproval = this.checkIfApprovalNeeded(
+                'computer_actions',
+                args,
+                false,
+                toolSettings
+              );
+
+              if (!needsApproval) {
+                return { approved: true };
+              }
+
+              const { displayName, details } = generateBuiltinApprovalInfo('computer_actions', args);
+              const clickCoords = this.extractClickCoordinates(args, providerName);
+
+              if (clickCoords) {
+                showClickIndicator(clickCoords.x, clickCoords.y);
+              }
+
+              this.sendStatus('Waiting for approval...');
+
+              try {
+                const approved = await this.requestToolApproval(
+                  'computer_actions',
+                  'Execute native OpenAI computer actions.',
+                  args,
+                  false,
+                  displayName,
+                  details
+                );
+
+                if (approved) {
+                  this.computerUseApproved = true;
+                }
+
+                return {
+                  approved,
+                  reason: approved ? undefined : 'Tool execution denied by user',
+                };
+              } finally {
+                hideClickIndicator();
+              }
+            },
+          },
+          prevMsgs.length > 0 ? prevMsgs : undefined
+        );
+
+        // Append the AI response to conversation history so follow-up turns have context.
+        // The user message was already appended at lines 467-484 before this CUA call.
+        this.conversationHistory.push(new AIMessage(result.response || ''));
+
+        if (result.cancelled || this.shouldCancel) {
+          console.log('[Faria] OpenAI computer-use run cancelled, saving partial response to history');
+          const db = initDatabase();
+          db.prepare('INSERT INTO history (query, response, tools_used, agent_type, actions, context_text) VALUES (?, ?, ?, ?, ?, ?)').run(
+            query,
+            result.response || '',
+            result.toolsUsed.length > 0 ? JSON.stringify(result.toolsUsed) : null,
+            'regular',
+            result.actions.length > 0 ? JSON.stringify(result.actions) : null,
+            selectedText || null
+          );
+          return '';
+        }
+
+        if (result.response) {
+          appendToDailyLog(query, result.response, result.toolsUsed);
+        }
+
+        const db = initDatabase();
+        db.prepare('INSERT INTO history (query, response, tools_used, agent_type, actions, context_text) VALUES (?, ?, ?, ?, ?, ?)').run(
+          query,
+          result.response,
+          result.toolsUsed.length > 0 ? JSON.stringify(result.toolsUsed) : null,
+          'regular',
+          result.actions.length > 0 ? JSON.stringify(result.actions) : null,
+          selectedText || null
+        );
+
+        return result.response;
+      }
+
       const modelStart = performance.now();
       const boundModel = createModelWithTools(
         modelName,
@@ -882,6 +1015,14 @@ export class AgentLoop {
 
         // Check if there are tool calls
         if (response.tool_calls && response.tool_calls.length > 0) {
+          // Capture intermediate text as a thinking entry in the trace
+          // This is the text the model outputs before tool calls (e.g. "I'll click there now")
+          if (responseContent.trim()) {
+            const thinkingAction = { tool: '_thinking', input: { text: responseContent.trim() }, timestamp: Date.now() };
+            actions.push(thinkingAction);
+            this.sendToolAction(thinkingAction);
+          }
+
           // Add the assistant's response directly - preserves all metadata
           // (id, additional_kwargs, etc.) that LangChain needs for proper
           // message threading with different providers
@@ -912,7 +1053,9 @@ export class AgentLoop {
           for (const { toolCall } of classified) {
             console.log(`[Faria] Tool call: ${toolCall.name}`, JSON.stringify(toolCall.args).slice(0, 500));
             toolsUsed.push(toolCall.name);
-            actions.push({ tool: toolCall.name, input: toolCall.args, timestamp: Date.now() });
+            const action = { tool: toolCall.name, input: toolCall.args, timestamp: Date.now() };
+            actions.push(action);
+            this.sendToolAction(action);
           }
 
           // Split into parallel-safe and sequential groups
@@ -1116,9 +1259,9 @@ export class AgentLoop {
         appendToDailyLog(query, finalResponse, toolsUsed);
       }
 
-      // Save to history — use full accumulated text so the trace includes all text blocks
+      // Save to history — use finalResponse since thinking text is already captured in actions
       const db = initDatabase();
-      const historyResponse = streamedResponseText || finalResponse;
+      const historyResponse = finalResponse || streamedResponseText;
       db.prepare('INSERT INTO history (query, response, tools_used, agent_type, actions, context_text) VALUES (?, ?, ?, ?, ?, ?)').run(
         query,
         historyResponse,
@@ -1247,6 +1390,12 @@ export class AgentLoop {
       const ssHeight = Math.round(nativeHeight * (ssWidth / nativeWidth));
       x = Math.round((x / ssWidth) * screenWidth);
       y = Math.round((y / ssHeight) * screenHeight);
+    } else if (providerName === 'openai') {
+      // OpenAI screenshots are at logical resolution — coords are already logical pixels
+      const primaryDisplay = screen.getPrimaryDisplay();
+      const { width: screenWidth, height: screenHeight } = primaryDisplay.size;
+      x = Math.max(0, Math.min(screenWidth - 1, Math.round(x)));
+      y = Math.max(0, Math.min(screenHeight - 1, Math.round(y)));
     }
 
     return { x, y };
@@ -1486,6 +1635,16 @@ export class AgentLoop {
     const windows = BrowserWindow.getAllWindows();
     windows.forEach(win => {
       win.webContents.send('agent:chunk-clear');
+    });
+  }
+
+  /**
+   * Send a tool action event to UI (for live tool call display in chat)
+   */
+  private sendToolAction(action: { tool: string; input: unknown; timestamp: number }): void {
+    const windows = BrowserWindow.getAllWindows();
+    windows.forEach(win => {
+      win.webContents.send('agent:tool-action', action);
     });
   }
 
