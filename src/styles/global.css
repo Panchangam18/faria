@@ -303,18 +303,17 @@ html, body {
 }
 
 
-/* Sidebar flame click — smooth single breathe */
-@keyframes sidebar-flame-breathe {
-  0%   { opacity: 1; }
-  40%  { opacity: 0; }
-  100% { opacity: 1; }
+/* Flame breathe — soft pulse, eases all the way out and back */
+@keyframes flame-breathe {
+  0%   { opacity: 1; transform: scaleY(1)    scaleX(1);    }
+  45%  { opacity: 0; transform: scaleY(0.88) scaleX(0.93); }
+  100% { opacity: 1; transform: scaleY(1)    scaleX(1);    }
 }
 
-.flame-breathing .flame-inner {
-  animation: sidebar-flame-breathe 1.2s cubic-bezier(0.4, 0, 0.2, 1);
-}
-.flame-breathing .flame-outer {
-  animation: sidebar-flame-breathe 1.2s cubic-bezier(0.4, 0, 0.2, 1) 0.06s;
+svg.flame-breathing {
+  transform-box: fill-box;
+  transform-origin: bottom center;
+  animation: flame-breathe 1.0s cubic-bezier(0.45, 0, 0.55, 1);
 }
 
 @keyframes splotch-breathe {
@@ -1554,18 +1553,10 @@ pre {
   flex-shrink: 0;
 }
 
-.chat-status-fire.active .flame-inner {
-  animation: cb-flame-breathe 1.2s cubic-bezier(0.4, 0, 0.2, 1) infinite;
-}
-
-.chat-status-fire.active .flame-outer {
-  animation: cb-flame-breathe 1.2s cubic-bezier(0.4, 0, 0.2, 1) 0.06s infinite;
-}
-
-@keyframes cb-flame-breathe {
-  0%   { opacity: 1; }
-  40%  { opacity: 0; }
-  100% { opacity: 1; }
+.chat-status-fire.active svg {
+  transform-box: fill-box;
+  transform-origin: bottom center;
+  animation: flame-breathe 1.0s cubic-bezier(0.45, 0, 0.55, 1) infinite;
 }
 
 .chat-status-text {

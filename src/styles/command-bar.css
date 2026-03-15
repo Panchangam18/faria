@@ -263,19 +263,16 @@ html, body, #root {
   display: block;
 }
 
-/* Shared breathe cycle — both pieces use the same keyframes,
-   outer is slightly delayed so they fade as one organic unit */
-@keyframes cb-flame-breathe {
-  0%   { opacity: 1; }
-  40%  { opacity: 0; }
-  100% { opacity: 1; }
+@keyframes flame-breathe {
+  0%   { opacity: 1; transform: scaleY(1)    scaleX(1);    }
+  45%  { opacity: 0; transform: scaleY(0.88) scaleX(0.93); }
+  100% { opacity: 1; transform: scaleY(1)    scaleX(1);    }
 }
 
-.status-logo .flame-inner {
-  animation: cb-flame-breathe 1.2s cubic-bezier(0.4, 0, 0.2, 1) infinite;
-}
-.status-logo .flame-outer {
-  animation: cb-flame-breathe 1.2s cubic-bezier(0.4, 0, 0.2, 1) 0.06s infinite;
+.status-logo svg {
+  transform-box: fill-box;
+  transform-origin: bottom center;
+  animation: flame-breathe 1.0s cubic-bezier(0.45, 0, 0.55, 1) infinite;
 }
 
 /* Footer (only for tool approval, auth, status) - inside agent area */
