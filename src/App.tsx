@@ -131,7 +131,7 @@ function App() {
         <main className="main-panel" ref={mainPanelRef}>
           <div className="main-panel-inner">
             {activeTab === 'home' && <HistoryPanel userProfile={userAuth} />}
-            {activeTab === 'chat' && <ChatPanel />}
+            {activeTab === 'chat' && <ChatPanel userProfile={userAuth} />}
             {activeTab === 'settings' && (
               <SettingsPanel
                 currentTheme={theme}

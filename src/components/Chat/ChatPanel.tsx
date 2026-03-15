@@ -100,7 +100,16 @@ const ChatMessageItem = memo(function ChatMessageItem({
   );
 });
 
-function ChatPanel() {
+interface UserProfile {
+  email: string;
+  uid: string;
+  displayName: string | null;
+  photoUrl: string | null;
+  provider: string | null;
+}
+
+function ChatPanel({ userProfile }: { userProfile?: UserProfile | null }) {
+  const firstName = userProfile?.displayName?.split(' ')[0] || '';
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [loaded, setLoaded] = useState(false);
   const [streamingMessage, setStreamingMessage] = useState<ChatMessage | null>(null);
@@ -115,9 +124,12 @@ function ChatPanel() {
   const [pendingActions, setPendingActions] = useState<ActionData[]>([]);
   const pendingActionsRef = useRef<ActionData[]>([]);
   const [showScrollDown, setShowScrollDown] = useState(false);
+  const [isInputScrollable, setIsInputScrollable] = useState(false);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const messagesContainerRef = useRef<HTMLDivElement>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
+  const inputScrollRef = useRef<HTMLDivElement>(null);
+  const inputControlsRef = useRef<HTMLDivElement>(null);
   const lastUserMsgRef = useRef<HTMLDivElement>(null);
   const bottomSpacerRef = useRef<HTMLDivElement>(null);
 
@@ -440,10 +452,72 @@ const updateSpacer = useCallback(() => {
 
   const handleInputChange = (e: React.ChangeEvent<HTMLTextAreaElement>) => {
     setInput(e.target.value);
-    const ta = e.target;
-    ta.style.height = 'auto';
-    ta.style.height = Math.min(ta.scrollHeight, 150) + 'px';
   };
+
+  // Check if the last visual line of text would collide with the inline controls.
+  const wouldControlsCollide = useCallback((textarea: HTMLTextAreaElement, controlsWidth: number): boolean => {
+    if (!textarea.value) return false;
+    const mirror = document.createElement('div');
+    const style = getComputedStyle(textarea);
+    mirror.style.cssText = `
+      position: absolute; visibility: hidden; white-space: pre-wrap;
+      word-break: break-word; overflow-wrap: break-word;
+      font: ${style.font}; letter-spacing: ${style.letterSpacing};
+      width: ${textarea.clientWidth}px; padding: 0; border: 0;
+    `;
+    mirror.appendChild(document.createTextNode(textarea.value));
+    const marker = document.createElement('span');
+    mirror.appendChild(marker);
+    document.body.appendChild(mirror);
+    const lastLineEndX = marker.offsetLeft;
+    document.body.removeChild(mirror);
+    return lastLineEndX >= textarea.clientWidth - controlsWidth;
+  }, []);
+
+  // Resize textarea based on content, matching command bar behavior
+  const MAX_INPUT_HEIGHT = 150;
+  useLayoutEffect(() => {
+    const textarea = textareaRef.current;
+    const scrollWrapper = inputScrollRef.current;
+    const controlsEl = inputControlsRef.current;
+    if (!textarea || !scrollWrapper) return;
+
+    const controlsWidth = controlsEl ? controlsEl.offsetWidth + 8 : 0;
+
+    // Save scroll position
+    const savedScrollTop = scrollWrapper.scrollTop;
+
+    // Measure raw content height
+    textarea.style.paddingBottom = '0px';
+    textarea.style.height = '0px';
+    textarea.style.minHeight = '0px';
+    const rawScrollHeight = textarea.scrollHeight;
+    textarea.style.minHeight = '';
+
+    const computedLineHeight = parseFloat(getComputedStyle(textarea).lineHeight) || 22.5;
+    const scrollable = rawScrollHeight > MAX_INPUT_HEIGHT;
+    setIsInputScrollable(scrollable);
+
+    if (!scrollable && textarea.value) {
+      if (rawScrollHeight >= MAX_INPUT_HEIGHT) {
+        textarea.style.paddingBottom = `${computedLineHeight}px`;
+      } else if (wouldControlsCollide(textarea, controlsWidth)) {
+        textarea.style.paddingBottom = `${computedLineHeight}px`;
+      }
+    }
+
+    const scrollHeight = textarea.scrollHeight;
+    textarea.style.height = `${scrollHeight}px`;
+
+    if (scrollable) {
+      scrollWrapper.style.maxHeight = `${MAX_INPUT_HEIGHT}px`;
+    } else {
+      scrollWrapper.style.maxHeight = '';
+    }
+
+    // Restore scroll position
+    scrollWrapper.scrollTop = savedScrollTop;
+  }, [input, wouldControlsCollide]);
 
   const hasStreamingMessage = streamingMessage !== null;
   const displayMessages = streamingMessage ? [...messages, streamingMessage] : messages;
@@ -537,31 +611,35 @@ const updateSpacer = useCallback(() => {
         </button>
       )}
       <div className="chat-input-area">
-        <div className="chat-input-wrapper">
-          <textarea
-            ref={textareaRef}
-            className="chat-input"
-            value={input}
-            onChange={handleInputChange}
-            onKeyDown={handleKeyDown}
-            placeholder="Message Faria..."
-            rows={1}
-            autoFocus
-          />
-          {isProcessing ? (
-            <button className="chat-send-btn" onClick={handleStop} title="Stop">
-              <BsStopFill size={18} />
-            </button>
-          ) : (
-            <button
-              className="chat-send-btn"
-              onClick={handleSubmit}
-              disabled={!input.trim()}
-              title="Send"
-            >
-              <IoMdSend size={18} />
-            </button>
-          )}
+        <div className={`chat-input-wrapper${isInputScrollable ? ' scrollable' : ''}`}>
+          <div className="chat-input-scroll" ref={inputScrollRef}>
+            <textarea
+              ref={textareaRef}
+              className="chat-input"
+              value={input}
+              onChange={handleInputChange}
+              onKeyDown={handleKeyDown}
+              placeholder={firstName ? `At the ready, ${firstName}` : 'Awaiting your command...'}
+              rows={1}
+              autoFocus
+            />
+          </div>
+          <div className="chat-input-controls" ref={inputControlsRef}>
+            {isProcessing ? (
+              <button className="chat-send-btn" onClick={handleStop} title="Stop">
+                <BsStopFill size={18} />
+              </button>
+            ) : (
+              <button
+                className="chat-send-btn"
+                onClick={handleSubmit}
+                disabled={!input.trim()}
+                title="Send"
+              >
+                <IoMdSend size={18} />
+              </button>
+            )}
+          </div>
         </div>
       </div>
     </div>

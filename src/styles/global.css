@@ -1243,6 +1243,7 @@ pre {
   max-width: 640px;
   min-height: 0;
   min-width: 0;
+  position: relative;
 }
 
 .chat-messages {
@@ -1255,17 +1256,17 @@ pre {
   display: grid;
 }
 
+.chat-messages::-webkit-scrollbar {
+  display: none;
+}
+
 .chat-messages-inner {
   display: flex;
   flex-direction: column;
   gap: 20px;
   min-height: 100%;
   min-width: 0;
-  padding: var(--spacing-xl) 0;
-}
-
-.chat-messages::-webkit-scrollbar {
-  display: none;
+  padding: var(--spacing-xl) 0 var(--spacing-sm) 0;
 }
 
 /* Empty state with personality */
@@ -1359,19 +1360,13 @@ pre {
   gap: 6px;
 }
 
-/* User message bubble - refined with subtle depth */
+/* User message bubble - outlined, blends with background */
 .chat-message-user .chat-message-bubble {
-  background: linear-gradient(
-    135deg,
-    var(--color-accent) 0%,
-    color-mix(in srgb, var(--color-accent) 85%, #000) 100%
-  );
-  color: var(--color-background);
+  background: var(--color-background);
+  color: var(--color-text);
   padding: 12px 16px;
-  border-radius: 20px 20px 6px 20px;
-  box-shadow:
-    0 1px 2px rgba(0, 0, 0, 0.1),
-    0 4px 12px color-mix(in srgb, var(--color-accent) 20%, transparent);
+  border: 1px solid var(--color-border);
+  border-radius: 8px;
 }
 
 /* Assistant message bubble - subtle container */
@@ -1406,7 +1401,7 @@ pre {
 }
 
 .chat-message-user .chat-message-content {
-  color: var(--color-background);
+  color: var(--color-text);
 }
 
 .chat-message-user .chat-message-content p {
@@ -1414,7 +1409,7 @@ pre {
 }
 
 .chat-message-assistant .chat-message-content {
-  color: var(--color-text);
+  color: var(--color-accent);
 }
 
 /* Tool approval card - elevated moment */
@@ -1425,7 +1420,7 @@ pre {
     color-mix(in srgb, var(--color-surface) 90%, var(--color-accent)) 100%
   );
   border: 1px solid color-mix(in srgb, var(--color-accent) 25%, var(--color-border));
-  border-radius: 16px;
+  border-radius: 8px;
   padding: 16px 18px;
   display: flex;
   flex-direction: column;
@@ -1461,7 +1456,7 @@ pre {
   font-size: 13px;
   color: var(--color-text-muted);
   background: color-mix(in srgb, var(--color-primary) 80%, var(--color-surface));
-  border-radius: 10px;
+  border-radius: 6px;
   padding: 10px 14px;
   display: flex;
   flex-direction: column;
@@ -1491,7 +1486,7 @@ pre {
   align-items: center;
   gap: 8px;
   padding: 8px 16px;
-  border-radius: 10px;
+  border-radius: 6px;
   border: 1px solid var(--color-border);
   font-size: 13px;
   font-weight: 500;
@@ -1596,7 +1591,7 @@ pre {
 /* Scroll-to-bottom button */
 .chat-scroll-down {
   position: absolute;
-  bottom: 90px;
+  bottom: 126px;
   left: 50%;
   transform: translateX(-50%);
   z-index: 2;
@@ -1624,33 +1619,64 @@ pre {
 
 /* Input area - elevated and refined */
 .chat-input-area {
-  padding: 8px 0 20px;
+  padding: 0 0 44px;
   position: relative;
   z-index: 2;
   background: var(--color-background);
 }
 
 .chat-input-wrapper {
-  display: flex;
-  align-items: flex-end;
-  gap: 10px;
-  background: var(--color-surface);
+  position: relative;
+  background: var(--color-background);
   border: 1px solid var(--color-border);
-  border-radius: 16px;
+  border-radius: 8px;
   padding: 10px 10px 10px 18px;
   transition: all 0.2s ease;
-  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.08);
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.15), 0 1px 4px rgba(0, 0, 0, 0.1);
+}
+
+/* One-shot accent glow on focus, matching command bar border-breath */
+@keyframes chat-input-breath {
+  0% {
+    border-color: var(--color-accent);
+    box-shadow: 0 4px 16px rgba(0, 0, 0, 0.15), 0 1px 4px rgba(0, 0, 0, 0.1), 0 0 0 3px color-mix(in srgb, var(--color-accent) 12%, transparent);
+  }
+  100% {
+    border-color: var(--color-border);
+    box-shadow: 0 4px 16px rgba(0, 0, 0, 0.15), 0 1px 4px rgba(0, 0, 0, 0.1);
+  }
 }
 
 .chat-input-wrapper:focus-within {
-  border-color: color-mix(in srgb, var(--color-accent) 60%, var(--color-border));
-  box-shadow:
-    0 2px 8px rgba(0, 0, 0, 0.08),
-    0 0 0 3px color-mix(in srgb, var(--color-accent) 12%, transparent);
+  animation: chat-input-breath 0.8s ease-in-out 1 forwards;
+}
+
+/* Scroll wrapper: handles overflow when textarea exceeds max height */
+.chat-input-scroll {
+  overflow-y: auto;
+  scrollbar-gutter: stable;
+}
+
+.chat-input-scroll::-webkit-scrollbar {
+  width: 4px;
+}
+
+.chat-input-scroll::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.chat-input-scroll::-webkit-scrollbar-thumb {
+  background: var(--color-border);
+  border-radius: 2px;
+}
+
+.chat-input-scroll::-webkit-scrollbar-thumb:hover {
+  background: var(--color-text-muted);
 }
 
 .chat-input {
-  flex: 1;
+  display: block;
+  width: 100%;
   border: none !important;
   background: transparent !important;
   padding: 6px 0 !important;
@@ -1659,8 +1685,8 @@ pre {
   line-height: 1.5;
   color: var(--color-text);
   font-family: var(--font-family);
-  min-height: unset;
-  max-height: 150px;
+  min-height: 22.5px;
+  overflow: hidden;
 }
 
 .chat-input:focus {
@@ -1672,44 +1698,63 @@ pre {
   color: color-mix(in srgb, var(--color-text-muted) 70%, transparent);
 }
 
+/* Inline controls - absolutely positioned at bottom-right */
+.chat-input-controls {
+  position: absolute;
+  bottom: 10px;
+  right: 10px;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  pointer-events: auto;
+}
+
+/* When scrollable, controls become a static row below the textarea */
+.chat-input-wrapper.scrollable {
+  display: flex;
+  flex-direction: column;
+}
+
+.chat-input-wrapper.scrollable .chat-input-controls {
+  position: static;
+  justify-content: flex-end;
+  align-self: flex-end;
+}
+
 .chat-send-btn {
   display: flex;
   align-items: center;
   justify-content: center;
   width: 36px;
   height: 36px;
-  border-radius: 12px;
+  border-radius: 6px;
   border: none;
-  background: var(--color-accent);
-  color: var(--color-background);
+  background: transparent;
+  color: var(--color-accent);
   flex-shrink: 0;
   transition: all 0.15s ease;
-  box-shadow: 0 2px 6px color-mix(in srgb, var(--color-accent) 25%, transparent);
+  cursor: pointer;
 }
 
 .chat-send-btn:hover:not(:disabled) {
-  transform: translateY(-1px);
-  box-shadow: 0 4px 10px color-mix(in srgb, var(--color-accent) 35%, transparent);
+  color: var(--color-text);
 }
 
 .chat-send-btn:active:not(:disabled) {
-  transform: translateY(0);
+  opacity: 0.7;
 }
 
 .chat-send-btn:disabled {
   opacity: 0.3;
   cursor: not-allowed;
-  box-shadow: none;
 }
 
 /* Stop button variant */
 .chat-send-btn--stop {
-  background: color-mix(in srgb, var(--color-text) 15%, var(--color-surface));
-  box-shadow: none;
+  color: var(--color-text-muted);
 }
 
 .chat-send-btn--stop:hover:not(:disabled) {
-  background: color-mix(in srgb, var(--color-text) 25%, var(--color-surface));
-  box-shadow: none;
+  color: var(--color-text);
 }
 
