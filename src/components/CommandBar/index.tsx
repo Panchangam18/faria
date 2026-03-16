@@ -112,6 +112,8 @@ interface CommandBarLayoutPayload {
   agentAreaHeight: number;
 }
 
+const CHUNK_CLEAR_LAYOUT_HOLD_MS = 120;
+
 const SIZE_CONFIGS: Record<SizeMode, SizeConfig> = {
   small: {
     lineHeight: 21,            // 14px * 1.5
@@ -243,10 +245,14 @@ function CommandBar() {
   const [isBreathing, setIsBreathing] = useState(false);
   const [sizeMode, setSizeMode] = useState<SizeMode>('small');
   const [isScrollable, setIsScrollable] = useState(false);
+  const [layoutRevision, setLayoutRevision] = useState(0);
   const [userMaxResponseHeight, setUserMaxResponseHeight] = useState<number | null>(null);
   const userMaxResponseHeightRef = useRef<number | null>(null);
   const dragStateRef = useRef<{ startY: number; startMaxHeight: number } | null>(null);
   const resizeFrameRef = useRef<number | null>(null);
+  const chunkClearHoldTimerRef = useRef<number | null>(null);
+  const chunkClearHoldUntilRef = useRef(0);
+  const lastMeasuredAgentAreaHeightRef = useRef(0);
   const lastLayoutPayloadRef = useRef<CommandBarLayoutPayload | null>(null);
   const inputRef = useRef<HTMLTextAreaElement>(null);
   const scrollWrapperRef = useRef<HTMLDivElement>(null);
@@ -254,6 +260,14 @@ function CommandBar() {
   const responseRef = useRef<HTMLDivElement>(null);
   const toolApprovalRef = useRef<HTMLDivElement>(null);
   const agentAreaRef = useRef<HTMLDivElement>(null);
+
+  const clearChunkClearHold = useCallback(() => {
+    chunkClearHoldUntilRef.current = 0;
+    if (chunkClearHoldTimerRef.current !== null) {
+      window.clearTimeout(chunkClearHoldTimerRef.current);
+      chunkClearHoldTimerRef.current = null;
+    }
+  }, []);
 
   // Check if the last visual line of text collides with the inline controls.
   // Uses a mirror div with an appended marker span to find the x-position
@@ -393,11 +407,19 @@ function CommandBar() {
         respEl.style.maxHeight = '';
       }
 
-      if (respEl && responseContentHeight > MAX_RESPONSE_HEIGHT) {
-        return uncappedHeight - (responseContentHeight - MAX_RESPONSE_HEIGHT);
+      const measuredHeight = respEl && responseContentHeight > MAX_RESPONSE_HEIGHT
+        ? uncappedHeight - (responseContentHeight - MAX_RESPONSE_HEIGHT)
+        : uncappedHeight;
+
+      if (
+        performance.now() < chunkClearHoldUntilRef.current &&
+        measuredHeight < lastMeasuredAgentAreaHeightRef.current
+      ) {
+        return lastMeasuredAgentAreaHeightRef.current;
       }
 
-      return uncappedHeight;
+      lastMeasuredAgentAreaHeightRef.current = measuredHeight;
+      return measuredHeight;
     };
 
     if (resizeFrameRef.current !== null) {
@@ -420,7 +442,7 @@ function CommandBar() {
         resizeFrameRef.current = null;
       }
     };
-  }, [query, response, streamingResponse, pendingToolApproval, toolApprovalExpanded, pendingAuth, status, wouldControlsCollide, selectedTextLength, sizeMode, userMaxResponseHeight, sendLayoutPayload]);
+  }, [query, response, streamingResponse, pendingToolApproval, toolApprovalExpanded, pendingAuth, status, wouldControlsCollide, selectedTextLength, sizeMode, userMaxResponseHeight, sendLayoutPayload, layoutRevision]);
 
   // Keep ref in sync for use in event handlers that close over stale state
   userMaxResponseHeightRef.current = userMaxResponseHeight;
@@ -540,6 +562,8 @@ function CommandBar() {
       setIsVisible(false);
       setIsBreathing(false);
       setSelectedTextLength(0);
+      clearChunkClearHold();
+      lastMeasuredAgentAreaHeightRef.current = 0;
       lastLayoutPayloadRef.current = null;
       setErrorMessage(null);
       // Clear streaming response (incomplete placeholder content) but keep final response
@@ -580,6 +604,7 @@ function CommandBar() {
 
     // Listen for streaming chunks from agent
     const cleanupChunk = window.faria.agent.onChunk((chunk: string) => {
+      clearChunkClearHold();
       setStreamingResponse(prev => {
         const next = prev + chunk;
         streamingResponseRef.current = next;
@@ -589,12 +614,20 @@ function CommandBar() {
 
     // Clear streaming display when a new text block starts (after tool calls)
     const cleanupChunkClear = window.faria.agent.onChunkClear(() => {
+      clearChunkClearHold();
+      chunkClearHoldUntilRef.current = performance.now() + CHUNK_CLEAR_LAYOUT_HOLD_MS;
+      chunkClearHoldTimerRef.current = window.setTimeout(() => {
+        chunkClearHoldTimerRef.current = null;
+        chunkClearHoldUntilRef.current = 0;
+        setLayoutRevision(prev => prev + 1);
+      }, CHUNK_CLEAR_LAYOUT_HOLD_MS);
       setStreamingResponse('');
       streamingResponseRef.current = '';
     });
 
     // Listen for final response from agent
     const cleanupResponse = window.faria.agent.onResponse((newResponse: string) => {
+      clearChunkClearHold();
       if (newResponse) {
         // Successful completion: show response and clear query
         setResponse(newResponse);
@@ -637,6 +670,7 @@ function CommandBar() {
 
     // Listen for error messages
     const cleanupError = window.faria.commandBar.onError((error) => {
+      clearChunkClearHold();
       setErrorMessage(error);
       setResponse(`Error: ${error}`);
       setIsProcessing(false);
@@ -657,6 +691,8 @@ function CommandBar() {
       setResponse('');
       setStreamingResponse('');
       streamingResponseRef.current = '';
+      clearChunkClearHold();
+      lastMeasuredAgentAreaHeightRef.current = 0;
       lastLayoutPayloadRef.current = null;
       setStatus('');
       setIsProcessing(false);
@@ -693,7 +729,7 @@ function CommandBar() {
       cleanupReset();
       cleanupSetQuery();
     };
-  }, []);
+  }, [clearChunkClearHold]);
 
 
   // Reset expanded state when tool approval changes

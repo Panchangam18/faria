@@ -102,11 +102,19 @@ export class ToolExecutor {
    * Get the tool context for passing to individual tools
    */
   private getContext(): ToolContext {
+    const executor = this;
+
     return {
       stateExtractor: this.stateExtractor,
-      currentState: this.currentState,
-      targetApp: this.targetApp,
-      provider: this.provider,
+      get currentState() {
+        return executor.currentState;
+      },
+      get targetApp() {
+        return executor.targetApp;
+      },
+      get provider() {
+        return executor.provider;
+      },
       setCurrentState: (state: AppState) => {
         this.currentState = state;
       },

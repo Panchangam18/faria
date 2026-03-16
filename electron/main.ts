@@ -680,6 +680,7 @@ async function resetCommandBar() {
   // Cancel any running agent and clear conversation history
   agentLoop.cancel();
   agentLoop.clearHistory();
+  agentLoop.clearCache();
 
   // Increment session ID to cancel any pending async operations
   commandBarSessionId++;
