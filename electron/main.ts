@@ -78,6 +78,7 @@ let currentSizeMode: CommandBarSizeMode = 'small';
 let currentCommandBarWidth = COMMAND_BAR_SIZES.small.width;
 let currentCommandBarMinHeight = COMMAND_BAR_SIZES.small.minHeight;
 let dividerAnchorY: number | null = null;
+let bottomAnchorY: number | null = null;
 let currentAgentAreaHeight = 0;
 let currentInputAreaHeight = currentCommandBarMinHeight;
 let isDropdownOpen = false;
@@ -257,6 +258,7 @@ function createCommandBarWindow() {
       targetAppName = null;
       currentSelectedText = null;
       dividerAnchorY = null;
+      bottomAnchorY = null;
       currentAgentAreaHeight = 0;
       currentInputAreaHeight = currentCommandBarMinHeight;
       baseContentHeight = currentCommandBarMinHeight;
@@ -433,6 +435,17 @@ function getDropdownOffset() {
   return isDropdownOpen ? DROPDOWN_EXTRA_HEIGHT : 0;
 }
 
+function syncBottomAnchorToWindow() {
+  if (!commandBarWindow) {
+    bottomAnchorY = null;
+    return;
+  }
+
+  const [, y] = commandBarWindow.getPosition();
+  const [, height] = commandBarWindow.getSize();
+  bottomAnchorY = y + height;
+}
+
 function syncDividerAnchorToWindow(agentAreaHeight = currentAgentAreaHeight) {
   if (!commandBarWindow) {
     dividerAnchorY = null;
@@ -451,12 +464,21 @@ function getOrInitDividerAnchorY() {
   return dividerAnchorY;
 }
 
+function getOrInitBottomAnchorY() {
+  if (!commandBarWindow) return null;
+  if (bottomAnchorY === null) {
+    syncBottomAnchorToWindow();
+  }
+  return bottomAnchorY;
+}
+
 function applyCommandBarLayout(layout?: CommandBarLayoutPayload) {
   if (!commandBarWindow) return;
 
   const [width, currentWindowHeight] = commandBarWindow.getSize();
   const [x, currentY] = commandBarWindow.getPosition();
   const maxContentHeight = Math.round(screen.getPrimaryDisplay().workAreaSize.height / 2);
+  const previousAgentAreaHeight = currentAgentAreaHeight;
 
   if (layout) {
     currentAgentAreaHeight = Math.max(0, Math.round(layout.agentAreaHeight));
@@ -472,16 +494,29 @@ function applyCommandBarLayout(layout?: CommandBarLayoutPayload) {
     );
   }
 
-  const anchorY = getOrInitDividerAnchorY();
-  if (anchorY === null) return;
-
   const dropdownOffset = getDropdownOffset();
-  const newY = Math.round(anchorY - currentAgentAreaHeight - dropdownOffset);
   const newHeight = baseContentHeight + dropdownOffset;
+  let newY = currentY;
+
+  if (currentAgentAreaHeight > 0) {
+    if (previousAgentAreaHeight === 0 || dividerAnchorY === null) {
+      syncDividerAnchorToWindow(0);
+    }
+    const anchorY = getOrInitDividerAnchorY();
+    if (anchorY === null) return;
+    newY = Math.round(anchorY - currentAgentAreaHeight - dropdownOffset);
+  } else {
+    const anchorY = getOrInitBottomAnchorY();
+    if (anchorY === null) return;
+    newY = Math.round(anchorY - newHeight);
+    dividerAnchorY = null;
+  }
 
   if (newY !== currentY || newHeight !== currentWindowHeight) {
     commandBarWindow.setBounds({ x, y: newY, width, height: newHeight });
   }
+
+  syncBottomAnchorToWindow();
 }
 
 async function getFrontmostApp(): Promise<string | null> {
@@ -507,6 +542,7 @@ async function toggleCommandBar() {
     targetAppName = null;
     currentSelectedText = null;
     dividerAnchorY = null;
+    bottomAnchorY = null;
     currentAgentAreaHeight = 0;
     currentInputAreaHeight = currentCommandBarMinHeight;
     baseContentHeight = currentCommandBarMinHeight;
@@ -702,6 +738,7 @@ async function resetCommandBar() {
   targetAppName = null;
   currentSelectedText = null;
   dividerAnchorY = null;
+  bottomAnchorY = null;
   currentAgentAreaHeight = 0;
   currentInputAreaHeight = currentCommandBarMinHeight;
   baseContentHeight = currentCommandBarMinHeight;
@@ -782,6 +819,7 @@ function moveCommandBar(direction: 'up' | 'down' | 'left' | 'right') {
   }
 
   commandBarWindow.setPosition(newX, newY);
+  syncBottomAnchorToWindow();
   syncDividerAnchorToWindow();
 
   // Update cached position
@@ -875,6 +913,7 @@ function applyCommandBarSize(sizeStr: string) {
     JSON.stringify({ x: newX, y, width: config.width })
   );
 
+  syncBottomAnchorToWindow();
   syncDividerAnchorToWindow();
 
   // Broadcast to command bar renderer
@@ -1268,6 +1307,7 @@ function setupIPC() {
       isCommandBarVisible = false;
       currentSelectedText = null;
       dividerAnchorY = null;
+      bottomAnchorY = null;
       currentAgentAreaHeight = 0;
       currentInputAreaHeight = currentCommandBarMinHeight;
       baseContentHeight = currentCommandBarMinHeight;
