@@ -64,9 +64,9 @@ let mainWindowActiveTab: string = 'home';
 type CommandBarSizeMode = 'small' | 'medium' | 'large';
 
 const COMMAND_BAR_SIZES: Record<CommandBarSizeMode, { width: number; minHeight: number; scale: number }> = {
-  small:  { width: 300, minHeight: 39, scale: 1.0 },   // baseHeight(18) + lineHeight(21)
-  medium: { width: 375, minHeight: 47, scale: 1.25 },   // baseHeight(22) + lineHeight(25)
-  large:  { width: 450, minHeight: 56, scale: 1.5 },    // baseHeight(26) + lineHeight(30)
+  small:  { width: 350, minHeight: 39, scale: 1.0 },   // baseHeight(18) + lineHeight(21)
+  medium: { width: 437, minHeight: 47, scale: 1.25 },   // baseHeight(22) + lineHeight(25)
+  large:  { width: 525, minHeight: 56, scale: 1.5 },    // baseHeight(26) + lineHeight(30)
 };
 
 let currentSizeMode: CommandBarSizeMode = 'small';
@@ -177,7 +177,7 @@ function createMainWindow() {
 
 function createCommandBarWindow() {
   const display = screen.getPrimaryDisplay();
-  const { width: screenWidth } = display.bounds;  // Use full display width for perfect centering
+  const { width: screenWidth } = display.workAreaSize;  // Use work area width for accurate centering
   const { height: screenHeight } = display.workAreaSize;
 
   commandBarWindow = new BrowserWindow({
@@ -315,7 +315,7 @@ function getCommandBarSettings() {
 // Calculate and cache position at startup - call this once
 function cacheCommandBarPosition() {
   const display = screen.getPrimaryDisplay();
-  const { width: screenWidth } = display.bounds;  // Use full display width for perfect centering
+  const { width: screenWidth } = display.workAreaSize;  // Use work area width for accurate centering
   const { height: screenHeight } = display.workAreaSize;
 
   // Check for saved position
@@ -614,7 +614,7 @@ async function resetCommandBar() {
 
   // Reset cached position to default (center, near bottom)
   const display = screen.getPrimaryDisplay();
-  const { width: screenWidth } = display.bounds;  // Use full display width for perfect centering
+  const { width: screenWidth } = display.workAreaSize;  // Use work area width for accurate centering
   const { height: screenHeight } = display.workAreaSize;
   cachedCommandBarPosition = {
     x: Math.round((screenWidth - currentCommandBarWidth) / 2),
