@@ -1011,6 +1011,28 @@ function setupIPC() {
     return { success: true };
   });
 
+  // Permissions IPC — check and request macOS Accessibility & Screen Recording
+  ipcMain.handle('permissions:check', async () => {
+    const { systemPreferences } = await import('electron');
+    const accessibility = systemPreferences.isTrustedAccessibilityClient(false);
+    const screenRecording = systemPreferences.getMediaAccessStatus('screen') === 'granted';
+    return { accessibility, screenRecording };
+  });
+
+  ipcMain.handle('permissions:request-accessibility', async () => {
+    const { systemPreferences } = await import('electron');
+    // Passing true opens the System Preferences pane and prompts the user
+    systemPreferences.isTrustedAccessibilityClient(true);
+    return { success: true };
+  });
+
+  ipcMain.handle('permissions:request-screen-recording', async () => {
+    // No direct Electron API to prompt for screen recording — open System Settings
+    const { shell } = await import('electron');
+    await shell.openExternal('x-apple.systempreferences:com.apple.preference.security?Privacy_ScreenCapture');
+    return { success: true };
+  });
+
   // Profile context menu (native macOS menu)
   ipcMain.handle('menu:profile', async () => {
     const { Menu } = await import('electron');

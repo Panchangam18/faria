@@ -8,6 +8,7 @@ import SettingsPanel from './components/Settings/SettingsPanel';
 import ChatPanel from './components/Chat/ChatPanel';
 
 import SignIn from './components/SignIn';
+import Onboarding from './components/Onboarding';
 
 type Tab = 'home' | 'chat' | 'settings';
 
@@ -40,6 +41,7 @@ function App() {
   const [activeTab, setActiveTab] = useState<Tab>('home');
   const [theme, setTheme] = useState<string>('default');
   const [userAuth, setUserAuth] = useState<UserProfile | null | undefined>(undefined);
+  const [showOnboarding, setShowOnboarding] = useState(false);
 
   const [sidebarExpanded, setSidebarExpanded] = useState(false);
   const [isFullscreen, setIsFullscreen] = useState(false);
@@ -56,6 +58,12 @@ function App() {
     const init = async () => {
       const user = await window.faria.auth.getUser();
       setUserAuth(user);
+
+      // Check if onboarding was already completed
+      if (user) {
+        const completed = await window.faria.settings.get('onboardingComplete');
+        if (!completed) setShowOnboarding(true);
+      }
 
       const themeData = await window.faria.settings.getThemeData();
       setTheme(themeData.theme);
@@ -91,9 +99,18 @@ function App() {
     return (
       <SignIn onSignIn={async () => {
         const user = await window.faria.auth.getUser();
-        // Resize first (hides window), then update state so new content renders into the resized window
-        await window.faria.window.setSize(1200, 800);
         setUserAuth(user);
+        setShowOnboarding(true);
+      }} />
+    );
+  }
+
+  if (showOnboarding) {
+    return (
+      <Onboarding onComplete={async () => {
+        await window.faria.settings.set('onboardingComplete', '1');
+        await window.faria.window.setSize(1200, 800);
+        setShowOnboarding(false);
       }} />
     );
   }

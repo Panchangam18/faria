@@ -142,6 +142,13 @@ contextBridge.exposeInMainWorld('faria', {
     signOut: () => ipcRenderer.invoke('auth:sign-out'),
   },
 
+  // Permissions
+  permissions: {
+    check: () => ipcRenderer.invoke('permissions:check') as Promise<{ accessibility: boolean; screenRecording: boolean }>,
+    requestAccessibility: () => ipcRenderer.invoke('permissions:request-accessibility'),
+    requestScreenRecording: () => ipcRenderer.invoke('permissions:request-screen-recording'),
+  },
+
   // Menus
   menu: {
     profile: () => ipcRenderer.invoke('menu:profile') as Promise<string | null>,
@@ -273,6 +280,11 @@ export interface FariaAPI {
     googleSignIn: () => Promise<{ success: boolean; email?: string; uid?: string; displayName?: string; photoUrl?: string; error?: string }>;
     getUser: () => Promise<{ email: string; uid: string; displayName: string | null; photoUrl: string | null; provider: string | null } | null>;
     signOut: () => Promise<{ success: boolean }>;
+  };
+  permissions: {
+    check: () => Promise<{ accessibility: boolean; screenRecording: boolean }>;
+    requestAccessibility: () => Promise<{ success: boolean }>;
+    requestScreenRecording: () => Promise<{ success: boolean }>;
   };
   menu: {
     profile: () => Promise<string | null>;
