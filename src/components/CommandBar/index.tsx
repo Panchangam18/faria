@@ -107,6 +107,11 @@ interface SizeConfig {
   scrollbarWidth: number;
 }
 
+interface CommandBarLayoutPayload {
+  inputAreaHeight: number;
+  agentAreaHeight: number;
+}
+
 const SIZE_CONFIGS: Record<SizeMode, SizeConfig> = {
   small: {
     lineHeight: 21,            // 14px * 1.5
@@ -241,6 +246,8 @@ function CommandBar() {
   const [userMaxResponseHeight, setUserMaxResponseHeight] = useState<number | null>(null);
   const userMaxResponseHeightRef = useRef<number | null>(null);
   const dragStateRef = useRef<{ startY: number; startMaxHeight: number } | null>(null);
+  const resizeFrameRef = useRef<number | null>(null);
+  const lastLayoutPayloadRef = useRef<CommandBarLayoutPayload | null>(null);
   const inputRef = useRef<HTMLTextAreaElement>(null);
   const scrollWrapperRef = useRef<HTMLDivElement>(null);
   const inlineControlsRef = useRef<HTMLDivElement>(null);
@@ -273,8 +280,20 @@ function CommandBar() {
     return lastLineEndX >= textarea.clientWidth - controlsWidth;
   }, []);
 
-  // Resize window based on textarea content - debounced to avoid blocking rapid toggles
-  const lastResizeRef = useRef<number>(0);
+  const sendLayoutPayload = useCallback((payload: CommandBarLayoutPayload) => {
+    const previous = lastLayoutPayloadRef.current;
+    if (
+      previous &&
+      previous.inputAreaHeight === payload.inputAreaHeight &&
+      previous.agentAreaHeight === payload.agentAreaHeight
+    ) {
+      return;
+    }
+
+    lastLayoutPayloadRef.current = payload;
+    window.faria.commandBar.resize(payload);
+  }, []);
+
   useLayoutEffect(() => {
     const textarea = inputRef.current;
     const scrollWrapper = scrollWrapperRef.current;
@@ -353,74 +372,55 @@ function CommandBar() {
     // Restore scroll position after measurement — the height:0 collapse reset it
     scrollWrapper.scrollTop = savedScrollTop;
 
-    // Measure agent area height (response + footer + divider — all above the input)
-    // Temporarily remove overflow and max-height on the response div so its full
-    // content height contributes to the agent area's scrollHeight. Then cap the
-    // result so the response never exceeds MAX_RESPONSE_HEIGHT (scrolls instead).
-    let agentAreaHeight = 0;
-    if (agentAreaRef.current) {
+    // When scrollable, controls become a static row below the textarea
+    const controlsRowHeight = scrollable ? controlsHeight : 0;
+    const inputAreaHeight = BASE_HEIGHT + contentHeight + controlsRowHeight;
+
+    const measureAgentAreaHeight = () => {
+      if (!agentAreaRef.current) return 0;
+
       const respEl = responseRef.current;
       if (respEl) {
         respEl.style.overflow = 'visible';
         respEl.style.maxHeight = 'none';
       }
+
       const uncappedHeight = agentAreaRef.current.scrollHeight;
       const responseContentHeight = respEl ? respEl.scrollHeight : 0;
+
       if (respEl) {
         respEl.style.overflow = '';
         respEl.style.maxHeight = '';
       }
-      // Cap: if response content exceeds the max, shrink by the overflow amount
+
       if (respEl && responseContentHeight > MAX_RESPONSE_HEIGHT) {
-        agentAreaHeight = uncappedHeight - (responseContentHeight - MAX_RESPONSE_HEIGHT);
-      } else {
-        agentAreaHeight = uncappedHeight;
+        return uncappedHeight - (responseContentHeight - MAX_RESPONSE_HEIGHT);
       }
-    }
 
-    // When scrollable, controls become a static row below the textarea
-    const controlsRowHeight = scrollable ? controlsHeight : 0;
-
-    // Calculate total window height and send resize
-    const inputAreaHeight = BASE_HEIGHT + contentHeight + controlsRowHeight;
-    const sendResize = (aaHeight: number) => {
-      const total = inputAreaHeight + aaHeight;
-      if (total !== lastResizeRef.current) {
-        lastResizeRef.current = total;
-        window.faria.commandBar.resize(total, aaHeight);
-      }
+      return uncappedHeight;
     };
 
-    sendResize(agentAreaHeight);
+    if (resizeFrameRef.current !== null) {
+      cancelAnimationFrame(resizeFrameRef.current);
+    }
 
-    // Schedule a follow-up measurement after browser layout settles.
-    // When content changes abruptly (e.g. history navigation populates
-    // a full response at once), the synchronous scrollHeight may not
-    // yet reflect the final layout.
-    const rafId = requestAnimationFrame(() => {
-      if (agentAreaRef.current) {
-        const respEl = responseRef.current;
-        if (respEl) {
-          respEl.style.overflow = 'visible';
-          respEl.style.maxHeight = 'none';
-        }
-        const uncapped = agentAreaRef.current.scrollHeight;
-        const respHeight = respEl ? respEl.scrollHeight : 0;
-        if (respEl) {
-          respEl.style.overflow = '';
-          respEl.style.maxHeight = '';
-        }
-        const settled = respEl && respHeight > MAX_RESPONSE_HEIGHT
-          ? uncapped - (respHeight - MAX_RESPONSE_HEIGHT)
-          : uncapped;
-        if (settled !== agentAreaHeight) {
-          sendResize(settled);
-        }
-      }
+    // Wait one frame so history restores, streaming chunks, and drag updates settle
+    // before we send a single authoritative layout snapshot to the main process.
+    resizeFrameRef.current = requestAnimationFrame(() => {
+      resizeFrameRef.current = null;
+      sendLayoutPayload({
+        inputAreaHeight,
+        agentAreaHeight: measureAgentAreaHeight(),
+      });
     });
 
-    return () => cancelAnimationFrame(rafId);
-  }, [query, response, streamingResponse, pendingToolApproval, toolApprovalExpanded, pendingAuth, status, wouldControlsCollide, selectedTextLength, sizeMode, userMaxResponseHeight]);
+    return () => {
+      if (resizeFrameRef.current !== null) {
+        cancelAnimationFrame(resizeFrameRef.current);
+        resizeFrameRef.current = null;
+      }
+    };
+  }, [query, response, streamingResponse, pendingToolApproval, toolApprovalExpanded, pendingAuth, status, wouldControlsCollide, selectedTextLength, sizeMode, userMaxResponseHeight, sendLayoutPayload]);
 
   // Keep ref in sync for use in event handlers that close over stale state
   userMaxResponseHeightRef.current = userMaxResponseHeight;
@@ -540,6 +540,7 @@ function CommandBar() {
       setIsVisible(false);
       setIsBreathing(false);
       setSelectedTextLength(0);
+      lastLayoutPayloadRef.current = null;
       setErrorMessage(null);
       // Clear streaming response (incomplete placeholder content) but keep final response
       // Response persists so user can see agent's answer when they reopen
@@ -656,6 +657,7 @@ function CommandBar() {
       setResponse('');
       setStreamingResponse('');
       streamingResponseRef.current = '';
+      lastLayoutPayloadRef.current = null;
       setStatus('');
       setIsProcessing(false);
       setSelectedTextLength(0);

@@ -63,6 +63,11 @@ let mainWindowActiveTab: string = 'home';
 // Command bar size modes
 type CommandBarSizeMode = 'small' | 'medium' | 'large';
 
+interface CommandBarLayoutPayload {
+  inputAreaHeight: number;
+  agentAreaHeight: number;
+}
+
 const COMMAND_BAR_SIZES: Record<CommandBarSizeMode, { width: number; minHeight: number; scale: number }> = {
   small:  { width: 350, minHeight: 39, scale: 1.0 },   // baseHeight(18) + lineHeight(21)
   medium: { width: 437, minHeight: 47, scale: 1.25 },   // baseHeight(22) + lineHeight(25)
@@ -72,8 +77,12 @@ const COMMAND_BAR_SIZES: Record<CommandBarSizeMode, { width: number; minHeight: 
 let currentSizeMode: CommandBarSizeMode = 'small';
 let currentCommandBarWidth = COMMAND_BAR_SIZES.small.width;
 let currentCommandBarMinHeight = COMMAND_BAR_SIZES.small.minHeight;
-
-let lastAgentAreaHeight = 0; // Track agent area height for upward growth delta
+let dividerAnchorY: number | null = null;
+let currentAgentAreaHeight = 0;
+let currentInputAreaHeight = currentCommandBarMinHeight;
+let isDropdownOpen = false;
+let baseContentHeight = currentCommandBarMinHeight;
+const DROPDOWN_EXTRA_HEIGHT = 80;
 
 // Default keyboard shortcuts
 const DEFAULT_COMMAND_BAR_SHORTCUT = 'CommandOrControl+Enter';
@@ -247,7 +256,11 @@ function createCommandBarWindow() {
       isCommandBarVisible = false;
       targetAppName = null;
       currentSelectedText = null;
-      lastAgentAreaHeight = 0;
+      dividerAnchorY = null;
+      currentAgentAreaHeight = 0;
+      currentInputAreaHeight = currentCommandBarMinHeight;
+      baseContentHeight = currentCommandBarMinHeight;
+      isDropdownOpen = false;
       agentLoop.clearCache();
     }
   });
@@ -416,6 +429,61 @@ function positionCommandBar() {
   commandBarWindow.setPosition(cachedCommandBarPosition.x, cachedCommandBarPosition.y);
 }
 
+function getDropdownOffset() {
+  return isDropdownOpen ? DROPDOWN_EXTRA_HEIGHT : 0;
+}
+
+function syncDividerAnchorToWindow(agentAreaHeight = currentAgentAreaHeight) {
+  if (!commandBarWindow) {
+    dividerAnchorY = null;
+    return;
+  }
+
+  const [, y] = commandBarWindow.getPosition();
+  dividerAnchorY = y + getDropdownOffset() + agentAreaHeight;
+}
+
+function getOrInitDividerAnchorY() {
+  if (!commandBarWindow) return null;
+  if (dividerAnchorY === null) {
+    syncDividerAnchorToWindow();
+  }
+  return dividerAnchorY;
+}
+
+function applyCommandBarLayout(layout?: CommandBarLayoutPayload) {
+  if (!commandBarWindow) return;
+
+  const [width, currentWindowHeight] = commandBarWindow.getSize();
+  const [x, currentY] = commandBarWindow.getPosition();
+  const maxContentHeight = Math.round(screen.getPrimaryDisplay().workAreaSize.height / 2);
+
+  if (layout) {
+    currentAgentAreaHeight = Math.max(0, Math.round(layout.agentAreaHeight));
+    currentInputAreaHeight = Math.max(0, Math.round(layout.inputAreaHeight));
+    baseContentHeight = Math.min(
+      Math.max(currentAgentAreaHeight + currentInputAreaHeight, currentCommandBarMinHeight),
+      maxContentHeight
+    );
+  } else {
+    baseContentHeight = Math.min(
+      Math.max(baseContentHeight, currentCommandBarMinHeight),
+      maxContentHeight
+    );
+  }
+
+  const anchorY = getOrInitDividerAnchorY();
+  if (anchorY === null) return;
+
+  const dropdownOffset = getDropdownOffset();
+  const newY = Math.round(anchorY - currentAgentAreaHeight - dropdownOffset);
+  const newHeight = baseContentHeight + dropdownOffset;
+
+  if (newY !== currentY || newHeight !== currentWindowHeight) {
+    commandBarWindow.setBounds({ x, y: newY, width, height: newHeight });
+  }
+}
+
 async function getFrontmostApp(): Promise<string | null> {
   try {
     const { stdout } = await execAsync(`osascript -e 'tell application "System Events" to get name of first process whose frontmost is true'`);
@@ -438,7 +506,11 @@ async function toggleCommandBar() {
     isCommandBarVisible = false;
     targetAppName = null;
     currentSelectedText = null;
-    lastAgentAreaHeight = 0;
+    dividerAnchorY = null;
+    currentAgentAreaHeight = 0;
+    currentInputAreaHeight = currentCommandBarMinHeight;
+    baseContentHeight = currentCommandBarMinHeight;
+    isDropdownOpen = false;
     agentLoop.clearCache();
     return;
   }
@@ -628,7 +700,11 @@ async function resetCommandBar() {
   // Clear context
   targetAppName = null;
   currentSelectedText = null;
-  lastAgentAreaHeight = 0;
+  dividerAnchorY = null;
+  currentAgentAreaHeight = 0;
+  currentInputAreaHeight = currentCommandBarMinHeight;
+  baseContentHeight = currentCommandBarMinHeight;
+  isDropdownOpen = false;
 
   // If command bar doesn't exist, create it
   if (!commandBarWindow || commandBarWindow.webContents.isDestroyed()) {
@@ -705,6 +781,7 @@ function moveCommandBar(direction: 'up' | 'down' | 'left' | 'right') {
   }
 
   commandBarWindow.setPosition(newX, newY);
+  syncDividerAnchorToWindow();
 
   // Update cached position
   cachedCommandBarPosition = { x: newX, y: newY };
@@ -755,6 +832,8 @@ function loadSavedSize() {
     const config = COMMAND_BAR_SIZES[currentSizeMode];
     currentCommandBarWidth = config.width;
     currentCommandBarMinHeight = config.minHeight;
+    currentInputAreaHeight = currentCommandBarMinHeight;
+    baseContentHeight = currentCommandBarMinHeight;
   }
 }
 
@@ -780,6 +859,8 @@ function applyCommandBarSize(sizeStr: string) {
 
   // Clamp height to at least the new minimum
   const newHeight = Math.max(currentHeight, config.minHeight);
+  baseContentHeight = newHeight;
+  currentInputAreaHeight = Math.max(currentInputAreaHeight, config.minHeight);
 
   commandBarWindow.setBounds({ x: newX, y, width: config.width, height: newHeight });
 
@@ -793,8 +874,7 @@ function applyCommandBarSize(sizeStr: string) {
     JSON.stringify({ x: newX, y, width: config.width })
   );
 
-  // Reset agent area tracking so next resize measurement is clean
-  lastAgentAreaHeight = 0;
+  syncDividerAnchorToWindow();
 
   // Broadcast to command bar renderer
   commandBarWindow.webContents.send('settings:size-change', newSize);
@@ -1186,7 +1266,11 @@ function setupIPC() {
       commandBarWindow.hide();
       isCommandBarVisible = false;
       currentSelectedText = null;
-      lastAgentAreaHeight = 0;
+      dividerAnchorY = null;
+      currentAgentAreaHeight = 0;
+      currentInputAreaHeight = currentCommandBarMinHeight;
+      baseContentHeight = currentCommandBarMinHeight;
+      isDropdownOpen = false;
     }
   });
 
@@ -1213,70 +1297,23 @@ function setupIPC() {
     }
   });
 
-  // Track dropdown state for resize coordination
-  let isDropdownOpen = false;
-  let baseContentHeight = currentCommandBarMinHeight;
-  const DROPDOWN_EXTRA_HEIGHT = 80;
-
-  ipcMain.on('command-bar:resize', (_event, height: number, agentAreaHeight: number) => {
-    if (commandBarWindow) {
-      const [width] = commandBarWindow.getSize();
-      const maxHeight = Math.round(screen.getPrimaryDisplay().workAreaSize.height / 2);
-      const clampedHeight = Math.min(Math.max(height, currentCommandBarMinHeight), maxHeight);
-      baseContentHeight = clampedHeight;
-
-      // Calculate how much the agent area height changed to grow/shrink upward
-      const agentDelta = (agentAreaHeight || 0) - lastAgentAreaHeight;
-      lastAgentAreaHeight = agentAreaHeight || 0;
-
-      const [x, y] = commandBarWindow.getPosition();
-
-      if (isDropdownOpen) {
-        const newTotalHeight = clampedHeight + DROPDOWN_EXTRA_HEIGHT;
-        commandBarWindow.setBounds({
-          x,
-          y: y - agentDelta,
-          width,
-          height: newTotalHeight
-        });
-      } else {
-        // Grow upward: move Y up by agent delta, set new total height
-        commandBarWindow.setBounds({
-          x,
-          y: y - agentDelta,
-          width,
-          height: clampedHeight
-        });
-      }
-    }
+  ipcMain.on('command-bar:resize', (_event, layout: CommandBarLayoutPayload) => {
+    applyCommandBarLayout(layout);
   });
 
   // Dropdown visibility - expand window upward to make room
   ipcMain.on('command-bar:dropdown-visible', (_event, visible: boolean) => {
     if (!commandBarWindow) return;
 
-    const [width, height] = commandBarWindow.getSize();
-    const [x, y] = commandBarWindow.getPosition();
-
     if (visible && !isDropdownOpen) {
       isDropdownOpen = true;
-      // Expand window upward: move Y up and increase height
-      commandBarWindow.setBounds({
-        x,
-        y: y - DROPDOWN_EXTRA_HEIGHT,
-        width,
-        height: height + DROPDOWN_EXTRA_HEIGHT
-      });
     } else if (!visible && isDropdownOpen) {
       isDropdownOpen = false;
-      // Restore to base content height
-      commandBarWindow.setBounds({
-        x,
-        y: y + DROPDOWN_EXTRA_HEIGHT,
-        width,
-        height: baseContentHeight
-      });
+    } else {
+      return;
     }
+
+    applyCommandBarLayout();
   });
 
   // Forward agent status updates to command bar

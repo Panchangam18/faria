@@ -1,5 +1,10 @@
 import { contextBridge, ipcRenderer } from 'electron';
 
+interface CommandBarLayoutPayload {
+  inputAreaHeight: number;
+  agentAreaHeight: number;
+}
+
 // Expose protected methods that allow the renderer process to use
 // the ipcRenderer without exposing the entire object
 contextBridge.exposeInMainWorld('faria', {
@@ -157,7 +162,7 @@ contextBridge.exposeInMainWorld('faria', {
   // Command Bar
   commandBar: {
     hide: () => ipcRenderer.send('command-bar:hide'),
-    resize: (height: number, agentAreaHeight?: number) => ipcRenderer.send('command-bar:resize', height, agentAreaHeight ?? 0),
+    resize: (layout: CommandBarLayoutPayload) => ipcRenderer.send('command-bar:resize', layout),
     setDropdownVisible: (visible: boolean) => ipcRenderer.send('command-bar:dropdown-visible', visible),
     refreshSelection: () => ipcRenderer.invoke('command-bar:refresh-selection') as Promise<{ hasSelectedText: boolean; selectedTextLength: number }>,
     onFocus: (callback: () => void) => {
@@ -302,7 +307,7 @@ export interface FariaAPI {
   };
   commandBar: {
     hide: () => void;
-    resize: (height: number, agentAreaHeight?: number) => void;
+    resize: (layout: CommandBarLayoutPayload) => void;
     setDropdownVisible: (visible: boolean) => void;
     refreshSelection: () => Promise<{ hasSelectedText: boolean; selectedTextLength: number }>;
     onFocus: (callback: () => void) => () => void;
