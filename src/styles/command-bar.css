@@ -244,6 +244,14 @@ html, body, #root {
   margin: 4px 0;
 }
 
+.command-bar-inline-logo {
+  width: 12px;
+  height: 12px;
+  object-fit: contain;
+  border-radius: 2px;
+  flex-shrink: 0;
+}
+
 /* Status Text */
 .command-bar-status {
   font-size: var(--font-size-sm);
@@ -255,6 +263,14 @@ html, body, #root {
 
 .status-logo {
   height: 1.3em;
+}
+
+.command-bar-status-logo {
+  width: 1.1em;
+  height: 1.1em;
+  object-fit: contain;
+  border-radius: 2px;
+  flex-shrink: 0;
 }
 
 .status-logo svg {
@@ -615,6 +631,9 @@ html, body, #root {
 
 .tool-approval-name-static {
   flex: 1;
+  display: flex;
+  align-items: center;
+  gap: 4px;
   font-size: var(--font-size-xs);
   color: var(--color-accent);
   font-weight: 500;

@@ -220,6 +220,24 @@ function applyTheme(theme: string, font?: string) {
   }
 }
 
+function getAppLogo(toolName: string, input: unknown, appLogos: Map<string, string>): string | null {
+  if (toolName === 'COMPOSIO_MULTI_EXECUTE_TOOL') {
+    const tools = (input as Record<string, unknown>).tools as Array<{ tool_slug?: string }> | undefined;
+    const slug = tools?.[0]?.tool_slug;
+    if (slug) {
+      return appLogos.get(slug.split('_')[0].toLowerCase()) || null;
+    }
+  }
+
+  const normalizedToolName = toolName.replace(/^COMPOSIO_/, '');
+  const appName = normalizedToolName.split('_')[0]?.toLowerCase();
+  return appName ? appLogos.get(appName) || null : null;
+}
+
+function getToolkitLogo(toolkit: string, appLogos: Map<string, string>): string | null {
+  return appLogos.get(toolkit.toLowerCase()) || null;
+}
+
 function CommandBar() {
   const [query, setQuery] = useState('');
   const [firstName, setFirstName] = useState<string | null>(null);
@@ -245,6 +263,8 @@ function CommandBar() {
   const [isBreathing, setIsBreathing] = useState(false);
   const [sizeMode, setSizeMode] = useState<SizeMode>('small');
   const [isScrollable, setIsScrollable] = useState(false);
+  const [currentToolAction, setCurrentToolAction] = useState<{ tool: string; input: unknown; timestamp: number } | null>(null);
+  const [appLogos, setAppLogos] = useState<Map<string, string>>(new Map());
   const [layoutRevision, setLayoutRevision] = useState(0);
   const [userMaxResponseHeight, setUserMaxResponseHeight] = useState<number | null>(null);
   const userMaxResponseHeightRef = useRef<number | null>(null);
@@ -254,6 +274,7 @@ function CommandBar() {
   const chunkClearHoldUntilRef = useRef(0);
   const lastMeasuredAgentAreaHeightRef = useRef(0);
   const lastLayoutPayloadRef = useRef<CommandBarLayoutPayload | null>(null);
+  const toolActionAwaitingStatusRef = useRef(false);
   const inputRef = useRef<HTMLTextAreaElement>(null);
   const scrollWrapperRef = useRef<HTMLDivElement>(null);
   const inlineControlsRef = useRef<HTMLDivElement>(null);
@@ -526,6 +547,17 @@ function CommandBar() {
     };
 
     loadSettings();
+    window.faria.integrations.getConnections()
+      .then((connections) => {
+        const logos = new Map<string, string>();
+        for (const connection of connections) {
+          if (connection.logo) {
+            logos.set(connection.appName.toLowerCase(), connection.logo);
+          }
+        }
+        setAppLogos(logos);
+      })
+      .catch(() => {});
 
     // Listen for theme changes - colors are always provided by main process
     const cleanupTheme = window.faria.settings.onThemeChange((themeData) => {
@@ -565,6 +597,8 @@ function CommandBar() {
       clearChunkClearHold();
       lastMeasuredAgentAreaHeightRef.current = 0;
       lastLayoutPayloadRef.current = null;
+      toolActionAwaitingStatusRef.current = false;
+      setCurrentToolAction(null);
       setErrorMessage(null);
       // Clear streaming response (incomplete placeholder content) but keep final response
       // Response persists so user can see agent's answer when they reopen
@@ -599,6 +633,11 @@ function CommandBar() {
 
     // Listen for status updates from agent
     const cleanupStatus = window.faria.agent.onStatus((newStatus: string) => {
+      if (toolActionAwaitingStatusRef.current) {
+        toolActionAwaitingStatusRef.current = false;
+      } else {
+        setCurrentToolAction(null);
+      }
       setStatus(newStatus);
     });
 
@@ -642,9 +681,11 @@ function CommandBar() {
       setStreamingResponse('');
       streamingResponseRef.current = '';
       setIsProcessing(false);
+      toolActionAwaitingStatusRef.current = false;
       setStatus('');
       setPendingAuth(null);
       setPendingToolApproval(null);
+      setCurrentToolAction(null);
       // Refocus input after response
       setTimeout(() => inputRef.current?.focus(), 0);
     });
@@ -659,8 +700,17 @@ function CommandBar() {
     // Listen for tool approval required from agent
     const cleanupToolApproval = window.faria.agent.onToolApprovalRequired((data) => {
       console.log('[CommandBar] Tool approval required:', data);
+      toolActionAwaitingStatusRef.current = false;
       setPendingToolApproval(data);
       setStatus('Waiting for approval...');
+    });
+
+    const cleanupToolAction = window.faria.agent.onToolAction((action) => {
+      if (action.tool === '_thinking') {
+        return;
+      }
+      toolActionAwaitingStatusRef.current = true;
+      setCurrentToolAction(action);
     });
 
     // Listen for timing data from agent (log only, no UI)
@@ -674,8 +724,10 @@ function CommandBar() {
       setErrorMessage(error);
       setResponse(`Error: ${error}`);
       setIsProcessing(false);
+      toolActionAwaitingStatusRef.current = false;
       setStatus('');
       setPendingAuth(null);
+      setCurrentToolAction(null);
     });
 
     // Listen for clear-error (clears error without resetting conversation state)
@@ -694,6 +746,7 @@ function CommandBar() {
       clearChunkClearHold();
       lastMeasuredAgentAreaHeightRef.current = 0;
       lastLayoutPayloadRef.current = null;
+      toolActionAwaitingStatusRef.current = false;
       setStatus('');
       setIsProcessing(false);
       setSelectedTextLength(0);
@@ -701,6 +754,7 @@ function CommandBar() {
       setPendingAuth(null);
       setPendingToolApproval(null);
       setToolApprovalExpanded(false);
+      setCurrentToolAction(null);
       setHistoryIndex(-1);
       historyRef.current = [];
       previousContextRef.current = undefined;
@@ -723,6 +777,7 @@ function CommandBar() {
       cleanupResponse();
       cleanupAuth();
       cleanupToolApproval();
+      cleanupToolAction();
       cleanupTiming();
       cleanupError();
       cleanupClearError();
@@ -782,6 +837,8 @@ function CommandBar() {
     setResponse('');
     setStreamingResponse('');
     streamingResponseRef.current = '';
+    toolActionAwaitingStatusRef.current = false;
+    setCurrentToolAction(null);
 
     try {
       setStatus('Extracting state...');
@@ -998,7 +1055,15 @@ function CommandBar() {
                         className="tool-approval-toggle"
                         onClick={() => setToolApprovalExpanded(!toolApprovalExpanded)}
                       >
-                        <span className="tool-approval-shortcut">&#8679;&#8677;</span>
+                        {pendingToolApproval.isComposio && (() => {
+                          const logo = getAppLogo(pendingToolApproval.toolName, pendingToolApproval.args, appLogos);
+                          return logo
+                            ? <img src={logo} alt="" className="command-bar-inline-logo" />
+                            : <span className="tool-approval-shortcut">&#8679;&#8677;</span>;
+                        })()}
+                        {!pendingToolApproval.isComposio && (
+                          <span className="tool-approval-shortcut">&#8679;&#8677;</span>
+                        )}
                         <span className="tool-approval-name">
                           {pendingToolApproval.displayName || (pendingToolApproval.isComposio
                             ? `Use ${formatToolkitName(pendingToolApproval.toolName.split('_')[0])}`
@@ -1016,6 +1081,10 @@ function CommandBar() {
                       </button>
                     ) : (
                       <span className="tool-approval-name-static">
+                        {pendingToolApproval.isComposio && (() => {
+                          const logo = getAppLogo(pendingToolApproval.toolName, pendingToolApproval.args, appLogos);
+                          return logo ? <img src={logo} alt="" className="command-bar-inline-logo" /> : null;
+                        })()}
                         {pendingToolApproval.displayName || (pendingToolApproval.isComposio
                           ? `Use ${formatToolkitName(pendingToolApproval.toolName.split('_')[0])}`
                           : 'Allow computer control?')}
@@ -1039,6 +1108,10 @@ function CommandBar() {
                 </div>
               ) : pendingAuth ? (
                 <div className="command-bar-auth-inline">
+                  {(() => {
+                    const logo = getToolkitLogo(pendingAuth.toolkit, appLogos);
+                    return logo ? <img src={logo} alt="" className="command-bar-inline-logo" /> : null;
+                  })()}
                   <span className="auth-status-text" style={{ fontStyle: 'normal' }}>
                     Faria wants to use {formatToolkitName(pendingAuth.toolkit)}
                   </span>
@@ -1051,12 +1124,19 @@ function CommandBar() {
                 </div>
               ) : status ? (
                 <div className="command-bar-status">
-                  <div className="status-logo">
-                    <svg xmlns="http://www.w3.org/2000/svg" viewBox="105 30 190 310">
-                      <path className="flame-outer" fill="currentColor" d="M 238.097656 161.742188 C 212.027344 202.410156 156.050781 227.769531 161.972656 285.457031 C 163.976562 305.269531 180.035156 334.132812 199.847656 338.304688 C 135.195312 332.382812 82.347656 265.3125 128.9375 189.1875 C 147.375 159.070312 188.375 140.175781 202.976562 108.890625 C 216.53125 81.78125 205.0625 46.324219 174.820312 37.980469 C 204.019531 33.8125 240.976562 57.085938 249.191406 85.949219 C 256.867188 112.726562 252.695312 139.84375 238.097656 161.742188" fillRule="nonzero"/>
-                      <path className="flame-inner" fill="currentColor" d="M 261.371094 240.617188 C 292.65625 207.25 277.347656 165.910156 261.371094 152.6875 C 259.621094 195.109375 214.199219 215.757812 194.632812 247.582031 C 187.792969 258.722656 182.789062 270.523438 185.25 289.296875 C 186.792969 301.101562 203.769531 341.183594 250.941406 334.132812 C 238.265625 322.832031 229.839844 312.488281 231.925781 293.71875 C 235.054688 269.734375 246.773438 257.300781 261.371094 240.617188 Z" fillRule="nonzero"/>
-                    </svg>
-                  </div>
+                  {(() => {
+                    const logo = currentToolAction ? getAppLogo(currentToolAction.tool, currentToolAction.input, appLogos) : null;
+                    return logo ? (
+                      <img src={logo} alt="" className="command-bar-status-logo" />
+                    ) : (
+                      <div className="status-logo">
+                        <svg xmlns="http://www.w3.org/2000/svg" viewBox="105 30 190 310">
+                          <path className="flame-outer" fill="currentColor" d="M 238.097656 161.742188 C 212.027344 202.410156 156.050781 227.769531 161.972656 285.457031 C 163.976562 305.269531 180.035156 334.132812 199.847656 338.304688 C 135.195312 332.382812 82.347656 265.3125 128.9375 189.1875 C 147.375 159.070312 188.375 140.175781 202.976562 108.890625 C 216.53125 81.78125 205.0625 46.324219 174.820312 37.980469 C 204.019531 33.8125 240.976562 57.085938 249.191406 85.949219 C 256.867188 112.726562 252.695312 139.84375 238.097656 161.742188" fillRule="nonzero"/>
+                          <path className="flame-inner" fill="currentColor" d="M 261.371094 240.617188 C 292.65625 207.25 277.347656 165.910156 261.371094 152.6875 C 259.621094 195.109375 214.199219 215.757812 194.632812 247.582031 C 187.792969 258.722656 182.789062 270.523438 185.25 289.296875 C 186.792969 301.101562 203.769531 341.183594 250.941406 334.132812 C 238.265625 322.832031 229.839844 312.488281 231.925781 293.71875 C 235.054688 269.734375 246.773438 257.300781 261.371094 240.617188 Z" fillRule="nonzero"/>
+                        </svg>
+                      </div>
+                    );
+                  })()}
                   <span>{status}</span>
                 </div>
               ) : null}
