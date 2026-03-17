@@ -42,7 +42,27 @@ const STREAM_FLUSH_INTERVAL_MS = 32;
 
 const MARKDOWN_OPTIONS = { async: false, breaks: true, gfm: true } as const;
 
-const ActionTrace = memo(function ActionTrace({ actions }: { actions: ActionData[] }) {
+function getAppLogo(toolName: string, input: unknown, appLogos: Map<string, string>): string | null {
+  if (toolName === 'COMPOSIO_MULTI_EXECUTE_TOOL') {
+    const tools = (input as Record<string, unknown>).tools as Array<{ tool_slug?: string }> | undefined;
+    const slug = tools?.[0]?.tool_slug;
+    if (slug) {
+      return appLogos.get(slug.split('_')[0].toLowerCase()) || null;
+    }
+  }
+
+  const normalizedToolName = toolName.replace(/^COMPOSIO_/, '');
+  const appName = normalizedToolName.split('_')[0]?.toLowerCase();
+  return appName ? appLogos.get(appName) || null : null;
+}
+
+const ActionTrace = memo(function ActionTrace({
+  actions,
+  appLogos,
+}: {
+  actions: ActionData[];
+  appLogos: Map<string, string>;
+}) {
   if (actions.length === 0) return null;
   return (
     <div className="chat-tool-trace">
@@ -58,7 +78,14 @@ const ActionTrace = memo(function ActionTrace({ actions }: { actions: ActionData
           </div>
         ) : (
           <div key={idx} className="tool-bubble">
-            <span className="tool-bubble-icon">{getToolIcon(action.tool)}</span>
+            <span className="tool-bubble-icon">
+              {(() => {
+                const logo = getAppLogo(action.tool, action.input, appLogos);
+                return logo
+                  ? <img src={logo} alt="" style={{ width: 12, height: 12, objectFit: 'contain', borderRadius: 2 }} />
+                  : getToolIcon(action.tool);
+              })()}
+            </span>
             <span className="tool-bubble-text">{formatAction(action)}</span>
           </div>
         )
@@ -70,9 +97,11 @@ const ActionTrace = memo(function ActionTrace({ actions }: { actions: ActionData
 const ChatMessageItem = memo(function ChatMessageItem({
   message,
   anchorRef,
+  appLogos,
 }: {
   message: ChatMessage;
   anchorRef?: React.Ref<HTMLDivElement>;
+  appLogos: Map<string, string>;
 }) {
   const html = useMemo(
     () => ({ __html: marked.parse(message.content, MARKDOWN_OPTIONS) as string }),
@@ -86,7 +115,7 @@ const ChatMessageItem = memo(function ChatMessageItem({
       ref={anchorRef}
     >
       {message.actions && message.actions.length > 0 && (
-        <ActionTrace actions={message.actions} />
+        <ActionTrace actions={message.actions} appLogos={appLogos} />
       )}
       {hasContent && (
         <div className="chat-message-bubble">
@@ -123,6 +152,7 @@ function ChatPanel({ userProfile }: { userProfile?: UserProfile | null }) {
   const [pendingToolApproval, setPendingToolApproval] = useState<ToolApproval | null>(null);
   const [pendingActions, setPendingActions] = useState<ActionData[]>([]);
   const pendingActionsRef = useRef<ActionData[]>([]);
+  const [appLogos, setAppLogos] = useState<Map<string, string>>(new Map());
   const [showScrollDown, setShowScrollDown] = useState(false);
   const [isInputScrollable, setIsInputScrollable] = useState(false);
   const messagesEndRef = useRef<HTMLDivElement>(null);
@@ -216,6 +246,20 @@ const updateSpacer = useCallback(() => {
   // Autofocus input on mount
   useEffect(() => {
     textareaRef.current?.focus();
+  }, []);
+
+  useEffect(() => {
+    window.faria.integrations.getConnections()
+      .then((connections: Array<{ appName: string; logo?: string }>) => {
+        const logos = new Map<string, string>();
+        for (const connection of connections) {
+          if (connection.logo) {
+            logos.set(connection.appName.toLowerCase(), connection.logo);
+          }
+        }
+        setAppLogos(logos);
+      })
+      .catch(() => {});
   }, []);
 
   // Load history on mount
@@ -559,10 +603,11 @@ const updateSpacer = useCallback(() => {
               key={msg.id}
               message={msg}
               anchorRef={i === lastUserIdx ? lastUserMsgRef : undefined}
+              appLogos={appLogos}
             />
           ))}
           {isProcessing && pendingActions.length > 0 && !hasStreamingMessage && (
-            <ActionTrace actions={pendingActions} />
+            <ActionTrace actions={pendingActions} appLogos={appLogos} />
           )}
           {isProcessing && pendingToolApproval && (
             <div className="chat-tool-approval">
