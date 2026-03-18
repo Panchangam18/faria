@@ -194,6 +194,7 @@ export class AgentLoop {
   private composioService: ComposioService;
   private config: AgentConfig;
   private isRunning = false;
+  private isExecutingComputerAction = false;
   private shouldCancel = false;
   private abortController: AbortController | null = null;
   private pendingAuthResolve: (() => void) | null = null;
@@ -1151,7 +1152,9 @@ export class AgentLoop {
             }
 
             try {
+              if (toolCall.name === 'computer_actions') this.isExecutingComputerAction = true;
               const result = await toolToExecute.invoke(toolCall.args);
+              if (toolCall.name === 'computer_actions') this.isExecutingComputerAction = false;
               const resultContent = Array.isArray(result)
                 ? result
                 : typeof result === 'string'
@@ -1181,6 +1184,7 @@ export class AgentLoop {
 
               resultMap.set(id, { content: resultContent, name: toolCall.name });
             } catch (error) {
+              if (toolCall.name === 'computer_actions') this.isExecutingComputerAction = false;
               console.log(`[Faria] Tool result: FAILED`, error);
               resultMap.set(id, { content: `Error: ${error}`, name: toolCall.name });
             }

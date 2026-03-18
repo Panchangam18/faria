@@ -250,7 +250,7 @@ function createCommandBarWindow() {
   });
 
   commandBarWindow.on('blur', () => {
-    if (isCommandBarVisible && !agentLoop['isRunning']) {
+    if (isCommandBarVisible && !agentLoop['isExecutingComputerAction']) {
       commandBarSessionId++;
       commandBarWindow?.webContents.send('command-bar:will-hide');
       commandBarWindow?.hide();
