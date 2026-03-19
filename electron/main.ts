@@ -77,6 +77,7 @@ const COMMAND_BAR_SIZES: Record<CommandBarSizeMode, { width: number; minHeight: 
 let currentSizeMode: CommandBarSizeMode = 'small';
 let currentCommandBarWidth = COMMAND_BAR_SIZES.small.width;
 let currentCommandBarMinHeight = COMMAND_BAR_SIZES.small.minHeight;
+const COMMAND_BAR_FRAME_HEIGHT = 2; // 1px border on the top and bottom of the rendered bar
 let dividerAnchorY: number | null = null;
 let bottomAnchorY: number | null = null;
 let currentAgentAreaHeight = 0;
@@ -192,7 +193,7 @@ function createCommandBarWindow() {
 
   commandBarWindow = new BrowserWindow({
     width: currentCommandBarWidth,
-    height: currentCommandBarMinHeight,
+    height: currentCommandBarMinHeight + COMMAND_BAR_FRAME_HEIGHT,
     x: Math.round((screenWidth - currentCommandBarWidth) / 2),
     y: Math.round(screenHeight - 200),
     frame: false,
@@ -435,6 +436,14 @@ function getDropdownOffset() {
   return isDropdownOpen ? DROPDOWN_EXTRA_HEIGHT : 0;
 }
 
+function contentHeightToWindowHeight(contentHeight: number) {
+  return Math.max(0, Math.round(contentHeight)) + COMMAND_BAR_FRAME_HEIGHT;
+}
+
+function windowHeightToContentHeight(windowHeight: number) {
+  return Math.max(0, Math.round(windowHeight) - COMMAND_BAR_FRAME_HEIGHT);
+}
+
 function syncBottomAnchorToWindow() {
   if (!commandBarWindow) {
     bottomAnchorY = null;
@@ -495,7 +504,7 @@ function applyCommandBarLayout(layout?: CommandBarLayoutPayload) {
   }
 
   const dropdownOffset = getDropdownOffset();
-  const newHeight = baseContentHeight + dropdownOffset;
+  const newHeight = contentHeightToWindowHeight(baseContentHeight) + dropdownOffset;
   let newY = currentY;
 
   if (currentAgentAreaHeight > 0) {
@@ -751,7 +760,7 @@ async function resetCommandBar() {
   }
 
   // Reset window size and position
-  commandBarWindow?.setSize(currentCommandBarWidth, currentCommandBarMinHeight);
+  commandBarWindow?.setSize(currentCommandBarWidth, contentHeightToWindowHeight(currentCommandBarMinHeight));
   positionCommandBar();
 
   // Send reset event to renderer to clear all state
@@ -897,11 +906,11 @@ function applyCommandBarSize(sizeStr: string) {
   const newX = Math.max(0, oldX - Math.round(widthDelta / 2));
 
   // Clamp height to at least the new minimum
-  const newHeight = Math.max(currentHeight, config.minHeight);
+  const newHeight = Math.max(windowHeightToContentHeight(currentHeight), config.minHeight);
   baseContentHeight = newHeight;
   currentInputAreaHeight = Math.max(currentInputAreaHeight, config.minHeight);
 
-  commandBarWindow.setBounds({ x: newX, y, width: config.width, height: newHeight });
+  commandBarWindow.setBounds({ x: newX, y, width: config.width, height: contentHeightToWindowHeight(newHeight) });
 
   // Update cached position
   cachedCommandBarPosition = { x: newX, y };

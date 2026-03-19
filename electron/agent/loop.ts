@@ -375,8 +375,8 @@ export class AgentLoop {
       this.sendResponse(result);
       return result;
     } catch (err: any) {
-      // Don't log abort errors as real errors — they're expected on cancel
-      if (err?.name !== 'AbortError' && !this.shouldCancel) {
+      // Some SDKs surface cancellation as a generic error with an abort-like message.
+      if (!this.isAbortLikeError(err) && !this.shouldCancel) {
         console.error('[Faria] Agent loop error:', err?.message || err);
         this.sendResponse(`Error: ${err?.message || 'Unknown error occurred'}`);
       }
@@ -1243,18 +1243,9 @@ export class AgentLoop {
         }
       }
       
-      // If cancelled, save partial response to history before returning
+      // If cancelled, do not persist partial response text or create a history entry.
       if (this.shouldCancel) {
-        console.log('[Faria] Run cancelled, saving partial response to history');
-        const db = initDatabase();
-        db.prepare('INSERT INTO history (query, response, tools_used, agent_type, actions, context_text) VALUES (?, ?, ?, ?, ?, ?)').run(
-          query,
-          streamedResponseText || '',
-          toolsUsed.length > 0 ? JSON.stringify(toolsUsed) : null,
-          'regular',
-          actions.length > 0 ? JSON.stringify(actions) : null,
-          selectedText || null
-        );
+        console.log('[Faria] Run cancelled, skipping history persistence');
         return '';
       }
 
@@ -1290,6 +1281,14 @@ export class AgentLoop {
   clearHistory(): void {
     this.conversationHistory = [];
     console.log('[Faria] Conversation history cleared');
+  }
+
+  private isAbortLikeError(err: unknown): boolean {
+    const name = typeof err === 'object' && err !== null && 'name' in err ? String((err as { name?: unknown }).name) : '';
+    const message = typeof err === 'object' && err !== null && 'message' in err ? String((err as { message?: unknown }).message) : String(err || '');
+    return name === 'AbortError'
+      || /request was aborted/i.test(message)
+      || /aborted/i.test(message);
   }
 
   /**

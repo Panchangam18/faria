@@ -334,8 +334,8 @@ const updateSpacer = useCallback(() => {
 
     const cleanupResponse = window.faria.agent.onResponse((newResponse: string) => {
       const currentId = streamingMessageIdRef.current;
-      const partial = flushBufferedChunks(false);
-      const finalContent = newResponse || partial;
+      flushBufferedChunks(false);
+      const finalContent = newResponse;
       const actions = pendingActionsRef.current.length > 0 ? [...pendingActionsRef.current] : undefined;
 
       if (currentId) {

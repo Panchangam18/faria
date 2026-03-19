@@ -281,6 +281,7 @@ function CommandBar() {
   const responseRef = useRef<HTMLDivElement>(null);
   const toolApprovalRef = useRef<HTMLDivElement>(null);
   const agentAreaRef = useRef<HTMLDivElement>(null);
+  const hasAgentContent = !!(response || streamingResponse || errorMessage || pendingToolApproval || pendingAuth || status);
 
   const clearChunkClearHold = useCallback(() => {
     chunkClearHoldUntilRef.current = 0;
@@ -409,7 +410,8 @@ function CommandBar() {
 
     // When scrollable, controls become a static row below the textarea
     const controlsRowHeight = scrollable ? controlsHeight : 0;
-    const inputAreaHeight = BASE_HEIGHT + contentHeight + controlsRowHeight;
+    const separatorHeight = hasAgentContent ? 1 : 0;
+    const inputAreaHeight = BASE_HEIGHT + contentHeight + controlsRowHeight + separatorHeight;
 
     const measureAgentAreaHeight = () => {
       if (!agentAreaRef.current) return 0;
@@ -463,7 +465,7 @@ function CommandBar() {
         resizeFrameRef.current = null;
       }
     };
-  }, [query, response, streamingResponse, pendingToolApproval, toolApprovalExpanded, pendingAuth, status, wouldControlsCollide, selectedTextLength, sizeMode, userMaxResponseHeight, sendLayoutPayload, layoutRevision]);
+  }, [query, response, streamingResponse, pendingToolApproval, toolApprovalExpanded, pendingAuth, status, wouldControlsCollide, selectedTextLength, sizeMode, userMaxResponseHeight, sendLayoutPayload, layoutRevision, hasAgentContent]);
 
   // Keep ref in sync for use in event handlers that close over stale state
   userMaxResponseHeightRef.current = userMaxResponseHeight;
@@ -671,12 +673,6 @@ function CommandBar() {
         // Successful completion: show response and clear query
         setResponse(newResponse);
         setQuery('');
-      } else {
-        // Cancellation: promote partial streaming content to response
-        const partial = streamingResponseRef.current;
-        if (partial) {
-          setResponse(partial);
-        }
       }
       setStreamingResponse('');
       streamingResponseRef.current = '';
@@ -1014,8 +1010,6 @@ function CommandBar() {
     return `rgba(${r}, ${g}, ${b}, ${opacity})`;
   };
 
-  const hasAgentContent = !!(response || streamingResponse || errorMessage || pendingToolApproval || pendingAuth || status);
-
   return (
     <div
       className={`command-bar${isBreathing ? ' command-bar--breathing' : ''}`}
@@ -1143,12 +1137,11 @@ function CommandBar() {
             </div>
           )}
 
-          <div className="command-bar-divider" />
         </div>
       )}
 
       {/* User input area: always at the bottom */}
-      <div className={`command-bar-input-area${isScrollable ? ' scrollable' : ''}`}>
+      <div className={`command-bar-input-area${isScrollable ? ' scrollable' : ''}${hasAgentContent ? ' has-agent-content' : ''}`}>
         <div className="command-bar-input-scroll" ref={scrollWrapperRef}>
           <textarea
             ref={inputRef}
