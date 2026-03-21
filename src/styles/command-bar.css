@@ -291,7 +291,7 @@ html, body, #root {
 .command-bar-footer {
   display: flex;
   align-items: center;
-  padding: var(--spacing-sm) var(--spacing-md);
+  padding: var(--spacing-sm) var(--spacing-md) calc(var(--spacing-sm) + 3px);
   -webkit-app-region: drag; /* Re-assert drag — parent overflow:hidden breaks inheritance */
 }
 
