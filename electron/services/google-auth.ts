@@ -4,7 +4,7 @@ const FIREBASE_API_KEY = 'AIzaSyA7222J2l9CiCMrX6xMUkIVkiTGC88pSas';
 const FIREBASE_AUTH_DOMAIN = 'faria-6f4b8.firebaseapp.com';
 const REDIRECT_URI = `https://${FIREBASE_AUTH_DOMAIN}/__/auth/handler`;
 
-export async function googleSignIn(): Promise<{ success: boolean; email?: string; uid?: string; displayName?: string; photoUrl?: string; error?: string }> {
+export async function googleSignIn(): Promise<{ success: boolean; email?: string; uid?: string; displayName?: string; photoUrl?: string; idToken?: string; refreshToken?: string; error?: string }> {
   // Use Firebase's createAuthUri to get the full Google OAuth URL
   let authUri: string;
   let sessionId: string;
@@ -99,7 +99,7 @@ export async function googleSignIn(): Promise<{ success: boolean; email?: string
         if (data.email && data.localId) {
           resolved = true;
           authWindow.close();
-          resolve({ success: true, email: data.email, uid: data.localId, displayName: data.displayName, photoUrl: data.photoUrl });
+          resolve({ success: true, email: data.email, uid: data.localId, displayName: data.displayName, photoUrl: data.photoUrl, idToken: data.idToken, refreshToken: data.refreshToken });
         } else {
           resolved = true;
           authWindow.close();

@@ -78,6 +78,9 @@ function SignIn({ onSignIn }: SignInProps) {
       await window.faria.settings.set('userEmail', 'guest');
       await window.faria.settings.set('userUid', user.uid);
       await window.faria.settings.set('authProvider', 'anonymous');
+      // Send Firebase tokens to main process for proxy auth
+      const idToken = await user.getIdToken();
+      await window.faria.auth.setToken(idToken, user.refreshToken);
       onSignIn();
     } catch {
       setError('Guest sign-in failed.');
@@ -108,6 +111,9 @@ function SignIn({ onSignIn }: SignInProps) {
       await window.faria.settings.set('userEmail', userEmail);
       await window.faria.settings.set('userUid', userUid);
       await window.faria.settings.set('authProvider', 'email');
+      // Send Firebase tokens to main process for proxy auth
+      const idToken = await user.getIdToken();
+      await window.faria.auth.setToken(idToken, user.refreshToken);
       onSignIn();
     } catch (err: unknown) {
       const firebaseError = err as { code?: string; message?: string };

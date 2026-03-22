@@ -31,13 +31,13 @@ export interface ModelProvider {
   supportsModel(modelName: string): boolean;
 
   /** Create a base model instance */
-  createModel(config: ModelConfig): BaseChatModel | null;
+  createModel(config: ModelConfig): Promise<BaseChatModel | null>;
 
   /** Create a model with tools bound */
   createModelWithTools(
     config: ModelConfig,
     tools: DynamicStructuredTool[]
-  ): BoundModel | null;
+  ): Promise<BoundModel | null>;
 
   /** Get invoke options for this provider */
   getInvokeOptions(): Record<string, unknown>;

@@ -138,9 +138,8 @@ const OPENAI_EMBEDDING_DIMS = 1536;
  * Requires OPENAI_API_KEY in .env.
  */
 export function createOpenAIEmbeddingProvider(): EmbeddingProvider {
-  const config = getOpenAIEmbeddingConfig();
-
   const embed = async (texts: string[]): Promise<number[][]> => {
+    const config = await getOpenAIEmbeddingConfig();
     const response = await fetch(config.url, {
       method: 'POST',
       headers: {

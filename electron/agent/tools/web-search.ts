@@ -17,7 +17,7 @@ export const WebSearchSchema = z.object({
 export function createWebSearchTool(): DynamicStructuredTool {
   return tool(
     async (input) => {
-      const config = getSerperConfig('/search');
+      const config = await getSerperConfig('/search');
 
       try {
         const response = await fetch(config.url, {
@@ -71,7 +71,7 @@ export function createWebSearchTool(): DynamicStructuredTool {
 
 // Legacy function for backward compatibility during migration
 export async function webSearch(params: { query: string }): Promise<ToolResult> {
-  const config = getSerperConfig('/search');
+  const config = await getSerperConfig('/search');
 
   try {
     const response = await fetch(config.url, {

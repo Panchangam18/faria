@@ -444,7 +444,7 @@ export async function runOpenAIComputerUseLoop(
   };
 
   // Get API key / proxy config
-  const config = getOpenAIConfig();
+  const config = await getOpenAIConfig();
 
   const client = new OpenAI({
     apiKey: config.apiKey,

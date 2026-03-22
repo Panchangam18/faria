@@ -268,7 +268,7 @@ export class AgentLoop {
       this.cachedTools = tools;
 
       // Pre-warm model instance (creates and caches the HTTP client)
-      createModelWithTools(modelName, tools.builtin, this.config.maxTokens);
+      await createModelWithTools(modelName, tools.builtin, this.config.maxTokens);
 
       // Build system prompt (includes composio connections fetch)
       this.cachedSystemPrompt = await this.buildSystemPrompt(tools.composio);
@@ -846,7 +846,7 @@ export class AgentLoop {
       }
 
       const modelStart = performance.now();
-      const boundModel = createModelWithTools(
+      const boundModel = await createModelWithTools(
         modelName,
         allTools,
         this.config.maxTokens

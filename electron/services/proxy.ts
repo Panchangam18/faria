@@ -1,8 +1,8 @@
 import { app } from 'electron';
 import { initDatabase } from '../db/sqlite';
+import { getValidToken } from './auth-token';
 
 const PROXY_BASE = 'https://faria-proxy.madhavan.workers.dev';
-const FARIA_APP_TOKEN = 'faria_app_c0ce4112df5d980a65e92868ba7f5e65';
 
 const isDev = process.env.NODE_ENV === 'development' || !app.isPackaged;
 
@@ -26,9 +26,15 @@ function getUserKey(settingKey: string): string | null {
   return row?.value || null;
 }
 
+async function getAuthHeader(): Promise<Record<string, string>> {
+  const token = await getValidToken();
+  if (!token) throw new Error('Not signed in — please sign in to use Faria');
+  return { 'X-Firebase-Token': token };
+}
+
 // ── Serper ──
 
-export function getSerperConfig(path: string = '/search'): FetchConfig {
+export async function getSerperConfig(path: string = '/search'): Promise<FetchConfig> {
   const userKey = process.env.SERPER_API_KEY;
   if (userKey || isDev) {
     return {
@@ -38,13 +44,13 @@ export function getSerperConfig(path: string = '/search'): FetchConfig {
   }
   return {
     url: `${PROXY_BASE}/serper${path}`,
-    headers: { 'X-Faria-Token': FARIA_APP_TOKEN },
+    headers: await getAuthHeader(),
   };
 }
 
 // ── OpenAI Embeddings ──
 
-export function getOpenAIEmbeddingConfig(): FetchConfig {
+export async function getOpenAIEmbeddingConfig(): Promise<FetchConfig> {
   const userKey = process.env.OPENAI_API_KEY;
   if (userKey || isDev) {
     return {
@@ -54,13 +60,13 @@ export function getOpenAIEmbeddingConfig(): FetchConfig {
   }
   return {
     url: `${PROXY_BASE}/openai/v1/embeddings`,
-    headers: { 'X-Faria-Token': FARIA_APP_TOKEN },
+    headers: await getAuthHeader(),
   };
 }
 
 // ── Composio ──
 
-export function getComposioConfig(): { apiKey: string | null; baseURL: string | null; headers?: Record<string, string> } {
+export async function getComposioConfig(): Promise<{ apiKey: string | null; baseURL: string | null; headers?: Record<string, string> }> {
   const userKey = process.env.COMPOSIO_API_KEY;
   if (userKey || isDev) {
     return { apiKey: userKey || null, baseURL: null };
@@ -68,13 +74,13 @@ export function getComposioConfig(): { apiKey: string | null; baseURL: string | 
   return {
     apiKey: 'proxied',
     baseURL: `${PROXY_BASE}/composio`,
-    headers: { 'X-Faria-Token': FARIA_APP_TOKEN },
+    headers: await getAuthHeader(),
   };
 }
 
 // ── Anthropic ──
 
-export function getAnthropicConfig(): LLMProxyConfig {
+export async function getAnthropicConfig(): Promise<LLMProxyConfig> {
   const userKey = getUserKey('anthropicKey');
   if (userKey) {
     return { apiKey: userKey };
@@ -82,13 +88,13 @@ export function getAnthropicConfig(): LLMProxyConfig {
   return {
     apiKey: 'proxied',
     baseURL: `${PROXY_BASE}/anthropic`,
-    defaultHeaders: { 'X-Faria-Token': FARIA_APP_TOKEN },
+    defaultHeaders: await getAuthHeader(),
   };
 }
 
 // ── Google ──
 
-export function getGoogleConfig(): LLMProxyConfig {
+export async function getGoogleConfig(): Promise<LLMProxyConfig> {
   const userKey = getUserKey('googleKey');
   if (userKey) {
     return { apiKey: userKey };
@@ -96,13 +102,13 @@ export function getGoogleConfig(): LLMProxyConfig {
   return {
     apiKey: 'proxied',
     baseURL: `${PROXY_BASE}/google`,
-    defaultHeaders: { 'X-Faria-Token': FARIA_APP_TOKEN },
+    defaultHeaders: await getAuthHeader(),
   };
 }
 
 // ── OpenAI (chat / computer use) ──
 
-export function getOpenAIConfig(): LLMProxyConfig {
+export async function getOpenAIConfig(): Promise<LLMProxyConfig> {
   const userKey = getUserKey('openaiKey');
   if (userKey) {
     return { apiKey: userKey };
@@ -110,6 +116,6 @@ export function getOpenAIConfig(): LLMProxyConfig {
   return {
     apiKey: 'proxied',
     baseURL: `${PROXY_BASE}/openai/v1`,
-    defaultHeaders: { 'X-Faria-Token': FARIA_APP_TOKEN },
+    defaultHeaders: await getAuthHeader(),
   };
 }

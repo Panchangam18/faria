@@ -163,7 +163,7 @@ export class ComposioService {
    * Sets up the client, creates/retrieves user ID, and establishes session
    */
   async initialize(): Promise<void> {
-    const config = getComposioConfig();
+    const config = await getComposioConfig();
     if (!config.apiKey) {
       console.warn('[Composio] API key not configured. External integrations disabled.');
       this.disabled = true;

@@ -51,7 +51,7 @@ export async function runMemoryFlush(conversationSummary: string): Promise<boole
   const modelName = getSelectedModel('selectedModel');
   if (modelName === 'none') return false;
 
-  const client = createNativeClient(modelName);
+  const client = await createNativeClient(modelName);
   if (!client) return false;
 
   try {

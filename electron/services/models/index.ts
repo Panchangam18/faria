@@ -115,26 +115,26 @@ export function getToolSettings(): ToolSettings {
  * Create a model instance from a model name
  * This is the simple interface - just pass a model name and get a model back
  */
-export function createModel(modelName: string, maxTokens: number = 4096): BaseChatModel | null {
+export async function createModel(modelName: string, maxTokens: number = 4096): Promise<BaseChatModel | null> {
   // Handle "none" model
   if (modelName === 'none') {
     console.log('[Models] Model is set to "none"');
     return null;
   }
-  
+
   const provider = getProvider(modelName);
   if (!provider) {
     console.error(`[Models] No provider found for model: ${modelName}`);
     return null;
   }
-  
-  const model = provider.createModel({ model: modelName, maxTokens });
+
+  const model = await provider.createModel({ model: modelName, maxTokens });
   if (model) {
     console.log(`[Models] Created ${provider.name} model: ${modelName}`);
   } else {
     console.log(`[Models] Failed to create ${provider.name} model (API key missing?)`);
   }
-  
+
   return model;
 }
 
@@ -142,28 +142,28 @@ export function createModel(modelName: string, maxTokens: number = 4096): BaseCh
  * Create a model with tools bound
  * Returns everything needed to invoke the model
  */
-export function createModelWithTools(
+export async function createModelWithTools(
   modelName: string,
   tools: DynamicStructuredTool[],
   maxTokens: number = 4096
-): BoundModel | null {
+): Promise<BoundModel | null> {
   // Handle "none" model
   if (modelName === 'none') {
     console.log('[Models] Model is set to "none"');
     return null;
   }
-  
+
   const provider = getProvider(modelName);
   if (!provider) {
     console.error(`[Models] No provider found for model: ${modelName}`);
     return null;
   }
-  
-  const result = provider.createModelWithTools(
+
+  const result = await provider.createModelWithTools(
     { model: modelName, maxTokens },
     tools
   );
-  
+
   if (result) {
     console.log(`[Models] Created ${provider.name} model with tools: ${modelName}`);
   } else {
@@ -300,7 +300,7 @@ export type NativeClient =
  * Create a native SDK client (not LangChain) for simpler use cases like inline agent
  * This gives direct access to Anthropic SDK or Google GenAI SDK
  */
-export function createNativeClient(modelName: string): NativeClient | null {
+export async function createNativeClient(modelName: string): Promise<NativeClient | null> {
   // Handle "none" model
   if (modelName === 'none') {
     console.log('[Models] Model is set to "none"');
@@ -315,13 +315,13 @@ export function createNativeClient(modelName: string): NativeClient | null {
   }
 
   if (provider.name === 'google') {
-    const config = getGoogleConfig();
+    const config = await getGoogleConfig();
     const client = new GoogleGenerativeAI(config.apiKey);
     const model = client.getGenerativeModel({ model: modelName });
     console.log(`[Models] Created native Google client for: ${modelName}`);
     return { provider: 'google', client, model, modelName };
   } else if (provider.name === 'openai') {
-    const config = getOpenAIConfig();
+    const config = await getOpenAIConfig();
     const client = new OpenAI({
       apiKey: config.apiKey,
       ...(config.baseURL ? { baseURL: config.baseURL } : {}),
@@ -330,7 +330,7 @@ export function createNativeClient(modelName: string): NativeClient | null {
     console.log(`[Models] Created native OpenAI client for: ${modelName}`);
     return { provider: 'openai', client, model: modelName };
   } else {
-    const config = getAnthropicConfig();
+    const config = await getAnthropicConfig();
     const client = new Anthropic({
       apiKey: config.apiKey,
       ...(config.baseURL ? { baseURL: config.baseURL } : {}),

@@ -18,8 +18,8 @@ export const anthropicProvider: ModelProvider = {
     return modelName.startsWith('claude');
   },
 
-  createModel(config: ModelConfig): BaseChatModel | null {
-    const proxyConfig = getAnthropicConfig();
+  async createModel(config: ModelConfig): Promise<BaseChatModel | null> {
+    const proxyConfig = await getAnthropicConfig();
 
     const cacheKey = `${config.model}:${config.maxTokens}:${proxyConfig.apiKey}:${proxyConfig.baseURL || ''}`;
     if (cachedModel && cachedModelKey === cacheKey) {
@@ -44,11 +44,11 @@ export const anthropicProvider: ModelProvider = {
     return model;
   },
 
-  createModelWithTools(
+  async createModelWithTools(
     config: ModelConfig,
     tools: DynamicStructuredTool[]
-  ): BoundModel | null {
-    const model = this.createModel(config);
+  ): Promise<BoundModel | null> {
+    const model = await this.createModel(config);
     if (!model) return null;
 
     // Bind tools using LangChain's native bindTools method
@@ -66,4 +66,3 @@ export const anthropicProvider: ModelProvider = {
 };
 
 export default anthropicProvider;
-

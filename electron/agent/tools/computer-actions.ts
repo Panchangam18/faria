@@ -556,7 +556,7 @@ async function executeAction(
     case 'insert_image': {
       if (!action.query) throw new Error('Query required for insert_image');
 
-      const config = getSerperConfig('/images');
+      const config = await getSerperConfig('/images');
 
       // Search for image using Serper API
       const response = await fetch(config.url, {

@@ -145,6 +145,7 @@ contextBridge.exposeInMainWorld('faria', {
     googleSignIn: () => ipcRenderer.invoke('auth:google-signin'),
     getUser: () => ipcRenderer.invoke('auth:get-user'),
     signOut: () => ipcRenderer.invoke('auth:sign-out'),
+    setToken: (idToken: string, refreshToken: string) => ipcRenderer.invoke('auth:set-token', idToken, refreshToken),
   },
 
   // Permissions
@@ -285,6 +286,7 @@ export interface FariaAPI {
     googleSignIn: () => Promise<{ success: boolean; email?: string; uid?: string; displayName?: string; photoUrl?: string; error?: string }>;
     getUser: () => Promise<{ email: string; uid: string; displayName: string | null; photoUrl: string | null; provider: string | null } | null>;
     signOut: () => Promise<{ success: boolean }>;
+    setToken: (idToken: string, refreshToken: string) => Promise<{ success: boolean }>;
   };
   permissions: {
     check: () => Promise<{ accessibility: boolean; screenRecording: boolean }>;

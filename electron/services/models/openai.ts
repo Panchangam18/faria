@@ -18,8 +18,8 @@ export const openaiProvider: ModelProvider = {
     return modelName.startsWith('gpt-5');
   },
 
-  createModel(config: ModelConfig): BaseChatModel | null {
-    const proxyConfig = getOpenAIConfig();
+  async createModel(config: ModelConfig): Promise<BaseChatModel | null> {
+    const proxyConfig = await getOpenAIConfig();
 
     const cacheKey = `${config.model}:${config.maxTokens}:${proxyConfig.apiKey}:${proxyConfig.baseURL || ''}`;
     if (cachedModel && cachedModelKey === cacheKey) {
@@ -42,11 +42,11 @@ export const openaiProvider: ModelProvider = {
     return model;
   },
 
-  createModelWithTools(
+  async createModelWithTools(
     config: ModelConfig,
     tools: DynamicStructuredTool[]
-  ): BoundModel | null {
-    const model = this.createModel(config);
+  ): Promise<BoundModel | null> {
+    const model = await this.createModel(config);
     if (!model) return null;
 
     // Bind tools using LangChain's native bindTools method

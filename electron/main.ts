@@ -1156,6 +1156,11 @@ function setupIPC() {
         if (result.photoUrl) {
           db.prepare('INSERT OR REPLACE INTO settings (key, value) VALUES (?, ?)').run('userPhotoUrl', result.photoUrl);
         }
+        // Store Firebase tokens for proxy auth
+        if (result.idToken && result.refreshToken) {
+          const { setTokens } = await import('./services/auth-token');
+          setTokens(result.idToken, result.refreshToken);
+        }
       }
       return result;
     } catch (error) {
@@ -1194,11 +1199,19 @@ function setupIPC() {
     return null;
   });
 
+  ipcMain.handle('auth:set-token', async (_event, idToken: string, refreshToken: string) => {
+    const { setTokens } = await import('./services/auth-token');
+    setTokens(idToken, refreshToken);
+    return { success: true };
+  });
+
   ipcMain.handle('auth:sign-out', async () => {
     const db = initDatabase();
     db.prepare('DELETE FROM settings WHERE key IN (?, ?, ?, ?, ?)').run(
       'userEmail', 'userUid', 'authProvider', 'userDisplayName', 'userPhotoUrl'
     );
+    const { clearTokens } = await import('./services/auth-token');
+    clearTokens();
     return { success: true };
   });
 
@@ -1509,6 +1522,9 @@ async function initializeServices() {
 
 app.whenReady().then(async () => {
   await initializeServices();
+  // Recover Firebase auth tokens from previous session
+  const { loadTokensFromDb } = await import('./services/auth-token');
+  loadTokensFromDb();
   createMainWindow();
   loadSavedSize(); // Load saved size before position caching and window creation
   cacheCommandBarPosition(); // Cache position before creating window
