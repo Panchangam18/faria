@@ -85,6 +85,8 @@ let currentInputAreaHeight = currentCommandBarMinHeight;
 let isDropdownOpen = false;
 let baseContentHeight = currentCommandBarMinHeight;
 const DROPDOWN_EXTRA_HEIGHT = 80;
+let pendingProgrammaticMove: { x: number; y: number } | null = null;
+let pendingProgrammaticMoveTimer: NodeJS.Timeout | null = null;
 
 // Default keyboard shortcuts
 const DEFAULT_COMMAND_BAR_SHORTCUT = 'CommandOrControl+Enter';
@@ -275,7 +277,17 @@ function createCommandBarWindow() {
     }
   });
 
+  const syncMovedCommandBar = () => {
+    if (!commandBarWindow) return;
+    if (shouldIgnoreProgrammaticMoveEvent()) return;
+    syncCommandBarStateFromWindow({ persist: true });
+  };
+
+  commandBarWindow.on('move', syncMovedCommandBar);
+  commandBarWindow.on('moved', syncMovedCommandBar);
+
   commandBarWindow.on('closed', () => {
+    clearPendingProgrammaticMove();
     commandBarWindow = null;
   });
 }
@@ -429,7 +441,8 @@ function createTray() {
 
 function positionCommandBar() {
   if (!commandBarWindow || !cachedCommandBarPosition) return;
-  commandBarWindow.setPosition(cachedCommandBarPosition.x, cachedCommandBarPosition.y);
+  setCommandBarPositionSafely(cachedCommandBarPosition.x, cachedCommandBarPosition.y);
+  syncCommandBarStateFromWindow();
 }
 
 function getDropdownOffset() {
@@ -465,6 +478,71 @@ function syncDividerAnchorToWindow(agentAreaHeight = currentAgentAreaHeight) {
   dividerAnchorY = y + getDropdownOffset() + agentAreaHeight;
 }
 
+function clearPendingProgrammaticMove() {
+  pendingProgrammaticMove = null;
+  if (pendingProgrammaticMoveTimer) {
+    clearTimeout(pendingProgrammaticMoveTimer);
+    pendingProgrammaticMoveTimer = null;
+  }
+}
+
+function markPendingProgrammaticMove(x: number, y: number) {
+  clearPendingProgrammaticMove();
+  pendingProgrammaticMove = { x, y };
+  pendingProgrammaticMoveTimer = setTimeout(() => {
+    clearPendingProgrammaticMove();
+  }, 100);
+}
+
+function shouldIgnoreProgrammaticMoveEvent() {
+  if (!commandBarWindow || !pendingProgrammaticMove) return false;
+
+  const [x, y] = commandBarWindow.getPosition();
+  if (x !== pendingProgrammaticMove.x || y !== pendingProgrammaticMove.y) {
+    return false;
+  }
+
+  clearPendingProgrammaticMove();
+  return true;
+}
+
+function scheduleCommandBarPositionSave(x: number, y: number, width = currentCommandBarWidth) {
+  if (savePositionTimer) clearTimeout(savePositionTimer);
+  savePositionTimer = setTimeout(() => {
+    const db = initDatabase();
+    db.prepare('INSERT OR REPLACE INTO settings (key, value) VALUES (?, ?)').run(
+      'commandBarPosition',
+      JSON.stringify({ x, y, width })
+    );
+    savePositionTimer = null;
+  }, 300);
+}
+
+function syncCommandBarStateFromWindow(options?: { persist?: boolean; agentAreaHeight?: number; width?: number }) {
+  if (!commandBarWindow) return;
+
+  const [x, y] = commandBarWindow.getPosition();
+  cachedCommandBarPosition = { x, y };
+  syncBottomAnchorToWindow();
+  syncDividerAnchorToWindow(options?.agentAreaHeight ?? currentAgentAreaHeight);
+
+  if (options?.persist) {
+    scheduleCommandBarPositionSave(x, y, options.width ?? currentCommandBarWidth);
+  }
+}
+
+function setCommandBarPositionSafely(x: number, y: number) {
+  if (!commandBarWindow) return;
+  markPendingProgrammaticMove(x, y);
+  commandBarWindow.setPosition(x, y);
+}
+
+function setCommandBarBoundsSafely(bounds: Electron.Rectangle) {
+  if (!commandBarWindow) return;
+  markPendingProgrammaticMove(bounds.x, bounds.y);
+  commandBarWindow.setBounds(bounds);
+}
+
 function getOrInitDividerAnchorY() {
   if (!commandBarWindow) return null;
   if (dividerAnchorY === null) {
@@ -484,6 +562,7 @@ function getOrInitBottomAnchorY() {
 function applyCommandBarLayout(layout?: CommandBarLayoutPayload) {
   if (!commandBarWindow) return;
 
+  syncCommandBarStateFromWindow({ agentAreaHeight: currentAgentAreaHeight });
   const [width, currentWindowHeight] = commandBarWindow.getSize();
   const [x, currentY] = commandBarWindow.getPosition();
   const maxContentHeight = Math.round(screen.getPrimaryDisplay().workAreaSize.height / 2);
@@ -522,10 +601,10 @@ function applyCommandBarLayout(layout?: CommandBarLayoutPayload) {
   }
 
   if (newY !== currentY || newHeight !== currentWindowHeight) {
-    commandBarWindow.setBounds({ x, y: newY, width, height: newHeight });
+    setCommandBarBoundsSafely({ x, y: newY, width, height: newHeight });
   }
 
-  syncBottomAnchorToWindow();
+  syncCommandBarStateFromWindow({ agentAreaHeight: currentAgentAreaHeight });
 }
 
 async function getFrontmostApp(): Promise<string | null> {
@@ -827,23 +906,9 @@ function moveCommandBar(direction: 'up' | 'down' | 'left' | 'right') {
       break;
   }
 
-  commandBarWindow.setPosition(newX, newY);
-  syncBottomAnchorToWindow();
-  syncDividerAnchorToWindow();
-
-  // Update cached position
-  cachedCommandBarPosition = { x: newX, y: newY };
-
-  // Debounce save to database (saves 300ms after last move, allows smooth key repeat)
-  if (savePositionTimer) clearTimeout(savePositionTimer);
-  savePositionTimer = setTimeout(() => {
-    const db = initDatabase();
-    db.prepare('INSERT OR REPLACE INTO settings (key, value) VALUES (?, ?)').run(
-      'commandBarPosition',
-      JSON.stringify({ x: newX, y: newY, width: currentCommandBarWidth })
-    );
-    savePositionTimer = null;
-  }, 300);
+  setCommandBarPositionSafely(newX, newY);
+  syncCommandBarStateFromWindow();
+  scheduleCommandBarPositionSave(newX, newY);
 }
 
 // Change command bar transparency
@@ -910,20 +975,9 @@ function applyCommandBarSize(sizeStr: string) {
   baseContentHeight = newHeight;
   currentInputAreaHeight = Math.max(currentInputAreaHeight, config.minHeight);
 
-  commandBarWindow.setBounds({ x: newX, y, width: config.width, height: contentHeightToWindowHeight(newHeight) });
-
-  // Update cached position
-  cachedCommandBarPosition = { x: newX, y };
-
-  // Save updated position
-  const db = initDatabase();
-  db.prepare('INSERT OR REPLACE INTO settings (key, value) VALUES (?, ?)').run(
-    'commandBarPosition',
-    JSON.stringify({ x: newX, y, width: config.width })
-  );
-
-  syncBottomAnchorToWindow();
-  syncDividerAnchorToWindow();
+  setCommandBarBoundsSafely({ x: newX, y, width: config.width, height: contentHeightToWindowHeight(newHeight) });
+  syncCommandBarStateFromWindow({ width: config.width });
+  scheduleCommandBarPositionSave(newX, y, config.width);
 
   // Broadcast to command bar renderer
   commandBarWindow.webContents.send('settings:size-change', newSize);

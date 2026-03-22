@@ -465,7 +465,7 @@ function CommandBar() {
         resizeFrameRef.current = null;
       }
     };
-  }, [query, response, streamingResponse, pendingToolApproval, toolApprovalExpanded, pendingAuth, status, wouldControlsCollide, selectedTextLength, sizeMode, userMaxResponseHeight, sendLayoutPayload, layoutRevision, hasAgentContent]);
+  }, [query, response, streamingResponse, pendingToolApproval, toolApprovalExpanded, pendingAuth, status, wouldControlsCollide, selectedTextLength, sizeMode, userMaxResponseHeight, sendLayoutPayload, layoutRevision, hasAgentContent, isProcessing]);
 
   // Keep ref in sync for use in event handlers that close over stale state
   userMaxResponseHeightRef.current = userMaxResponseHeight;
