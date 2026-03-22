@@ -1,8 +1,8 @@
 import { ChatGoogleGenerativeAI } from '@langchain/google-genai';
 import { BaseChatModel } from '@langchain/core/language_models/chat_models';
 import { DynamicStructuredTool } from '@langchain/core/tools';
-import { initDatabase } from '../../db/sqlite';
 import { ModelProvider, ModelConfig, BoundModel } from './types';
+import { getGoogleConfig } from '../proxy';
 
 // Cache the base model instance to reuse HTTP/TLS connections across turns
 let cachedModel: BaseChatModel | null = null;
@@ -19,14 +19,9 @@ export const googleProvider: ModelProvider = {
   },
 
   createModel(config: ModelConfig): BaseChatModel | null {
-    const db = initDatabase();
-    const keyRow = db.prepare('SELECT value FROM settings WHERE key = ?').get('googleKey') as { value: string } | undefined;
+    const proxyConfig = getGoogleConfig();
 
-    if (!keyRow?.value) {
-      return null;
-    }
-
-    const cacheKey = `${config.model}:${config.maxTokens}:${keyRow.value}`;
+    const cacheKey = `${config.model}:${config.maxTokens}:${proxyConfig.apiKey}:${proxyConfig.baseURL || ''}`;
     if (cachedModel && cachedModelKey === cacheKey) {
       console.log(`[Models] Reusing cached Google model: ${config.model}`);
       return cachedModel;
@@ -34,8 +29,10 @@ export const googleProvider: ModelProvider = {
 
     const model = new ChatGoogleGenerativeAI({
       model: config.model,
-      apiKey: keyRow.value,
+      apiKey: proxyConfig.apiKey,
       maxOutputTokens: config.maxTokens,
+      ...(proxyConfig.baseURL ? { baseUrl: proxyConfig.baseURL } : {}),
+      ...(proxyConfig.defaultHeaders ? { customHeaders: proxyConfig.defaultHeaders } : {}),
     });
 
     cachedModel = model;

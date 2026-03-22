@@ -13,6 +13,7 @@ import {
 // NOTE: calculateResizeWidth must use the same constants as screenshot.ts to keep
 // the coordinate conversion in sync with the actual screenshot dimensions.
 import { screen, clipboard } from 'electron';
+import { getSerperConfig } from '../../services/proxy';
 import type { ToolSettings } from '../../services/models';
 
 // All possible action types
@@ -555,16 +556,13 @@ async function executeAction(
     case 'insert_image': {
       if (!action.query) throw new Error('Query required for insert_image');
 
-      const serperKey = process.env.SERPER_API_KEY;
-      if (!serperKey) {
-        throw new Error('Serper API key not configured in .env (SERPER_API_KEY)');
-      }
+      const config = getSerperConfig('/images');
 
       // Search for image using Serper API
-      const response = await fetch('https://google.serper.dev/images', {
+      const response = await fetch(config.url, {
         method: 'POST',
         headers: {
-          'X-API-KEY': serperKey,
+          ...config.headers,
           'Content-Type': 'application/json'
         },
         body: JSON.stringify({ q: action.query, num: 5 })

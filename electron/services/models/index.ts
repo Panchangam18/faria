@@ -3,11 +3,12 @@ import { DynamicStructuredTool } from '@langchain/core/tools';
 import Anthropic from '@anthropic-ai/sdk';
 import { GoogleGenerativeAI, GenerativeModel } from '@google/generative-ai';
 import OpenAI from 'openai';
-import { initDatabase } from '../../db/sqlite';
 import { anthropicProvider } from './anthropic';
 import { googleProvider } from './google';
 import { openaiProvider } from './openai';
+import { initDatabase } from '../../db/sqlite';
 import { ModelProvider, ModelConfig, BoundModel } from './types';
+import { getAnthropicConfig, getGoogleConfig, getOpenAIConfig } from '../proxy';
 
 export * from './types';
 
@@ -305,44 +306,36 @@ export function createNativeClient(modelName: string): NativeClient | null {
     console.log('[Models] Model is set to "none"');
     return null;
   }
-  
-  const db = initDatabase();
+
   const provider = getProvider(modelName);
-  
+
   if (!provider) {
     console.error(`[Models] No provider found for model: ${modelName}`);
     return null;
   }
-  
+
   if (provider.name === 'google') {
-    const keyRow = db.prepare('SELECT value FROM settings WHERE key = ?').get('googleKey') as { value: string } | undefined;
-    if (!keyRow?.value) {
-      console.log('[Models] Google API key not configured');
-      return null;
-    }
-    
-    const client = new GoogleGenerativeAI(keyRow.value);
+    const config = getGoogleConfig();
+    const client = new GoogleGenerativeAI(config.apiKey);
     const model = client.getGenerativeModel({ model: modelName });
     console.log(`[Models] Created native Google client for: ${modelName}`);
     return { provider: 'google', client, model, modelName };
   } else if (provider.name === 'openai') {
-    const keyRow = db.prepare('SELECT value FROM settings WHERE key = ?').get('openaiKey') as { value: string } | undefined;
-    if (!keyRow?.value) {
-      console.log('[Models] OpenAI API key not configured');
-      return null;
-    }
-
-    const client = new OpenAI({ apiKey: keyRow.value });
+    const config = getOpenAIConfig();
+    const client = new OpenAI({
+      apiKey: config.apiKey,
+      ...(config.baseURL ? { baseURL: config.baseURL } : {}),
+      ...(config.defaultHeaders ? { defaultHeaders: config.defaultHeaders } : {}),
+    });
     console.log(`[Models] Created native OpenAI client for: ${modelName}`);
     return { provider: 'openai', client, model: modelName };
   } else {
-    const keyRow = db.prepare('SELECT value FROM settings WHERE key = ?').get('anthropicKey') as { value: string } | undefined;
-    if (!keyRow?.value) {
-      console.log('[Models] Anthropic API key not configured');
-      return null;
-    }
-
-    const client = new Anthropic({ apiKey: keyRow.value });
+    const config = getAnthropicConfig();
+    const client = new Anthropic({
+      apiKey: config.apiKey,
+      ...(config.baseURL ? { baseURL: config.baseURL } : {}),
+      ...(config.defaultHeaders ? { defaultHeaders: config.defaultHeaders } : {}),
+    });
     console.log(`[Models] Created native Anthropic client for: ${modelName}`);
     return { provider: 'anthropic', client, model: modelName };
   }

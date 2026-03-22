@@ -3,7 +3,7 @@ import { clipboard, screen } from 'electron';
 import * as cliclick from '../services/cliclick';
 import { takeScreenshot } from '../services/screenshot';
 import { runAppleScript } from '../services/applescript';
-import { initDatabase } from '../db/sqlite';
+import { getOpenAIConfig } from '../services/proxy';
 
 /**
  * OpenAI Responses API computer use loop.
@@ -443,14 +443,14 @@ export async function runOpenAIComputerUseLoop(
     });
   };
 
-  // Get API key
-  const db = initDatabase();
-  const keyRow = db.prepare('SELECT value FROM settings WHERE key = ?').get('openaiKey') as { value: string } | undefined;
-  if (!keyRow?.value) {
-    throw new Error('OpenAI API key not configured. Please add it in Settings.');
-  }
+  // Get API key / proxy config
+  const config = getOpenAIConfig();
 
-  const client = new OpenAI({ apiKey: keyRow.value });
+  const client = new OpenAI({
+    apiKey: config.apiKey,
+    ...(config.baseURL ? { baseURL: config.baseURL } : {}),
+    ...(config.defaultHeaders ? { defaultHeaders: config.defaultHeaders } : {}),
+  });
 
   // First request: send task with computer tool enabled (no initial screenshot —
   // the model will request one via computer_call if it needs visual context).

@@ -4,7 +4,7 @@ import { DynamicStructuredTool } from '@langchain/core/tools';
 import { z } from 'zod';
 import { initDatabase } from '../../db/sqlite';
 import { v4 as uuidv4 } from 'uuid';
-import 'dotenv/config';
+import { getComposioConfig } from '../proxy';
 
 /**
  * Format a slug into a proper display name
@@ -163,9 +163,9 @@ export class ComposioService {
    * Sets up the client, creates/retrieves user ID, and establishes session
    */
   async initialize(): Promise<void> {
-    const apiKey = process.env.COMPOSIO_API_KEY;
-    if (!apiKey) {
-      console.warn('[Composio] API key not configured (COMPOSIO_API_KEY). External integrations disabled.');
+    const config = getComposioConfig();
+    if (!config.apiKey) {
+      console.warn('[Composio] API key not configured. External integrations disabled.');
       this.disabled = true;
       return;
     }
@@ -174,7 +174,8 @@ export class ComposioService {
       this.userId = this.getOrCreateUserId();
 
       this.composio = new Composio({
-        apiKey,
+        apiKey: config.apiKey,
+        ...(config.baseURL ? { baseURL: config.baseURL } : {}),
         provider: new LangchainProvider()
       });
 

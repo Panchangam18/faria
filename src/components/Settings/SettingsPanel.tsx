@@ -292,28 +292,9 @@ function SettingsPanel({ currentTheme, onThemeChange }: SettingsPanelProps) {
       setAgentPrompt(defaultAgentPrompt);
     }
     
-    // Check which models are available based on saved API keys
-    const hasAnthropicKey = savedAnthropicKey && savedAnthropicKey.trim().length > 0;
-    const hasGoogleKey = savedGoogleKey && savedGoogleKey.trim().length > 0;
-    const hasOpenaiKey = savedOpenaiKey && savedOpenaiKey.trim().length > 0;
-    const availableModelIds = MODELS
-      .filter(model => {
-        if (model.provider === 'anthropic' && hasAnthropicKey) return true;
-        if (model.provider === 'google' && hasGoogleKey) return true;
-        if (model.provider === 'openai' && hasOpenaiKey) return true;
-        return false;
-      })
-      .map(m => m.id);
-    
-    // Set model, but validate it's still available (or is "none")
+    // All models are always available — proxy provides fallback keys
     if (savedModel) {
-      if (savedModel === 'none' || availableModelIds.includes(savedModel)) {
-        setSelectedModel(savedModel);
-      } else {
-        // Model no longer available, default to "none"
-        setSelectedModel('none');
-        saveSettings('selectedModel', 'none');
-      }
+      setSelectedModel(savedModel);
     }
     // Load keyboard shortcuts
     const savedCommandBarShortcut = await window.faria.settings.get('commandBarShortcut');
@@ -469,29 +450,9 @@ function SettingsPanel({ currentTheme, onThemeChange }: SettingsPanelProps) {
     app.name.toLowerCase().includes(integrationSearch.toLowerCase())
   );
 
-  // Get available models based on API keys
-  const getAvailableModels = () => {
-    const available: typeof MODELS = [];
-    
-    // Check if Anthropic key is available
-    const hasAnthropicKey = anthropicKey && anthropicKey.trim().length > 0;
-    // Check if Google key is available
-    const hasGoogleKey = googleKey && googleKey.trim().length > 0;
-    // Check if OpenAI key is available
-    const hasOpenaiKey = openaiKey && openaiKey.trim().length > 0;
-
-    MODELS.forEach(model => {
-      if (model.provider === 'anthropic' && hasAnthropicKey) {
-        available.push(model);
-      } else if (model.provider === 'google' && hasGoogleKey) {
-        available.push(model);
-      } else if (model.provider === 'openai' && hasOpenaiKey) {
-        available.push(model);
-      }
-    });
-    
-    return available;
-  };
+  // All models are always available — if the user hasn't set their own key,
+  // the proxy will provide a fallback.
+  const getAvailableModels = () => MODELS;
 
   const saveSettings = async (key: string, value: string) => {
     try {

@@ -1,6 +1,5 @@
 import { app, BrowserWindow, globalShortcut, ipcMain, Menu, nativeImage, screen, shell, Tray } from 'electron';
 import { join } from 'path';
-import { config as dotenvConfig } from 'dotenv';
 import { initDatabase } from './db/sqlite';
 import { StateExtractor } from './services/state-extractor';
 import { AgentLoop } from './agent/loop';
@@ -12,8 +11,8 @@ import { promisify } from 'util';
 import { initEmbeddings } from './services/memory';
 import { migrateToMarkdownMemory } from './services/memory/migrate-v2';
 
-// Load .env from project root
-dotenvConfig();
+// Load .env in development only
+try { require('dotenv').config(); } catch {}
 
 const execAsync = promisify(exec);
 

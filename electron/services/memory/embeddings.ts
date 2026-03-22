@@ -1,6 +1,7 @@
 import { app } from 'electron';
 import { join } from 'path';
 import type { EmbeddingProvider } from './types';
+import { getOpenAIEmbeddingConfig } from '../proxy';
 
 // ── Legacy HuggingFace embedder (kept for backward compatibility) ──
 
@@ -137,14 +138,13 @@ const OPENAI_EMBEDDING_DIMS = 1536;
  * Requires OPENAI_API_KEY in .env.
  */
 export function createOpenAIEmbeddingProvider(): EmbeddingProvider {
-  const apiKey = process.env.OPENAI_API_KEY;
-  if (!apiKey) throw new Error('OPENAI_API_KEY not set in .env');
+  const config = getOpenAIEmbeddingConfig();
 
   const embed = async (texts: string[]): Promise<number[][]> => {
-    const response = await fetch('https://api.openai.com/v1/embeddings', {
+    const response = await fetch(config.url, {
       method: 'POST',
       headers: {
-        'Authorization': `Bearer ${apiKey}`,
+        ...config.headers,
         'Content-Type': 'application/json',
       },
       body: JSON.stringify({

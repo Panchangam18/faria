@@ -28,8 +28,8 @@ import { ComposioService } from '../services/composio';
 import { showClickIndicator, hideClickIndicator } from '../services/click-indicator';
 import { calculateResizeWidth } from '../services/screenshot';
 
-// Load environment variables for LangSmith tracing
-import 'dotenv/config';
+// Load .env in development only
+try { require('dotenv').config(); } catch {}
 
 /**
  * Cap a single tool result so it doesn't blow the context window.

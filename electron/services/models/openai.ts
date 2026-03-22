@@ -1,8 +1,8 @@
 import { ChatOpenAI } from '@langchain/openai';
 import { BaseChatModel } from '@langchain/core/language_models/chat_models';
 import { DynamicStructuredTool } from '@langchain/core/tools';
-import { initDatabase } from '../../db/sqlite';
 import { ModelProvider, ModelConfig, BoundModel } from './types';
+import { getOpenAIConfig } from '../proxy';
 
 // Cache the base model instance to reuse HTTP/TLS connections across turns
 let cachedModel: BaseChatModel | null = null;
@@ -19,14 +19,9 @@ export const openaiProvider: ModelProvider = {
   },
 
   createModel(config: ModelConfig): BaseChatModel | null {
-    const db = initDatabase();
-    const keyRow = db.prepare('SELECT value FROM settings WHERE key = ?').get('openaiKey') as { value: string } | undefined;
+    const proxyConfig = getOpenAIConfig();
 
-    if (!keyRow?.value) {
-      return null;
-    }
-
-    const cacheKey = `${config.model}:${config.maxTokens}:${keyRow.value}`;
+    const cacheKey = `${config.model}:${config.maxTokens}:${proxyConfig.apiKey}:${proxyConfig.baseURL || ''}`;
     if (cachedModel && cachedModelKey === cacheKey) {
       console.log(`[Models] Reusing cached OpenAI model: ${config.model}`);
       return cachedModel;
@@ -34,8 +29,12 @@ export const openaiProvider: ModelProvider = {
 
     const model = new ChatOpenAI({
       model: config.model,
-      apiKey: keyRow.value,
+      apiKey: proxyConfig.apiKey,
       maxTokens: config.maxTokens,
+      configuration: {
+        ...(proxyConfig.baseURL ? { baseURL: proxyConfig.baseURL } : {}),
+        ...(proxyConfig.defaultHeaders ? { defaultHeaders: proxyConfig.defaultHeaders } : {}),
+      },
     });
 
     cachedModel = model;

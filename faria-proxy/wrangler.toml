@@ -1,0 +1,13 @@
+name = "faria-proxy"
+main = "src/index.ts"
+compatibility_date = "2024-12-01"
+
+[[kv_namespaces]]
+binding = "RATE_LIMITS"
+id = "31aa77d04fc0492b92cc78e7889bdab3"
+
+# Secrets (set via `wrangler secret put <NAME>`):
+# - SERPER_API_KEY
+# - OPENAI_API_KEY
+# - COMPOSIO_API_KEY
+# - FARIA_APP_TOKEN

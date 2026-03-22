@@ -4,8 +4,8 @@ import { tool } from '@langchain/core/tools';
 import { z } from 'zod';
 import { Client } from 'langsmith';
 
-// Load environment variables
-import 'dotenv/config';
+// Load .env in development only
+try { require('dotenv').config(); } catch {}
 
 /**
  * LangSmith client for explicit tracing

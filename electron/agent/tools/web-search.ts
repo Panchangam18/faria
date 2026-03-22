@@ -2,6 +2,7 @@ import { tool } from '@langchain/core/tools';
 import { DynamicStructuredTool } from '@langchain/core/tools';
 import { z } from 'zod';
 import { ToolResult } from './types';
+import { getSerperConfig } from '../../services/proxy';
 
 // Zod schema for the tool
 export const WebSearchSchema = z.object({
@@ -16,16 +17,13 @@ export const WebSearchSchema = z.object({
 export function createWebSearchTool(): DynamicStructuredTool {
   return tool(
     async (input) => {
-      const serperKey = process.env.SERPER_API_KEY;
-      if (!serperKey) {
-        throw new Error('Serper API key not configured in .env (SERPER_API_KEY)');
-      }
+      const config = getSerperConfig('/search');
 
       try {
-        const response = await fetch('https://google.serper.dev/search', {
+        const response = await fetch(config.url, {
           method: 'POST',
           headers: {
-            'X-API-KEY': serperKey,
+            ...config.headers,
             'Content-Type': 'application/json'
           },
           body: JSON.stringify({ q: input.query, num: 5 })
@@ -73,16 +71,13 @@ export function createWebSearchTool(): DynamicStructuredTool {
 
 // Legacy function for backward compatibility during migration
 export async function webSearch(params: { query: string }): Promise<ToolResult> {
-  const serperKey = process.env.SERPER_API_KEY;
-  if (!serperKey) {
-    return { success: false, error: 'Serper API key not configured in .env (SERPER_API_KEY)' };
-  }
+  const config = getSerperConfig('/search');
 
   try {
-    const response = await fetch('https://google.serper.dev/search', {
+    const response = await fetch(config.url, {
       method: 'POST',
       headers: {
-        'X-API-KEY': serperKey,
+        ...config.headers,
         'Content-Type': 'application/json'
       },
       body: JSON.stringify({ q: params.query, num: 5 })

@@ -21,6 +21,7 @@ npm-debug.log*
 
 # Environment variables
 .env
+.env.bak
 .env.local
 .env.*.local
 
