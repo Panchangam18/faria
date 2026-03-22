@@ -567,6 +567,7 @@ function applyCommandBarLayout(layout?: CommandBarLayoutPayload) {
   const [x, currentY] = commandBarWindow.getPosition();
   const maxContentHeight = Math.round(screen.getPrimaryDisplay().workAreaSize.height / 2);
   const previousAgentAreaHeight = currentAgentAreaHeight;
+  const previousInputAreaHeight = currentInputAreaHeight;
 
   if (layout) {
     currentAgentAreaHeight = Math.max(0, Math.round(layout.agentAreaHeight));
@@ -585,14 +586,22 @@ function applyCommandBarLayout(layout?: CommandBarLayoutPayload) {
   const dropdownOffset = getDropdownOffset();
   const newHeight = contentHeightToWindowHeight(baseContentHeight) + dropdownOffset;
   let newY = currentY;
+  const agentHeightChanged = currentAgentAreaHeight !== previousAgentAreaHeight;
+  const inputHeightChanged = currentInputAreaHeight !== previousInputAreaHeight;
 
   if (currentAgentAreaHeight > 0) {
-    if (previousAgentAreaHeight === 0 || dividerAnchorY === null) {
-      syncDividerAnchorToWindow(0);
+    if (inputHeightChanged && !agentHeightChanged) {
+      const anchorY = getOrInitBottomAnchorY();
+      if (anchorY === null) return;
+      newY = Math.round(anchorY - newHeight);
+    } else {
+      if (previousAgentAreaHeight === 0 || dividerAnchorY === null) {
+        syncDividerAnchorToWindow(0);
+      }
+      const anchorY = getOrInitDividerAnchorY();
+      if (anchorY === null) return;
+      newY = Math.round(anchorY - currentAgentAreaHeight - dropdownOffset);
     }
-    const anchorY = getOrInitDividerAnchorY();
-    if (anchorY === null) return;
-    newY = Math.round(anchorY - currentAgentAreaHeight - dropdownOffset);
   } else {
     const anchorY = getOrInitBottomAnchorY();
     if (anchorY === null) return;
