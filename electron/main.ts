@@ -11,6 +11,14 @@ import { promisify } from 'util';
 import { initEmbeddings } from './services/memory';
 import { migrateToMarkdownMemory } from './services/memory/migrate-v2';
 
+// Prevent EIO crashes when stdout/stderr are not connected (e.g. packaged app on another machine)
+for (const stream of [process.stdout, process.stderr]) {
+  stream?.on?.('error', (err: NodeJS.ErrnoException) => {
+    if (err.code === 'EIO' || err.code === 'EPIPE') return;
+    throw err;
+  });
+}
+
 // Load .env in development only
 try { require('dotenv').config(); } catch {}
 
@@ -1500,7 +1508,9 @@ async function initializeServices() {
 
   // Initialize Composio for external integrations (Gmail, GitHub, Slack, etc.)
   composioService = new ComposioService();
-  await composioService.initialize();
+  composioService.initialize().catch(err => {
+    console.warn('[Composio] Init deferred (user may not be signed in yet):', err.message);
+  });
 
   // Initialize services
   stateExtractor = new StateExtractor();
