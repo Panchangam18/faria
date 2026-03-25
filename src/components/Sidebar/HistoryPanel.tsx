@@ -190,16 +190,18 @@ function HistoryPanel({ userProfile }: HistoryPanelProps) {
       )}
 
       {searchOpen && (
-        <FindWidget
-          query={searchQuery}
-          onChange={setSearchQuery}
-          onClose={() => { setSearchOpen(false); setSearchQuery(''); }}
-          onNext={goToNext}
-          onPrev={goToPrev}
-          matchCount={matchCount}
-          activeIndex={activeMatchIndex}
-          inputRef={searchInputRef}
-        />
+        <div className="find-widget-anchor">
+          <FindWidget
+            query={searchQuery}
+            onChange={setSearchQuery}
+            onClose={() => { setSearchOpen(false); setSearchQuery(''); }}
+            onNext={goToNext}
+            onPrev={goToPrev}
+            matchCount={matchCount}
+            activeIndex={activeMatchIndex}
+            inputRef={searchInputRef}
+          />
+        </div>
       )}
 
       {Object.entries(grouped).map(([date, items]) => (
