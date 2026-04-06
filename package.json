@@ -94,6 +94,7 @@
         }
       ]
     },
+    "afterSign": "build/notarize.cjs",
     "mac": {
       "category": "public.app-category.productivity",
       "target": [
