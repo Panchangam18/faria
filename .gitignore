@@ -33,6 +33,10 @@ npm-debug.log*
 # CliClick binary (user must install separately)
 resources/cliclick
 
+# Signing certificates
+*.cer
+*.p12
+
 # Electron builder output
 release/
 
