@@ -96,7 +96,9 @@
     },
     "mac": {
       "category": "public.app-category.productivity",
-      "notarize": true,
+      "notarize": {
+        "teamId": "73V4ZT8M83"
+      },
       "target": [
         "dmg"
       ],
