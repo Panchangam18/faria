@@ -42,6 +42,7 @@
     "uuid": "^10.0.0"
   },
   "devDependencies": {
+    "@electron/notarize": "^3.1.1",
     "@types/better-sqlite3": "^7.6.11",
     "@types/node": "^20.14.0",
     "@types/react": "^18.3.3",
@@ -94,11 +95,9 @@
         }
       ]
     },
+    "afterSign": "build/notarize.cjs",
     "mac": {
       "category": "public.app-category.productivity",
-      "notarize": {
-        "teamId": "73V4ZT8M83"
-      },
       "target": [
         "dmg"
       ],
