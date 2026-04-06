@@ -94,9 +94,9 @@
         }
       ]
     },
-    "afterSign": "build/notarize.cjs",
     "mac": {
       "category": "public.app-category.productivity",
+      "notarize": true,
       "target": [
         "dmg"
       ],
