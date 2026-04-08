@@ -4,6 +4,13 @@ set -euo pipefail
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 cd "$ROOT_DIR"
 
+if [[ -f "$ROOT_DIR/.env" ]]; then
+  set -a
+  # shellcheck disable=SC1091
+  source "$ROOT_DIR/.env"
+  set +a
+fi
+
 usage() {
   cat <<'EOF'
 Usage:
@@ -15,6 +22,7 @@ Optional environment variables:
   RELEASE_DMG_PATH     Defaults to "dist/Faria.dmg"
   R2_ENDPOINT_URL      If set with AWS credentials, also uploads the DMG to R2
   R2_BUCKET_PATH       Defaults to "s3://faria-media/Faria.dmg"
+  R2_APP_BUCKET_PATH   Defaults to "s3://faria-media/Faria.app.zip" (zipped .app)
 EOF
 }
 
@@ -37,6 +45,7 @@ APP_PATH="dist/mac-arm64/Faria.app"
 RELEASE_NAME="${RELEASE_NAME:-Faria Beta v${PACKAGE_VERSION}}"
 RELEASE_NOTES="${RELEASE_NOTES:-Locally signed, notarized, stapled, and uploaded from a developer machine.}"
 R2_BUCKET_PATH="${R2_BUCKET_PATH:-s3://faria-media/Faria.dmg}"
+R2_APP_BUCKET_PATH="${R2_APP_BUCKET_PATH:-s3://faria-media/Faria.app.zip}"
 
 if [[ -z "$RELEASE_TAG" ]]; then
   usage
@@ -82,6 +91,13 @@ if [[ -n "${R2_ENDPOINT_URL:-}" && -n "${AWS_ACCESS_KEY_ID:-}" && -n "${AWS_SECR
     aws s3 cp "$RELEASE_DMG_PATH" "$R2_BUCKET_PATH" \
       --endpoint-url "$R2_ENDPOINT_URL" \
       --content-type application/x-apple-diskimage
+
+    APP_ZIP="$(mktemp -t faria-app).zip"
+    ditto -c -k --keepParent "$APP_PATH" "$APP_ZIP"
+    aws s3 cp "$APP_ZIP" "$R2_APP_BUCKET_PATH" \
+      --endpoint-url "$R2_ENDPOINT_URL" \
+      --content-type application/zip
+    rm -f "$APP_ZIP"
   fi
 fi
 

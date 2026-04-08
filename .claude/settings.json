@@ -5,7 +5,13 @@
       "Bash(openssl pkcs12:*)",
       "Bash(rm /tmp/faria-cert.pem)",
       "Read(//Users/madhavan/**)",
-      "Bash(pbcopy)"
+      "Bash(pbcopy)",
+      "Bash(gh workflow:*)",
+      "Bash(node -e \"console.log\\(require\\(''./node_modules/@electron/notarize/package.json''\\).version\\)\")",
+      "Bash(gh api:*)"
+    ],
+    "additionalDirectories": [
+      "/tmp"
     ]
   },
   "enabledPlugins": {
