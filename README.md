@@ -90,7 +90,16 @@ npm run build
 
 The built app will be in `dist/`.
 
+## Releasing
+
+Faria release artifacts are signed and notarized locally on macOS, then uploaded to GitHub Releases.
+
+```bash
+RELEASE_TAG=v1.0.0-beta.2 npm run release:local
+```
+
+The command validates the stapled `dist/Faria.dmg`, verifies the notarized app, and uploads the DMG to the chosen GitHub release tag.
+
 ## License
 
 MIT
-

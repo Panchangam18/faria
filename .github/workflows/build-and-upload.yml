@@ -1,4 +1,4 @@
-name: Build and Upload DMG
+name: CI
 
 on:
   push:
@@ -6,8 +6,8 @@ on:
   workflow_dispatch:
 
 jobs:
-  build:
-    runs-on: macos-latest
+  typecheck:
+    runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
 
@@ -15,31 +15,8 @@ jobs:
         with:
           node-version: '22.12.0'
 
-      - uses: actions/setup-python@v5
-        with:
-          python-version: '3.12'
-
-      - name: Install setuptools for node-gyp
-        run: pip install setuptools
-
       - name: Install dependencies
         run: npm ci
 
-      - name: Build, sign, and notarize app
-        env:
-          CSC_LINK: ${{ secrets.CSC_LINK }}
-          CSC_KEY_PASSWORD: ${{ secrets.CSC_KEY_PASSWORD }}
-          APPLE_ID: ${{ secrets.APPLE_ID }}
-          APPLE_APP_SPECIFIC_PASSWORD: ${{ secrets.APPLE_APP_SPECIFIC_PASSWORD }}
-          APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
-          DEBUG: electron-notarize*
-        run: npm run build
-
-      - name: Upload DMG to Cloudflare R2
-        env:
-          AWS_ACCESS_KEY_ID: ${{ secrets.R2_ACCESS_KEY_ID }}
-          AWS_SECRET_ACCESS_KEY: ${{ secrets.R2_SECRET_ACCESS_KEY }}
-        run: |
-          aws s3 cp dist/Faria.dmg s3://faria-media/Faria.dmg \
-            --endpoint-url https://75c9ac5a3dff022b45e8a83c60e20403.r2.cloudflarestorage.com \
-            --content-type application/x-apple-diskimage
+      - name: Typecheck
+        run: npm run typecheck

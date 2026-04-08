@@ -36,7 +36,7 @@ resources/cliclick
 # Signing certificates
 *.cer
 *.p12
+*.csr
 
 # Electron builder output
 release/
-
