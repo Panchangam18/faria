@@ -105,9 +105,21 @@ export async function takeScreenshot(options: ScreenshotOptions = {}): Promise<s
 
   try {
     // Use screencapture command (built into macOS)
-    await execAsync(`screencapture -x -t png "${tempPath}"`, {
-      timeout: 5000,
-    });
+    try {
+      await execAsync(`screencapture -x -t png "${tempPath}"`, {
+        timeout: 5000,
+      });
+    } catch (err) {
+      const msg = (err as Error).message ?? '';
+      // "could not create image from display" means TCC entry is stale after reinstall —
+      // macOS shows the permission as granted but the new binary's code hash doesn't match.
+      if (msg.includes('could not create image from display')) {
+        throw new Error(
+          'Screen recording permission is stale. In System Settings → Privacy & Security → Screen Recording, toggle Faria off then back on, and restart the app.',
+        );
+      }
+      throw err;
+    }
 
     // screencapture exits successfully but writes nothing when screen recording
     // permission is silently denied (e.g. stale TCC entry after reinstall).
