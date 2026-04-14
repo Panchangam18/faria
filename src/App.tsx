@@ -1,7 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { BsLayoutSidebar } from 'react-icons/bs';
 import { MdHelpOutline } from 'react-icons/md';
-import { IoMdSend } from 'react-icons/io';
 import Sidebar from './components/Sidebar';
 import HistoryPanel from './components/Sidebar/HistoryPanel';
 import SettingsPanel from './components/Settings/SettingsPanel';
@@ -45,8 +44,6 @@ function App() {
 
   const [sidebarExpanded, setSidebarExpanded] = useState(false);
   const [isFullscreen, setIsFullscreen] = useState(false);
-  const [helpOpen, setHelpOpen] = useState(false);
-  const [helpMessage, setHelpMessage] = useState('');
   const mainPanelRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -140,8 +137,8 @@ function App() {
 
       <button
         className="help-toggle"
-        onClick={() => setHelpOpen(true)}
-        title="Help"
+        onClick={() => window.faria.shell.openExternal('https://x.com/madpanch')}
+        title="Get Help"
       >
         <MdHelpOutline size={18} />
       </button>
@@ -161,36 +158,6 @@ function App() {
         </main>
       </div>
 
-      {helpOpen && (
-        <div className="help-modal-overlay" onClick={() => setHelpOpen(false)}>
-          <div className="help-modal" onClick={(e) => e.stopPropagation()}>
-            <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 8 }}>
-              <MdHelpOutline size={20} style={{ color: 'var(--color-accent)', flexShrink: 0 }} />
-              <span className="help-modal-title" style={{ marginBottom: 0 }}>Need Help?</span>
-            </div>
-            <textarea
-              className="help-modal-textarea"
-              placeholder="Send us a message..."
-              value={helpMessage}
-              onChange={(e) => setHelpMessage(e.target.value)}
-              rows={4}
-              style={{ marginTop: '10px' }}
-            />
-            <div className="help-modal-footer">
-              <button
-                className="help-modal-send"
-                disabled={!helpMessage.trim()}
-                onClick={() => {
-                  setHelpMessage('');
-                  setHelpOpen(false);
-                }}
-              >
-                <IoMdSend />
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
     </div>
   );
 }

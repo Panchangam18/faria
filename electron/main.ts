@@ -145,7 +145,7 @@ function createMainWindow() {
   });
 
   if (isDev) {
-    mainWindow.loadURL('http://localhost:5173');
+    mainWindow.loadURL('http://localhost:5174');
   } else {
     mainWindow.loadFile(join(__dirname, '../dist/index.html'));
   }
@@ -243,7 +243,7 @@ function createCommandBarWindow() {
   }
 
   if (isDev) {
-    commandBarWindow.loadURL('http://localhost:5173/command-bar.html');
+    commandBarWindow.loadURL('http://localhost:5174/command-bar.html');
   } else {
     commandBarWindow.loadFile(join(__dirname, '../dist/command-bar.html'));
   }

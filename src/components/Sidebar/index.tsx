@@ -217,7 +217,7 @@ function Sidebar({ activeTab, onTabChange, userProfile, expanded }: SidebarProps
       <div style={{ flex: 1 }} />
 
       {/* Refer a friend button */}
-      {userProfile && (
+      {false && userProfile && (
         <button
           className="sidebar-tab"
           onClick={() => setShowReferral(true)}
