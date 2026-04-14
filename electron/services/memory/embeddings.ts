@@ -3,78 +3,6 @@ import { join } from 'path';
 import type { EmbeddingProvider } from './types';
 import { getOpenAIEmbeddingConfig } from '../proxy';
 
-// ── Legacy HuggingFace embedder (kept for backward compatibility) ──
-
-// Lazy-loaded embedder
-let embedder: any = null;
-let loadingPromise: Promise<void> | null = null;
-
-/**
- * Initialize the HuggingFace embedding model (lazy load on first use)
- * Uses Xenova/all-MiniLM-L6-v2 - a small, fast model producing 384-dim vectors
- */
-export async function initEmbeddings(): Promise<void> {
-  if (embedder) return;
-  if (loadingPromise) return loadingPromise;
-
-  loadingPromise = (async () => {
-    console.log('[Memory] Loading HF embedding model...');
-
-    // Dynamic import to avoid bundling issues
-    const { pipeline, env } = await import('@huggingface/transformers');
-
-    // Configure cache directory for Electron
-    env.cacheDir = join(app.getPath('userData'), 'models');
-    env.allowLocalModels = true;
-
-    embedder = await pipeline(
-      'feature-extraction',
-      'Xenova/all-MiniLM-L6-v2',
-      { dtype: 'q8' }  // Quantized for faster inference
-    );
-
-    console.log('[Memory] HF embedding model ready');
-  })();
-
-  return loadingPromise;
-}
-
-/**
- * Get the embedding vector for a text string using HuggingFace model
- * Returns a 384-dimensional normalized vector
- */
-export async function getEmbedding(text: string): Promise<number[]> {
-  await initEmbeddings();
-
-  const output = await embedder(text, {
-    pooling: 'mean',
-    normalize: true
-  });
-
-  return Array.from(output.data);
-}
-
-/**
- * Calculate cosine similarity between two embedding vectors
- * Vectors are assumed to be pre-normalized, so dot product = cosine similarity
- */
-export function cosineSimilarity(a: number[], b: number[]): number {
-  let dotProduct = 0;
-  for (let i = 0; i < a.length; i++) {
-    dotProduct += a[i] * b[i];
-  }
-  return dotProduct;
-}
-
-// ── Shared utilities ──
-
-function sanitizeAndNormalize(vec: number[]): number[] {
-  const sanitized = vec.map((v) => (Number.isFinite(v) ? v : 0));
-  const magnitude = Math.sqrt(sanitized.reduce((sum, v) => sum + v * v, 0));
-  if (magnitude < 1e-10) return sanitized;
-  return sanitized.map((v) => v / magnitude);
-}
-
 // ── EmbeddingGemma provider via node-llama-cpp ──
 
 const GEMMA_MODEL_PATH =
@@ -82,7 +10,6 @@ const GEMMA_MODEL_PATH =
 
 /**
  * Create an EmbeddingProvider using EmbeddingGemma-300M via node-llama-cpp.
- * Same model OpenClaw uses.
  */
 export function createGemmaEmbeddingProvider(): EmbeddingProvider {
   let ctx: any = null;
@@ -161,7 +88,6 @@ export function createOpenAIEmbeddingProvider(): EmbeddingProvider {
       data: Array<{ embedding: number[]; index: number }>;
     };
 
-    // Sort by index to maintain input order
     return data.data
       .sort((a, b) => a.index - b.index)
       .map((d) => sanitizeAndNormalize(d.embedding));
@@ -180,124 +106,78 @@ export function createOpenAIEmbeddingProvider(): EmbeddingProvider {
   };
 }
 
-// ── Default provider with fallback chain ──
+// ── Shared utilities ──
 
-type FallbackLevel = 'gemma' | 'openai' | 'hf';
+export function cosineSimilarity(a: number[], b: number[]): number {
+  let dot = 0;
+  for (let i = 0; i < a.length; i++) dot += a[i] * b[i];
+  return dot;
+}
+
+let _defaultProvider: EmbeddingProvider | null = null;
+function getDefaultProvider(): EmbeddingProvider {
+  if (!_defaultProvider) _defaultProvider = createDefaultEmbeddingProvider();
+  return _defaultProvider;
+}
+
+/** Convenience wrapper — embeds a single text using the default provider. */
+export async function getEmbedding(text: string): Promise<number[]> {
+  return getDefaultProvider().embedQuery(text);
+}
+
+/** No-op kept for backward compatibility — providers initialize lazily. */
+export async function initEmbeddings(): Promise<void> {}
+
+function sanitizeAndNormalize(vec: number[]): number[] {
+  const sanitized = vec.map((v) => (Number.isFinite(v) ? v : 0));
+  const magnitude = Math.sqrt(sanitized.reduce((sum, v) => sum + v * v, 0));
+  if (magnitude < 1e-10) return sanitized;
+  return sanitized.map((v) => v / magnitude);
+}
+
+// ── Default provider with fallback chain ──
 
 /**
  * Create the default embedding provider for the memory system.
- * Fallback chain: EmbeddingGemma (local) → OpenAI text-embedding-3-small → HF MiniLM (local)
+ * Fallback chain: EmbeddingGemma (local) → OpenAI text-embedding-3-small
  */
 export function createDefaultEmbeddingProvider(): EmbeddingProvider {
   const gemma = createGemmaEmbeddingProvider();
-  let fallback: FallbackLevel = 'gemma';
+  let useOpenAI = false;
   let openaiProvider: EmbeddingProvider | null = null;
 
-  const getOpenAI = (): EmbeddingProvider | null => {
-    if (openaiProvider) return openaiProvider;
-    try {
+  const getOpenAI = (): EmbeddingProvider => {
+    if (!openaiProvider) {
       openaiProvider = createOpenAIEmbeddingProvider();
-      console.log('[Memory] OpenAI embeddings available as fallback');
-      return openaiProvider;
-    } catch {
-      console.warn('[Memory] OpenAI embeddings not available (no API key)');
-      return null;
     }
+    return openaiProvider;
   };
 
-  const embedWithFallback = async (fn: (provider: EmbeddingProvider) => Promise<number[]>): Promise<number[]> => {
-    // Try Gemma
-    if (fallback === 'gemma') {
+  const withFallback = async <T>(fn: (p: EmbeddingProvider) => Promise<T>): Promise<T> => {
+    if (!useOpenAI) {
       try {
         return await fn(gemma);
       } catch (err) {
-        console.warn('[Memory] EmbeddingGemma failed, trying OpenAI:', err);
-        fallback = 'openai';
+        console.warn('[Memory] EmbeddingGemma failed, falling back to OpenAI:', err);
+        useOpenAI = true;
       }
     }
-
-    // Try OpenAI
-    if (fallback === 'openai') {
-      const openai = getOpenAI();
-      if (openai) {
-        try {
-          return await fn(openai);
-        } catch (err) {
-          console.warn('[Memory] OpenAI embeddings failed, falling back to HF MiniLM:', err);
-          fallback = 'hf';
-        }
-      } else {
-        fallback = 'hf';
-      }
-    }
-
-    // Final fallback: HuggingFace
-    await initEmbeddings();
-    return fn({
-      model: 'all-MiniLM-L6-v2',
-      dimensions: 384,
-      embedQuery: getEmbedding,
-      async embedBatch(texts: string[]): Promise<number[][]> {
-        const results: number[][] = [];
-        for (const t of texts) results.push(await getEmbedding(t));
-        return results;
-      },
-    });
-  };
-
-  const embedBatchWithFallback = async (fn: (provider: EmbeddingProvider) => Promise<number[][]>): Promise<number[][]> => {
-    if (fallback === 'gemma') {
-      try {
-        return await fn(gemma);
-      } catch (err) {
-        console.warn('[Memory] EmbeddingGemma batch failed, trying OpenAI:', err);
-        fallback = 'openai';
-      }
-    }
-
-    if (fallback === 'openai') {
-      const openai = getOpenAI();
-      if (openai) {
-        try {
-          return await fn(openai);
-        } catch (err) {
-          console.warn('[Memory] OpenAI batch failed, falling back to HF MiniLM:', err);
-          fallback = 'hf';
-        }
-      } else {
-        fallback = 'hf';
-      }
-    }
-
-    await initEmbeddings();
-    return fn({
-      model: 'all-MiniLM-L6-v2',
-      dimensions: 384,
-      embedQuery: getEmbedding,
-      async embedBatch(texts: string[]): Promise<number[][]> {
-        const results: number[][] = [];
-        for (const t of texts) results.push(await getEmbedding(t));
-        return results;
-      },
-    });
+    return fn(getOpenAI());
   };
 
   return {
     model: gemma.model,
     dimensions: gemma.dimensions,
     async embedQuery(text: string): Promise<number[]> {
-      return embedWithFallback((p) => p.embedQuery(text));
+      return withFallback((p) => p.embedQuery(text));
     },
     async embedBatch(texts: string[]): Promise<number[][]> {
-      return embedBatchWithFallback((p) => p.embedBatch(texts));
+      return withFallback((p) => p.embedBatch(texts));
     },
   };
 }
 
 /**
- * Create an EmbeddingProvider that wraps the local HuggingFace model.
  * @deprecated Use createDefaultEmbeddingProvider() instead.
  */
-export function createHFEmbeddingProvider(): EmbeddingProvider {
-  return createDefaultEmbeddingProvider();
-}
+export const createHFEmbeddingProvider = createDefaultEmbeddingProvider;

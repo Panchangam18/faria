@@ -2,7 +2,7 @@ import { exec } from 'child_process';
 import { promisify } from 'util';
 import { tmpdir } from 'os';
 import { join } from 'path';
-import { readFile, unlink } from 'fs/promises';
+import { readFile, stat, unlink } from 'fs/promises';
 import { v4 as uuidv4 } from 'uuid';
 import { screen } from 'electron';
 
@@ -108,6 +108,21 @@ export async function takeScreenshot(options: ScreenshotOptions = {}): Promise<s
     await execAsync(`screencapture -x -t png "${tempPath}"`, {
       timeout: 5000,
     });
+
+    // screencapture exits successfully but writes nothing when screen recording
+    // permission is silently denied (e.g. stale TCC entry after reinstall).
+    // Detect this before trying to read the file.
+    let fileSize = 0;
+    try {
+      fileSize = (await stat(tempPath)).size;
+    } catch {
+      // File was never created
+    }
+    if (fileSize === 0) {
+      throw new Error(
+        'Screen recording permission denied. Please open System Settings > Privacy & Security > Screen Recording, toggle Faria off then back on, and restart the app.',
+      );
+    }
 
     // For Google/Gemini: preserve full resolution for best coordinate accuracy
     // (Gemini uses 0-1000 normalized coords, unaffected by image size)

@@ -1225,9 +1225,26 @@ function setupIPC() {
 
   // Permissions IPC — check and request macOS Accessibility & Screen Recording
   ipcMain.handle('permissions:check', async () => {
-    const { systemPreferences } = await import('electron');
+    const { systemPreferences, desktopCapturer } = await import('electron');
     const accessibility = systemPreferences.isTrustedAccessibilityClient(false);
-    const screenRecording = systemPreferences.getMediaAccessStatus('screen') === 'granted';
+
+    // getMediaAccessStatus alone is not enough: after reinstalling the app with a
+    // different code-signing identity, TCC still shows 'granted' in System Settings
+    // but actual captures are silently rejected. Verify by exercising the real API.
+    let screenRecording = false;
+    const mediaStatus = systemPreferences.getMediaAccessStatus('screen');
+    if (mediaStatus === 'granted') {
+      try {
+        const sources = await desktopCapturer.getSources({
+          types: ['screen'],
+          thumbnailSize: { width: 1, height: 1 },
+        });
+        screenRecording = sources.length > 0;
+      } catch {
+        screenRecording = false;
+      }
+    }
+
     return { accessibility, screenRecording };
   });
 
@@ -1239,9 +1256,38 @@ function setupIPC() {
   });
 
   ipcMain.handle('permissions:request-screen-recording', async () => {
-    // No direct Electron API to prompt for screen recording — open System Settings
-    const { shell } = await import('electron');
-    await shell.openExternal('x-apple.systempreferences:com.apple.preference.security?Privacy_ScreenCapture');
+    const { systemPreferences, desktopCapturer, shell } = await import('electron');
+    const status = systemPreferences.getMediaAccessStatus('screen');
+
+    if (status === 'not-determined') {
+      // Calling getSources() triggers the native TCC dialog and automatically
+      // registers the app in System Settings > Privacy > Screen Recording.
+      // Without this call the app never appears in the list and users have to
+      // click the + button to add it manually.
+      try {
+        await desktopCapturer.getSources({
+          types: ['screen'],
+          thumbnailSize: { width: 1, height: 1 },
+        });
+      } catch {
+        // Ignore — we'll check the result below
+      }
+      const newStatus = systemPreferences.getMediaAccessStatus('screen');
+      if (newStatus !== 'granted') {
+        // User denied the dialog — open System Settings so they can reconsider
+        await shell.openExternal(
+          'x-apple.systempreferences:com.apple.preference.security?Privacy_ScreenCapture',
+        );
+      }
+    } else {
+      // 'denied', 'restricted', or 'granted' (but potentially stale after reinstall).
+      // Open System Settings so the user can enable or toggle the permission off/on
+      // to repair a broken TCC entry.
+      await shell.openExternal(
+        'x-apple.systempreferences:com.apple.preference.security?Privacy_ScreenCapture',
+      );
+    }
+
     return { success: true };
   });
 
@@ -1497,7 +1543,7 @@ async function initializeServices() {
   }
 
   // Initialize embedding model in background (don't block startup)
-  initEmbeddings().catch(err => {
+  initEmbeddings().catch((err: unknown) => {
     console.error('[Memory] Failed to init embeddings:', err);
   });
 
