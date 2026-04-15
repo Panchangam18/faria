@@ -1,4 +1,5 @@
 const { notarize } = require("@electron/notarize");
+const { execSync } = require("child_process");
 const path = require("path");
 const fs = require("fs");
 
@@ -60,4 +61,9 @@ exports.default = async function notarizing(context) {
   }
 
   console.log("Notarization complete.");
+
+  // Staple the ticket so the app passes Gatekeeper checks offline
+  console.log(`Stapling ${appPath}...`);
+  execSync(`xcrun stapler staple "${appPath}"`, { stdio: "inherit" });
+  console.log("Stapling complete.");
 };
