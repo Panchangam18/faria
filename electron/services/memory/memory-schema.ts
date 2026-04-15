@@ -28,10 +28,27 @@ export function ensureMemorySchema(db: Database.Database): { ftsAvailable: boole
     );
   `);
   db.exec(`CREATE INDEX IF NOT EXISTS idx_memory_chunks_path ON memory_chunks(path);`);
+  db.exec(`CREATE INDEX IF NOT EXISTS idx_memory_chunks_model ON memory_chunks(model);`);
+
+  const cacheColumns = db.prepare('PRAGMA table_info(memory_embedding_cache)').all() as Array<{ name: string }>;
+  const hasModelAwareCacheSchema =
+    cacheColumns.length === 0 ||
+    (cacheColumns.some((col) => col.name === 'cache_key') &&
+      cacheColumns.some((col) => col.name === 'hash') &&
+      cacheColumns.some((col) => col.name === 'model'));
+
+  if (!hasModelAwareCacheSchema) {
+    // This is a derived cache, so recreating it is safer than trying to
+    // preserve old entries that may have the wrong embedding dimensions.
+    db.exec('DROP TABLE memory_embedding_cache;');
+    console.log('[DB] Recreated memory_embedding_cache with model-aware keys');
+  }
 
   db.exec(`
     CREATE TABLE IF NOT EXISTS memory_embedding_cache (
-      hash TEXT PRIMARY KEY,
+      cache_key TEXT PRIMARY KEY,
+      hash TEXT NOT NULL,
+      model TEXT NOT NULL,
       embedding TEXT NOT NULL,
       dims INTEGER,
       updated_at INTEGER NOT NULL

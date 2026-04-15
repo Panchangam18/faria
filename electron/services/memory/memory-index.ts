@@ -92,6 +92,10 @@ export class MemoryIndexManager {
 
     // Vector search
     const queryVec = await this.provider.embedQuery(query);
+    if (this.indexNeedsSyncForCurrentModel()) {
+      console.log(`[MemoryIndex] Re-syncing index for embedding model ${this.provider.model}...`);
+      await this.sync();
+    }
     const vectorResults = this.searchVector(queryVec, candidateLimit);
 
     // Keyword search (FTS5)
@@ -185,9 +189,11 @@ export class MemoryIndexManager {
   // ── Private ──
 
   private searchVector(queryVec: number[], limit: number): HybridVectorResult[] {
+    if (limit <= 0) return [];
+
     const rows = this.db
-      .prepare('SELECT id, path, start_line, end_line, text, embedding FROM memory_chunks')
-      .all() as Array<{
+      .prepare('SELECT id, path, start_line, end_line, text, embedding FROM memory_chunks WHERE model = ?')
+      .iterate(this.provider.model) as Iterable<{
       id: string;
       path: string;
       start_line: number;
@@ -196,22 +202,35 @@ export class MemoryIndexManager {
       embedding: string;
     }>;
 
-    const scored = rows
-      .map((row) => {
-        const emb = parseEmbedding(row.embedding);
-        const score = cosineSimilarityVec(queryVec, emb);
-        return {
-          id: row.id,
-          path: row.path,
-          startLine: row.start_line,
-          endLine: row.end_line,
-          snippet: row.text,
-          vectorScore: score,
-        };
-      })
-      .sort((a, b) => b.vectorScore - a.vectorScore);
+    const topResults: HybridVectorResult[] = [];
 
-    return scored.slice(0, limit);
+    for (const row of rows) {
+      const emb = parseEmbedding(row.embedding);
+      const score = cosineSimilarityVec(queryVec, emb);
+      const candidate: HybridVectorResult = {
+        id: row.id,
+        path: row.path,
+        startLine: row.start_line,
+        endLine: row.end_line,
+        snippet: row.text,
+        vectorScore: score,
+      };
+
+      if (topResults.length < limit) {
+        topResults.push(candidate);
+        topResults.sort((a, b) => a.vectorScore - b.vectorScore);
+        continue;
+      }
+
+      if (score <= topResults[0]!.vectorScore) {
+        continue;
+      }
+
+      topResults[0] = candidate;
+      topResults.sort((a, b) => a.vectorScore - b.vectorScore);
+    }
+
+    return topResults.sort((a, b) => b.vectorScore - a.vectorScore);
   }
 
   private searchKeyword(query: string, limit: number): HybridKeywordResult[] {
@@ -276,10 +295,22 @@ export class MemoryIndexManager {
     // Check which files need re-indexing
     for (const entry of entries) {
       const existing = this.db
-        .prepare('SELECT hash FROM memory_files WHERE path = ?')
-        .get(entry.path) as { hash: string } | undefined;
+        .prepare(
+          `SELECT mf.hash,
+                  EXISTS(
+                    SELECT 1
+                    FROM memory_chunks mc
+                    WHERE mc.path = mf.path AND mc.model = ?
+                    LIMIT 1
+                  ) AS has_current_model
+           FROM memory_files mf
+           WHERE mf.path = ?`,
+        )
+        .get(this.provider.model, entry.path) as
+        | { hash: string; has_current_model: number }
+        | undefined;
 
-      if (!force && existing?.hash === entry.hash) continue;
+      if (!force && existing?.hash === entry.hash && existing.has_current_model === 1) continue;
 
       await this.indexFile(entry);
     }
@@ -310,10 +341,11 @@ export class MemoryIndexManager {
     const chunkData: Array<{ id: string; startLine: number; endLine: number; text: string; hash: string }> = [];
 
     for (const chunk of chunks) {
-      // Check embedding cache
+      // Check embedding cache — keyed by model+hash to avoid dimension mismatches
+      const cacheKey = `${this.provider.model}:${chunk.hash}`;
       const cached = this.db
-        .prepare('SELECT embedding FROM memory_embedding_cache WHERE hash = ?')
-        .get(chunk.hash) as { embedding: string } | undefined;
+        .prepare('SELECT embedding FROM memory_embedding_cache WHERE cache_key = ?')
+        .get(cacheKey) as { embedding: string } | undefined;
 
       if (cached) {
         const id = uuidv4();
@@ -342,13 +374,14 @@ export class MemoryIndexManager {
 
         this.insertChunk(chunk.id, entry.path, chunk.startLine, chunk.endLine, chunk.hash, chunk.text, embeddingJson);
 
-        // Cache the embedding
+        // Cache the embedding keyed by model+hash
+        const cacheKey = `${this.provider.model}:${chunk.hash}`;
         this.db
           .prepare(
-            `INSERT OR REPLACE INTO memory_embedding_cache (hash, embedding, dims, updated_at)
-             VALUES (?, ?, ?, ?)`,
+            `INSERT OR REPLACE INTO memory_embedding_cache (cache_key, hash, model, embedding, dims, updated_at)
+             VALUES (?, ?, ?, ?, ?, ?)`,
           )
-          .run(chunk.hash, embeddingJson, embedding.length, Date.now());
+          .run(cacheKey, chunk.hash, this.provider.model, embeddingJson, embedding.length, Date.now());
       }
     }
 
@@ -411,6 +444,20 @@ export class MemoryIndexManager {
 
     this.db.prepare('DELETE FROM memory_chunks WHERE path = ?').run(filePath);
     this.db.prepare('DELETE FROM memory_files WHERE path = ?').run(filePath);
+  }
+
+  private indexNeedsSyncForCurrentModel(): boolean {
+    const row = this.db
+      .prepare(
+        `SELECT 1
+         FROM memory_chunks
+         GROUP BY path
+         HAVING MAX(model = ?) = 0
+         LIMIT 1`,
+      )
+      .get(this.provider.model);
+
+    return !!row;
   }
 
   private async listMemoryFiles(memoryRoot: string): Promise<string[]> {

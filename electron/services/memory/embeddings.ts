@@ -139,42 +139,62 @@ function sanitizeAndNormalize(vec: number[]): number[] {
 
 /**
  * Create the default embedding provider for the memory system.
- * Fallback chain: EmbeddingGemma (local) → OpenAI text-embedding-3-small
+ *
+ * Priority: OpenAI (fast, no RAM cost) → EmbeddingGemma (local, only if OpenAI unavailable).
+ * Set FARIA_LOCAL_EMBEDDINGS=1 to force local Gemma regardless.
  */
 export function createDefaultEmbeddingProvider(): EmbeddingProvider {
-  const gemma = createGemmaEmbeddingProvider();
-  let useOpenAI = false;
-  let openaiProvider: EmbeddingProvider | null = null;
+  const forceLocal = process.env.FARIA_LOCAL_EMBEDDINGS === '1';
 
-  const getOpenAI = (): EmbeddingProvider => {
-    if (!openaiProvider) {
-      openaiProvider = createOpenAIEmbeddingProvider();
+  if (forceLocal) {
+    console.log('[Memory] Using local EmbeddingGemma (FARIA_LOCAL_EMBEDDINGS=1)');
+    return createGemmaEmbeddingProvider();
+  }
+
+  // Use OpenAI by default (batched, no RAM overhead); fall back to local Gemma
+  // only if OpenAI is unavailable.
+  const openai = createOpenAIEmbeddingProvider();
+  let useGemma = false;
+  let gemmaProvider: EmbeddingProvider | null = null;
+
+  const getGemma = (): EmbeddingProvider => {
+    if (!gemmaProvider) {
+      console.warn('[Memory] Falling back to local EmbeddingGemma (OpenAI unavailable)');
+      gemmaProvider = createGemmaEmbeddingProvider();
     }
-    return openaiProvider;
+    return gemmaProvider;
   };
 
   const withFallback = async <T>(fn: (p: EmbeddingProvider) => Promise<T>): Promise<T> => {
-    if (!useOpenAI) {
+    if (!useGemma) {
       try {
-        return await fn(gemma);
+        return await fn(openai);
       } catch (err) {
-        console.warn('[Memory] EmbeddingGemma failed, falling back to OpenAI:', err);
-        useOpenAI = true;
+        console.warn('[Memory] OpenAI embedding failed, falling back to local Gemma:', err);
+        useGemma = true;
       }
     }
-    return fn(getOpenAI());
+    return fn(getGemma());
   };
 
-  return {
-    model: gemma.model,
-    dimensions: gemma.dimensions,
+  // Reflect active provider metadata accurately
+  let _activeProvider: EmbeddingProvider = openai;
+  const proxy: EmbeddingProvider = {
+    get model() { return _activeProvider.model; },
+    get dimensions() { return _activeProvider.dimensions; },
     async embedQuery(text: string): Promise<number[]> {
-      return withFallback((p) => p.embedQuery(text));
+      const result = await withFallback((p) => p.embedQuery(text));
+      if (useGemma) _activeProvider = getGemma();
+      return result;
     },
     async embedBatch(texts: string[]): Promise<number[][]> {
-      return withFallback((p) => p.embedBatch(texts));
+      const result = await withFallback((p) => p.embedBatch(texts));
+      if (useGemma) _activeProvider = getGemma();
+      return result;
     },
   };
+
+  return proxy;
 }
 
 /**

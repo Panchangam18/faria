@@ -5,6 +5,13 @@ import renderer from 'vite-plugin-electron-renderer';
 import { resolve } from 'path';
 
 export default defineConfig({
+  optimizeDeps: {
+    // Prevent Vite's esbuild pre-bundler from processing Electron's runtime
+    // module. The npm `electron` package just returns a binary path string —
+    // the real APIs are injected by the Electron runtime. Pre-bundling it
+    // breaks require("electron") in the main process.
+    exclude: ['electron'],
+  },
   plugins: [
     react(),
     electron([
