@@ -98,6 +98,17 @@ if [[ -n "${R2_ENDPOINT_URL:-}" && -n "${AWS_ACCESS_KEY_ID:-}" && -n "${AWS_SECR
       --endpoint-url "$R2_ENDPOINT_URL" \
       --content-type application/zip
     rm -f "$APP_ZIP"
+
+    # Upload version metadata so the site can show the current version
+    LATEST_JSON="$(mktemp).json"
+    printf '{"version":"%s","tag":"%s","date":"%s"}' \
+      "$PACKAGE_VERSION" "$RELEASE_TAG" "$(date -u +%Y-%m-%dT%H:%M:%SZ)" > "$LATEST_JSON"
+    aws s3 cp "$LATEST_JSON" "s3://faria-media/latest.json" \
+      --endpoint-url "$R2_ENDPOINT_URL" \
+      --content-type application/json \
+      --cache-control "no-cache, max-age=0"
+    rm -f "$LATEST_JSON"
+    echo "Uploaded latest.json → s3://faria-media/latest.json"
   fi
 fi
 
