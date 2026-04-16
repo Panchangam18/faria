@@ -2,7 +2,7 @@ import { app } from 'electron';
 import { initDatabase } from '../db/sqlite';
 import { getValidToken } from './auth-token';
 
-const PROXY_BASE = 'https://faria-proxy.madhavan.workers.dev';
+const getProxyBase = () => process.env.FARIA_PROXY_BASE || 'https://faria-proxy.madhavan.workers.dev';
 
 const isDev = process.env.NODE_ENV === 'development' || !app.isPackaged;
 
@@ -43,7 +43,7 @@ export async function getSerperConfig(path: string = '/search'): Promise<FetchCo
     };
   }
   return {
-    url: `${PROXY_BASE}/serper${path}`,
+    url: `${getProxyBase()}/serper${path}`,
     headers: await getAuthHeader(),
   };
 }
@@ -59,7 +59,7 @@ export async function getOpenAIEmbeddingConfig(): Promise<FetchConfig> {
     };
   }
   return {
-    url: `${PROXY_BASE}/openai/v1/embeddings`,
+    url: `${getProxyBase()}/openai/v1/embeddings`,
     headers: await getAuthHeader(),
   };
 }
@@ -73,7 +73,7 @@ export async function getComposioConfig(): Promise<{ apiKey: string | null; base
   }
   return {
     apiKey: 'proxied',
-    baseURL: `${PROXY_BASE}/composio`,
+    baseURL: `${getProxyBase()}/composio`,
     headers: await getAuthHeader(),
   };
 }
@@ -87,7 +87,7 @@ export async function getAnthropicConfig(): Promise<LLMProxyConfig> {
   }
   return {
     apiKey: 'proxied',
-    baseURL: `${PROXY_BASE}/anthropic`,
+    baseURL: `${getProxyBase()}/anthropic`,
     defaultHeaders: await getAuthHeader(),
   };
 }
@@ -101,7 +101,7 @@ export async function getGoogleConfig(): Promise<LLMProxyConfig> {
   }
   return {
     apiKey: 'proxied',
-    baseURL: `${PROXY_BASE}/google`,
+    baseURL: `${getProxyBase()}/google`,
     defaultHeaders: await getAuthHeader(),
   };
 }
@@ -115,7 +115,7 @@ export async function getOpenAIConfig(): Promise<LLMProxyConfig> {
   }
   return {
     apiKey: 'proxied',
-    baseURL: `${PROXY_BASE}/openai/v1`,
+    baseURL: `${getProxyBase()}/openai/v1`,
     defaultHeaders: await getAuthHeader(),
   };
 }

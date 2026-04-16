@@ -1,0 +1,6 @@
+# Firebase Web API key — intentionally public client-side config.
+# Restricted in Google Cloud Console to Identity Toolkit API and Token Service API only.
+6598097229b7c622b74b1d8b475aa5d1928dcdf1:electron/services/auth-token.ts:gcp-api-key:3
+6d31692ef47a52ff7d1673373e35d4ce043b98a4:electron/services/google-auth.ts:gcp-api-key:3
+57a42b69d706e22a78997ee666a8fd0289a46b23:electron/services/google-auth.ts:gcp-api-key:4
+57a42b69d706e22a78997ee666a8fd0289a46b23:src/lib/firebase.ts:gcp-api-key:5

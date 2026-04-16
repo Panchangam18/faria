@@ -17,7 +17,7 @@ Faria is an AI-powered desktop assistant that helps you accomplish tasks across 
 
 - macOS 12.0 or later
 - Node.js 18+
-- Anthropic API key
+- An LLM API key (Anthropic, OpenAI, or Google)
 
 ## Setup
 
@@ -26,22 +26,47 @@ Faria is an AI-powered desktop assistant that helps you accomplish tasks across 
    npm install
    ```
 
-2. Download cliclick (for input automation):
+2. Copy the environment template and fill in your keys:
+   ```bash
+   cp .env.example .env
+   ```
+   At minimum you need one LLM key (`ANTHROPIC_API_KEY`, `OPENAI_API_KEY`, or `GOOGLE_API_KEY`). See `.env.example` for all options.
+
+3. Build the native addon:
+   ```bash
+   npm run build:native
+   ```
+
+4. Download cliclick (for input automation):
    ```bash
    brew install cliclick
    # Or download from https://github.com/BlueM/cliclick/releases
    # and place in resources/cliclick
    ```
 
-3. Start the app:
+5. Start the app:
    ```bash
    npm run dev
    ```
 
-4. On first launch:
+6. On first launch:
    - Go to Settings
-   - Enter your Anthropic API key
+   - Enter your API key if not set via `.env`
    - Grant Accessibility permissions when prompted
+
+## Proxy (optional)
+
+The `faria-proxy/` directory contains a Cloudflare Worker that proxies LLM and tool requests for authenticated users. This is only needed if you want to run Faria without distributing API keys to end users.
+
+To self-host the proxy:
+```bash
+cd faria-proxy
+npm install
+npx wrangler secret put ANTHROPIC_API_KEY   # repeat for other providers
+npx wrangler deploy
+```
+
+Then set `FARIA_PROXY_BASE=https://your-worker.workers.dev` in your `.env`.
 
 ## Usage
 
@@ -85,7 +110,8 @@ Custom themes can be created in Settings.
 ## Building
 
 ```bash
-npm run build
+npm run build:native   # compile the Swift/node-gyp native addon
+npm run build          # bundle renderer + main process
 ```
 
 The built app will be in `dist/`.

@@ -40,3 +40,9 @@ resources/cliclick
 
 # Electron builder output
 release/
+
+# Native addon generated build artifacts (machine-specific paths; run `npm run build:native` locally)
+native/build/
+
+# Local AI assistant settings
+.claude/
