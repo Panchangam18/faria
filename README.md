@@ -15,7 +15,7 @@ Faria is a macOS desktop agent that understands your screen and takes action. Pr
 |----------|--------|
 | Anthropic | Claude Opus 4.6, Claude Sonnet 4.6 |
 | Google | Gemini 3.1 Pro, Gemini 3.1 Flash Lite |
-| OpenAI | GPT-5.4, computer-use |
+| OpenAI | GPT-5.4 |
 
 Switch models at any time from Settings. Bring your own API key or sign in to use the managed proxy.
 
@@ -29,21 +29,8 @@ When you invoke Faria, it extracts the state of your focused app through a tiere
 - **File tools** — read, write, and edit files
 - **Replace selected text** — in-place text substitution in any app
 - **Memory** — persistent vector memory across sessions; the agent recalls relevant context automatically
-- **Composio** — 100+ app integrations (GitHub, Notion, Gmail, Slack, etc.)
+- **Composio** — A lot of app integrations (GitHub, Notion, Gmail, Slack, etc.)
 
-## Shortcuts
-
-| Action | Default | Customizable |
-|--------|---------|-------------|
-| Open / close | `Cmd+Enter` | Yes |
-| Reset session | `Cmd+Shift+Enter` | Yes |
-| Move window | `Cmd+Ctrl` + arrow keys | Yes |
-
-All shortcuts can be remapped in Settings → Shortcuts.
-
-## Themes
-
-Five built-in themes: **Chateau**, **Comte**, **Mercédès**, **Pistols**, **Carnival** — plus a full custom color editor in Settings.
 
 ## Development setup
 
