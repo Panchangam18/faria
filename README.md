@@ -21,7 +21,7 @@ Switch models at any time from Settings. Bring your own API key or sign in to us
 
 ## How it works
 
-When you invoke Faria, it extracts the state of your focused app through a tiered approach — JavaScript injection, AppleScript, the macOS Accessibility API, and screenshots as a fallback. The agent then plans and executes actions using a set of built-in tools:
+When you invoke Faria, it sees your screen through screenshots and executes actions using a set of built-in tools:
 
 - **Computer actions** — click, type, scroll, drag, key combos via the Accessibility API
 - **Bash** — run shell commands
