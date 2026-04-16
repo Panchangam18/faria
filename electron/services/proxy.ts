@@ -36,10 +36,10 @@ async function getAuthHeader(): Promise<Record<string, string>> {
 
 export async function getSerperConfig(path: string = '/search'): Promise<FetchConfig> {
   const userKey = process.env.SERPER_API_KEY;
-  if (userKey || isDev) {
+  if (userKey) {
     return {
       url: `https://google.serper.dev${path}`,
-      headers: userKey ? { 'X-API-KEY': userKey } : {},
+      headers: { 'X-API-KEY': userKey },
     };
   }
   return {
@@ -52,10 +52,10 @@ export async function getSerperConfig(path: string = '/search'): Promise<FetchCo
 
 export async function getOpenAIEmbeddingConfig(): Promise<FetchConfig> {
   const userKey = process.env.OPENAI_API_KEY;
-  if (userKey || isDev) {
+  if (userKey) {
     return {
       url: 'https://api.openai.com/v1/embeddings',
-      headers: userKey ? { 'Authorization': `Bearer ${userKey}` } : {},
+      headers: { 'Authorization': `Bearer ${userKey}` },
     };
   }
   return {
@@ -68,8 +68,8 @@ export async function getOpenAIEmbeddingConfig(): Promise<FetchConfig> {
 
 export async function getComposioConfig(): Promise<{ apiKey: string | null; baseURL: string | null; headers?: Record<string, string> }> {
   const userKey = process.env.COMPOSIO_API_KEY;
-  if (userKey || isDev) {
-    return { apiKey: userKey || null, baseURL: null };
+  if (userKey) {
+    return { apiKey: userKey, baseURL: null };
   }
   return {
     apiKey: 'proxied',

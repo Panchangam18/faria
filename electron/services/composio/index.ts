@@ -170,12 +170,18 @@ export class ComposioService {
       return;
     }
 
+    // Reset disabled state so re-initialization after sign-in works
+    this.disabled = false;
+    this.composio = null;
+    this.session = null;
+
     try {
       this.userId = this.getOrCreateUserId();
 
       this.composio = new Composio({
         apiKey: config.apiKey,
         ...(config.baseURL ? { baseURL: config.baseURL } : {}),
+        ...(config.headers ? { defaultHeaders: config.headers } : {}),
         provider: new LangchainProvider()
       });
 

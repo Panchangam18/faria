@@ -549,17 +549,22 @@ function CommandBar() {
     };
 
     loadSettings();
-    window.faria.integrations.getConnections()
-      .then((connections) => {
-        const logos = new Map<string, string>();
-        for (const connection of connections) {
-          if (connection.logo) {
-            logos.set(connection.appName.toLowerCase(), connection.logo);
+    const loadLogos = () =>
+      window.faria.integrations.getConnections()
+        .then((connections) => {
+          const logos = new Map<string, string>();
+          for (const connection of connections) {
+            if (connection.logo) {
+              logos.set(connection.appName.toLowerCase(), connection.logo);
+            }
           }
-        }
-        setAppLogos(logos);
-      })
-      .catch(() => {});
+          if (logos.size > 0) setAppLogos(logos);
+        })
+        .catch(() => {});
+
+    // Fetch immediately, then retry once after 3s in case Composio is still initializing
+    loadLogos();
+    const logoRetryTimer = setTimeout(loadLogos, 3000);
 
     // Listen for theme changes - colors are always provided by main process
     const cleanupTheme = window.faria.settings.onThemeChange((themeData) => {
@@ -583,6 +588,7 @@ function CommandBar() {
     });
 
     return () => {
+      clearTimeout(logoRetryTimer);
       cleanupTheme();
       cleanupOpacity();
       cleanupSize();

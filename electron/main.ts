@@ -1168,6 +1168,12 @@ function setupIPC() {
         if (result.idToken && result.refreshToken) {
           const { setTokens } = await import('./services/auth-token');
           setTokens(result.idToken, result.refreshToken);
+          // Re-initialize Composio now that we have auth tokens
+          if (composioService?.isDisabled()) {
+            composioService.initialize().catch(err => {
+              console.warn('[Composio] Re-init after sign-in failed:', err.message);
+            });
+          }
         }
       }
       return result;
@@ -1210,6 +1216,12 @@ function setupIPC() {
   ipcMain.handle('auth:set-token', async (_event, idToken: string, refreshToken: string) => {
     const { setTokens } = await import('./services/auth-token');
     setTokens(idToken, refreshToken);
+    // Re-initialize Composio now that we have auth tokens
+    if (composioService?.isDisabled()) {
+      composioService.initialize().catch(err => {
+        console.warn('[Composio] Re-init after token set failed:', err.message);
+      });
+    }
     return { success: true };
   });
 
@@ -1577,10 +1589,11 @@ async function initializeServices() {
 }
 
 app.whenReady().then(async () => {
-  await initializeServices();
-  // Recover Firebase auth tokens from previous session
+  // Recover Firebase auth tokens from previous session FIRST
+  // so they're available when initializeServices() calls getAuthHeader()
   const { loadTokensFromDb } = await import('./services/auth-token');
   loadTokensFromDb();
+  await initializeServices();
   createMainWindow();
   loadSavedSize(); // Load saved size before position caching and window creation
   cacheCommandBarPosition(); // Cache position before creating window
