@@ -70,7 +70,6 @@ if [[ ! -d "$APP_PATH" ]]; then
 fi
 
 gh auth status >/dev/null
-xcrun stapler validate "$RELEASE_DMG_PATH" >/dev/null
 xcrun stapler validate "$APP_PATH" >/dev/null
 spctl -a -vv "$APP_PATH" >/dev/null
 

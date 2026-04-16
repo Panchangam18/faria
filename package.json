@@ -1,6 +1,6 @@
 {
   "name": "faria",
-  "version": "1.0.0",
+  "version": "1.0.2",
   "description": "Faria - The copilot for work on a computer",
   "main": "dist-electron/main.js",
   "scripts": {

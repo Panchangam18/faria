@@ -419,7 +419,8 @@ async function captureScreenshot(): Promise<string> {
  * Convert a LangChain DynamicStructuredTool to an OpenAI Responses API function tool definition.
  */
 function toOpenAIFunctionTool(tool: DynamicStructuredTool): Record<string, unknown> {
-  const jsonSchema = zodToJsonSchema(tool.schema, { target: 'openApi3' }) as Record<string, unknown>;
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const jsonSchema = zodToJsonSchema(tool.schema as any, { target: 'openApi3' }) as Record<string, unknown>;
   // Remove $schema key which OpenAI doesn't accept
   delete jsonSchema['$schema'];
   return {
