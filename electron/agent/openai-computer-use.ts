@@ -1,5 +1,7 @@
 import OpenAI from 'openai';
 import { clipboard, screen } from 'electron';
+import { DynamicStructuredTool } from '@langchain/core/tools';
+import { zodToJsonSchema } from 'zod-to-json-schema';
 import * as cliclick from '../services/cliclick';
 import { takeScreenshot } from '../services/screenshot';
 import { runAppleScript } from '../services/applescript';
@@ -29,6 +31,8 @@ interface OpenAICUACallbacks {
   sendChunkClear: () => void;
   shouldCancel: () => boolean;
   requestApproval: (args: Record<string, unknown>) => Promise<{ approved: boolean; reason?: string }>;
+  /** Execute a LangChain tool by name (handles approval + invocation). Returns result string. */
+  executeFunction?: (toolName: string, args: Record<string, unknown>) => Promise<string>;
 }
 
 interface TraceAction {
@@ -412,11 +416,29 @@ async function captureScreenshot(): Promise<string> {
 }
 
 /**
+ * Convert a LangChain DynamicStructuredTool to an OpenAI Responses API function tool definition.
+ */
+function toOpenAIFunctionTool(tool: DynamicStructuredTool): Record<string, unknown> {
+  const jsonSchema = zodToJsonSchema(tool.schema, { target: 'openApi3' }) as Record<string, unknown>;
+  // Remove $schema key which OpenAI doesn't accept
+  delete jsonSchema['$schema'];
+  return {
+    type: 'function',
+    name: tool.name,
+    description: tool.description,
+    parameters: jsonSchema,
+  };
+}
+
+/**
  * Run the OpenAI Responses API computer use loop.
  *
- * @param query - The user's task description
+ * @param model - Model name
+ * @param promptText - The user's task description
  * @param systemPrompt - System instructions for the model
  * @param callbacks - UI update callbacks
+ * @param previousMessages - Prior conversation turns for context
+ * @param tools - LangChain tools to expose as function calls (Composio, web_search, etc.)
  * @returns Final text response from the model
  */
 export async function runOpenAIComputerUseLoop(
@@ -424,7 +446,8 @@ export async function runOpenAIComputerUseLoop(
   promptText: string,
   systemPrompt: string,
   callbacks: OpenAICUACallbacks,
-  previousMessages?: Array<{ role: 'user' | 'assistant'; content: string }>
+  previousMessages?: Array<{ role: 'user' | 'assistant'; content: string }>,
+  tools: DynamicStructuredTool[] = []
 ): Promise<OpenAIComputerUseResult> {
   const toolsUsed: string[] = [];
   const actions: TraceAction[] = [];
@@ -452,6 +475,11 @@ export async function runOpenAIComputerUseLoop(
     ...(config.defaultHeaders ? { defaultHeaders: config.defaultHeaders } : {}),
   });
 
+  // Build tool list: computer tool + any LangChain function tools
+  const functionToolDefs = tools.map(toOpenAIFunctionTool);
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const allToolDefs: any[] = [{ type: 'computer' as const }, ...functionToolDefs];
+
   // First request: send task with computer tool enabled (no initial screenshot —
   // the model will request one via computer_call if it needs visual context).
   callbacks.sendStatus('Thinking...');
@@ -460,7 +488,7 @@ export async function runOpenAIComputerUseLoop(
   let response: any = await client.responses.create({
     model,
     instructions: systemPrompt,
-    tools: [{ type: 'computer' as const }],
+    tools: allToolDefs,
     parallel_tool_calls: false,
     reasoning: { effort: 'low' as const },
     truncation: 'auto' as const,
@@ -488,12 +516,13 @@ export async function runOpenAIComputerUseLoop(
 
     const responseText = extractOutputText(response);
 
-    // Find computer_call in output
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const computerCall = response.output?.find((item: any) => item.type === 'computer_call');
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const functionCall = response.output?.find((item: any) => item.type === 'function_call');
 
-    if (!computerCall) {
-      // Final turn — send as the response, not as thinking
+    if (!computerCall && !functionCall) {
+      // Final turn — no more tool calls
       if (responseText) {
         callbacks.sendChunkClear();
         callbacks.sendChunk(responseText);
@@ -506,14 +535,57 @@ export async function runOpenAIComputerUseLoop(
       };
     }
 
-    // Intermediate turn — stream thinking text to the UI and record it
+    // Intermediate thinking text
     if (responseText) {
       recordThinking(responseText);
       callbacks.sendChunkClear();
       callbacks.sendChunk(responseText);
     }
 
-    // Execute all actions in the computer_call
+    // ── Function call (Composio, web_search, etc.) ──────────────────────────
+    if (functionCall) {
+      const toolName: string = functionCall.name;
+      const toolArgs: Record<string, unknown> = JSON.parse(functionCall.arguments || '{}');
+
+      console.log(`[OpenAI CUA] Function call: ${toolName}`, JSON.stringify(toolArgs).slice(0, 300));
+      pushUnique(toolsUsed, toolName);
+      actions.push({ tool: toolName, input: toolArgs, timestamp: Date.now() });
+
+      let toolResult: string;
+      if (callbacks.executeFunction) {
+        try {
+          toolResult = await callbacks.executeFunction(toolName, toolArgs);
+        } catch (err) {
+          toolResult = `Error: ${err}`;
+        }
+      } else {
+        toolResult = `Tool ${toolName} is not available in this mode.`;
+      }
+
+      if (callbacks.shouldCancel()) {
+        return { response: '', toolsUsed, actions, cancelled: true };
+      }
+
+      callbacks.sendStatus('Thinking...');
+      response = await client.responses.create({
+        model,
+        tools: allToolDefs,
+        parallel_tool_calls: false,
+        reasoning: { effort: 'low' as const },
+        truncation: 'auto' as const,
+        previous_response_id: response.id,
+        input: [
+          {
+            type: 'function_call_output' as const,
+            call_id: functionCall.call_id,
+            output: toolResult,
+          },
+        ],
+      });
+      continue;
+    }
+
+    // ── Computer call ───────────────────────────────────────────────────────
     const computerActions: ComputerAction[] = computerCall.actions || [];
     recordComputerActions(computerActions);
     const actionSummary = computerActions.map((a: ComputerAction) => a.type).join(', ');
@@ -556,7 +628,7 @@ export async function runOpenAIComputerUseLoop(
       return { response: '', toolsUsed, actions, cancelled: true };
     }
 
-    // Capture screenshot after actions
+    // Capture screenshot after computer actions
     callbacks.sendStatus('Taking screenshot...');
     await sleep(300); // Brief delay for UI to settle
     const screenshotBase64 = await captureScreenshot();
@@ -564,12 +636,10 @@ export async function runOpenAIComputerUseLoop(
       return { response: '', toolsUsed, actions, cancelled: true };
     }
 
-    // Send screenshot back as computer_call_output
     callbacks.sendStatus('Thinking...');
-
     response = await client.responses.create({
       model,
-      tools: [{ type: 'computer' as const }],
+      tools: allToolDefs,
       parallel_tool_calls: false,
       reasoning: { effort: 'low' as const },
       truncation: 'auto' as const,

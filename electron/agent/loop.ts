@@ -725,6 +725,12 @@ export class AgentLoop {
       const promptMs = performance.now() - promptStart;
       console.log(`[Timing] Prompt & context setup: ${promptMs.toFixed(0)}ms`);
 
+      // Declared here so the OpenAI executeFunction closure and the LangChain loop both share them
+      let finalResponse = '';
+      let streamedResponseText = '';
+      const toolsUsed: string[] = [];
+      const actions: Array<{ tool: string; input: unknown; timestamp: number }> = [];
+
       if (providerName === 'openai') {
         // The OpenAI sample app uses the native Responses API "computer" tool
         // rather than generic tool-calling. Keep GPT-5.4 on that path so the
@@ -806,8 +812,53 @@ export class AgentLoop {
                 hideClickIndicator();
               }
             },
+            executeFunction: async (toolName, toolArgs) => {
+              const toolToExecute = allTools.find(t => t.name === toolName);
+              if (!toolToExecute) return `Unknown tool: ${toolName}`;
+
+              const isComposioTool = !SAFE_TOOLS.has(toolName) &&
+                !['computer_actions', 'web_search', 'insert_image',
+                  'replace_selected_text', 'execute_python', 'execute_bash'].includes(toolName);
+
+              const needsApproval = this.checkIfApprovalNeeded(
+                toolName, toolArgs, isComposioTool, toolSettings
+              );
+
+              if (needsApproval) {
+                const { displayName, details } = isComposioTool
+                  ? generateComposioApprovalInfo(toolName, toolArgs)
+                  : generateBuiltinApprovalInfo(toolName, toolArgs);
+                this.sendStatus('Waiting for approval...');
+                const approved = await this.requestToolApproval(
+                  toolName,
+                  toolToExecute.description || `Execute ${toolName}`,
+                  toolArgs,
+                  isComposioTool,
+                  displayName,
+                  details
+                );
+                if (!approved || this.shouldCancel) return 'Tool execution denied by user';
+              }
+
+              const action = { tool: toolName, input: toolArgs, timestamp: Date.now() };
+              actions.push(action);
+              this.sendToolAction(action);
+              toolsUsed.push(toolName);
+              this.sendStatus(`${getToolDisplayName(toolName)}...`);
+
+              try {
+                const res = await toolToExecute.invoke(toolArgs);
+                const resultStr = typeof res === 'string' ? res : JSON.stringify(res);
+                console.log(`[OpenAI CUA] Function result: ${toolName} SUCCESS`, resultStr.slice(0, 200));
+                return resultStr;
+              } catch (err) {
+                console.error(`[OpenAI CUA] Function result: ${toolName} FAILED`, err);
+                return `Error: ${err}`;
+              }
+            },
           },
-          prevMsgs.length > 0 ? prevMsgs : undefined
+          prevMsgs.length > 0 ? prevMsgs : undefined,
+          allTools
         );
 
         // Append the AI response to conversation history so follow-up turns have context.
@@ -862,10 +913,7 @@ export class AgentLoop {
       console.log(`[Timing] Model creation: ${modelMs.toFixed(0)}ms`);
       console.log(`[Timing] Total setup (query → ready to stream): ${setupMs.toFixed(0)}ms`);
 
-      let finalResponse = '';
-      let streamedResponseText = ''; // Accumulates streamed chunks for saving cancelled runs
-      const toolsUsed: string[] = [];
-      const actions: Array<{ tool: string; input: unknown; timestamp: number }> = [];
+      // (finalResponse, streamedResponseText, toolsUsed, actions declared above before the OpenAI block)
 
 
       while (!this.shouldCancel) {
